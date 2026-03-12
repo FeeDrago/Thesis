@@ -137,7 +137,7 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
             plt.close()
 
 if __name__ == "__main__":
-    output_path = r"C:\Users\ngeorgan\Desktop\THESIS\code\Preliminary Investigation"
+    output_path = path = os.path.dirname(os.path.abspath(__file__))
     
     generators = ['g1', 'g2', 'g3', 'g4']
     cols = {

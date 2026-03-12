@@ -10,7 +10,7 @@ sns.set_theme(style="whitegrid") # Clean, professional background
 plt.rcParams.update({'font.size': 12, 'axes.labelsize': 13, 'axes.titlesize': 14})
 
 # --- SETUP PATHS ---
-path = r"C:\Users\ngeorgan\Desktop\THESIS\code\Preliminary Investigation"
+path = path = os.path.dirname(os.path.abspath(__file__))
 stats_path = os.path.join(path, "stats")
 if not os.path.exists(stats_path):
     os.makedirs(stats_path)
