@@ -4,120 +4,142 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 import os
+from scipy.signal import detrend
+from sklearn.metrics import r2_score, mean_squared_error
+from matrix_pencil import filter_signal
 
-# --- SETUP STYLE ---
-sns.set_theme(style="whitegrid") # Clean, professional background
-plt.rcParams.update({'font.size': 12, 'axes.labelsize': 13, 'axes.titlesize': 14})
+# Settings
+sns.set_theme(style="whitegrid")
+plt.rcParams.update({'font.size': 11, 'axes.labelsize': 12, 'axes.titlesize': 14})
 
-# --- SETUP PATHS ---
-path = path = os.path.dirname(os.path.abspath(__file__))
+# Path configuration
+path = os.path.dirname(os.path.abspath(__file__))
 stats_path = os.path.join(path, "stats")
 if not os.path.exists(stats_path):
     os.makedirs(stats_path)
 
-# Load results
+# Data initialization
 df = pd.read_csv(os.path.join(path, "results.csv"))
+gen_id_map = {'g1': 'Generator 1', 'g2': 'Generator 2', 'g3': 'Generator 3', 'g4': 'Generator 4'}
+df['Gen_ID'] = df['Gen'] 
+df['Gen'] = df['Gen_ID'].map(gen_id_map)
+
 method_order = ['Order 2', 'Order 4', 'Order 6', 'Tau 1', 'Tau 0.1', 'Tau 0.01']
+signals_map = {
+    'Voltage': 's:ut in p.u.',
+    'Current': 's:cur1 in p.u.',
+    'Active Power': 's:P1 in MW',
+    'Reactive Power': 's:Q1 in Mvar'
+}
 
-# --- 1. SAVE SUMMARY CSV ---
-summary_df = df.groupby(['Gen', 'Signal', 'Method']).size().reset_index(name='Poles_Count')
-summary_df.to_csv(os.path.join(stats_path, "pole_identification_summary.csv"), index=False)
+# Performance analysis
+metrics = []
+for gid, glabel in gen_id_map.items():
+    csv_file = os.path.join(path, f"{gid}.csv")
+    if not os.path.exists(csv_file): continue
+    
+    raw_df = pd.read_csv(csv_file)
+    t_f = raw_df.iloc[:, 0].values
+    mask = t_f > 1.2
+    t = t_f[mask].copy() - t_f[mask][0]
 
-# --- 2. 2D HEATMAP ---
+    for sig_l, col in signals_map.items():
+        if col not in raw_df.columns: continue
+        y_ref = filter_signal(detrend(raw_df[col].values[mask]), t, fc=10)
+        
+        for meth in method_order:
+            modes = df[(df['Gen_ID'] == gid) & (df['Signal'] == sig_l) & (df['Method'] == meth)]
+            if modes.empty: continue
+            
+            y_est = np.zeros_like(t)
+            for _, m in modes.iterrows():
+                y_est += 2*m['Amplitude']*np.exp(m['Damping']*t)*np.cos(2*np.pi*m['Frequency']*t + m['Phase'])
+            
+            r2 = r2_score(y_ref, y_est)
+            rmse = np.sqrt(mean_squared_error(y_ref, y_est))
+            metrics.append({'Gen': glabel, 'Signal': sig_l, 'Method': meth, 'R2': r2, 'RMSE': rmse, 'Poles': len(modes)})
+
+df_m = pd.DataFrame(metrics)
+df_m.to_csv(os.path.join(stats_path, "comprehensive_report.csv"), index=False)
+
+# 1. Heatmap
 plt.figure(figsize=(10, 7))
-heatmap_data = df.groupby(['Gen', 'Signal']).size().unstack(fill_value=0)
-sns.heatmap(heatmap_data, annot=True, cmap="YlGnBu", fmt='d', cbar_kws={'label': 'Count'})
-plt.title("Total Identified Poles per Signal & Generator\n(Overall Confidence Map)", fontweight='bold', pad=20)
-plt.ylabel("Generator ID", fontweight='bold')
-plt.xlabel("Signal Type", fontweight='bold')
-plt.tight_layout()
-plt.savefig(os.path.join(stats_path, "1_poles_heatmap.png"), dpi=300)
+h_data = df.groupby(['Gen', 'Signal']).size().unstack(fill_value=0)
+sns.heatmap(h_data, annot=True, cmap="YlGnBu", fmt='d', cbar_kws={'label': 'Poles Count'})
+plt.title("Pole Density Heatmap", fontweight='bold')
+plt.ylabel("Generator")
+plt.savefig(os.path.join(stats_path, "1_heatmap.png"), dpi=300, bbox_inches='tight')
 plt.close()
 
-# --- 3. BAR CHART 1: 2x2 GRID (X = Signal) ---
-g1 = sns.catplot(
-    data=df, kind="count", x="Signal", hue="Method", 
-    hue_order=method_order, col="Gen", col_wrap=2, 
-    palette="muted", height=5, aspect=1.3, legend_out=True,
-    edgecolor="0.2" # Subtle border on bars
-)
-g1.fig.suptitle("Poles Identified: Grouped by Signal Type", fontsize=18, fontweight='bold', y=1.05)
+# 2. Poles per signal grid
+g1 = sns.catplot(data=df, kind="count", x="Signal", hue="Method", hue_order=method_order, 
+                 col="Gen", col_wrap=2, palette="muted", height=5, aspect=1.2, edgecolor="0.2", legend_out=True)
+g1.fig.suptitle("Poles Count by Signal Type", fontweight='bold', y=1.05)
+g1.set_titles("{col_name}")
 g1.set_axis_labels("Signal Type", "Pole Count")
-g1.set_titles("Generator: {col_name}", fontweight='bold')
-# Rotating x-labels for clarity
-for ax in g1.axes.flat:
-    ax.tick_params(axis='x', rotation=15)
-
-plt.savefig(os.path.join(stats_path, "2_poles_facet_by_signal.png"), dpi=300, bbox_inches='tight')
+plt.savefig(os.path.join(stats_path, "2_bar_grid_signal.png"), dpi=300, bbox_inches='tight')
 plt.close()
 
-# --- 4. BAR CHART 2: 2x2 GRID (X = Method) ---
-g2 = sns.catplot(
-    data=df, kind="count", x="Method", order=method_order,
-    hue="Signal", col="Gen", col_wrap=2, 
-    palette="muted", height=5, aspect=1.3, legend_out=True,
-    edgecolor="0.2"
-)
-g2.fig.suptitle("Poles Identified: Grouped by Matrix Pencil Method", fontsize=18, fontweight='bold', y=1.05)
-g2.set_axis_labels("Method / Parameter", "Pole Count")
-g2.set_titles("Generator: {col_name}", fontweight='bold')
-for ax in g2.axes.flat:
-    ax.tick_params(axis='x', rotation=30) # More rotation for method names
-
-plt.savefig(os.path.join(stats_path, "3_poles_facet_by_method.png"), dpi=300, bbox_inches='tight')
+# 3. Poles per method grid
+g2 = sns.catplot(data=df, kind="count", x="Method", order=method_order, hue="Signal", 
+                 col="Gen", col_wrap=2, palette="muted", height=5, aspect=1.2, edgecolor="0.2", legend_out=True)
+g2.fig.suptitle("Poles Count by Method", fontweight='bold', y=1.05)
+g2.set_titles("{col_name}")
+g2.set_axis_labels("Method", "Pole Count")
+for ax in g2.axes.flat: ax.tick_params(axis='x', rotation=30)
+plt.savefig(os.path.join(stats_path, "3_bar_grid_method.png"), dpi=300, bbox_inches='tight')
 plt.close()
 
-# --- 5. 3D BAR CHART (PRO LOOK) ---
+# 4. 3D projection
 fig = plt.figure(figsize=(12, 9))
 ax = fig.add_subplot(111, projection='3d')
-
-gens = df['Gen'].unique()
-sigs = df['Signal'].unique()
-gen_map = {val: i for i, val in enumerate(gens)}
-sig_map = {val: i for i, val in enumerate(sigs)}
-
+gens_u, sigs_u = list(gen_id_map.values()), list(signals_map.keys())
 df_3d = df.groupby(['Gen', 'Signal']).size().reset_index(name='Count')
-x, y = df_3d['Gen'].map(gen_map).values, df_3d['Signal'].map(sig_map).values
-z, dz = np.zeros_like(x), df_3d['Count'].values
-dx = dy = 0.4
-
-# Create a color map for bars based on height
-colors_3d = plt.cm.viridis(dz / dz.max())
-ax.bar3d(x, y, z, dx, dy, dz, color=colors_3d, alpha=0.8, edgecolor='gray', linewidth=0.5)
-
-ax.set_xticks(np.arange(len(gens)) + 0.2)
-ax.set_xticklabels(gens, fontweight='bold')
-ax.set_yticks(np.arange(len(sigs)) + 0.2)
-ax.set_yticklabels(sigs, fontweight='bold')
-ax.set_zlabel('Count', fontweight='bold')
-ax.set_title('3D Pole Identification Density', fontsize=16, fontweight='bold', pad=20)
-ax.view_init(elev=25, azim=45) # Better perspective
-
-plt.savefig(os.path.join(stats_path, "4_3D_counts_overview.png"), dpi=300)
+x_p = [gens_u.index(g) for g in df_3d['Gen']]
+y_p = [sigs_u.index(s) for s in df_3d['Signal']]
+dz = df_3d['Count'].values
+ax.bar3d(x_p, y_p, np.zeros(len(df_3d)), 0.5, 0.5, dz, color=plt.cm.viridis(dz/dz.max()))
+ax.set_xticks(np.arange(len(gens_u)) + 0.25)
+ax.set_xticklabels(gens_u)
+ax.set_yticks(np.arange(len(sigs_u)) + 0.25)
+ax.set_yticklabels(sigs_u)
+plt.savefig(os.path.join(stats_path, "4_3D_overview.png"), dpi=300, bbox_inches='tight')
 plt.close()
 
-# --- 6. MODAL BUBBLE MAP (FINAL BOSS PLOT) ---
-plt.figure(figsize=(14, 8))
-df['Gen_Signal'] = df['Gen'].str.upper() + " | " + df['Signal']
-# Normalize sizes but keep them visible
-min_s, max_s = 60, 1000
-norm_amp = (df['Amplitude'] - df['Amplitude'].min()) / (df['Amplitude'].max() - df['Amplitude'].min() + 1e-9)
-bubble_sizes = norm_amp * (max_s - min_s) + min_s
-
-scatter = plt.scatter(
-    df['Frequency'], df['Gen_Signal'], 
-    s=bubble_sizes, c=df['Damping'], 
-    cmap='RdYlGn', alpha=0.7, edgecolors='black', linewidth=0.8
-)
-
-cbar = plt.colorbar(scatter)
-cbar.set_label('Damping Coefficient (Sigma)', fontweight='bold')
-plt.title("Modal Distribution Map\n(Size = Amplitude Strength | Color = Damping)", fontsize=16, fontweight='bold', pad=20)
-plt.xlabel("Oscillation Frequency [Hz]", fontweight='bold')
-plt.ylabel("Data Source (Generator & Signal)", fontweight='bold')
-plt.grid(True, linestyle='--', alpha=0.4)
-plt.tight_layout()
-plt.savefig(os.path.join(stats_path, "5_modal_bubble_map.png"), dpi=300)
+# 5. Modal bubble map
+plt.figure(figsize=(14, 9))
+df['Src'] = df['Gen'] + " | " + df['Signal']
+norm_a = (df['Amplitude'] - df['Amplitude'].min()) / (df['Amplitude'].max() - df['Amplitude'].min() + 1e-9)
+plt.scatter(df['Frequency'], df['Src'], s=norm_a*800+100, c=df['Damping'], cmap='RdYlGn', edgecolors='black')
+plt.colorbar().set_label(r'Damping ($\sigma$)')
+plt.title("Modal Frequency/Damping Map", fontweight='bold')
+plt.savefig(os.path.join(stats_path, "5_bubble_map.png"), dpi=300, bbox_inches='tight')
 plt.close()
 
-print(f"\n[SUCCESS] Stats visualization complete. Files saved in: {stats_path}")
+# 6. R2 boxplot
+plt.figure(figsize=(12, 7))
+sns.boxplot(data=df_m, x="Method", y="R2", hue="Method", order=method_order, palette="Set2", legend=False)
+plt.title("Method Reliability ($R^2$)", fontweight='bold')
+plt.ylabel("$R^2$ Accuracy Score")
+if df_m['R2'].min() < 0.5: plt.ylim(0.0, 1.05)
+else: plt.ylim(df_m['R2'].min()*0.98, 1.02)
+plt.savefig(os.path.join(stats_path, "6_R2_boxplot.png"), dpi=300, bbox_inches='tight')
+plt.close()
+
+# 7. Pareto chart
+plt.figure(figsize=(11, 7))
+sns.scatterplot(data=df_m, x="Poles", y="R2", hue="Method", style="Gen", s=150)
+plt.title("Accuracy vs Complexity", fontweight='bold')
+plt.ylabel("$R^2$ Score")
+plt.legend(bbox_to_anchor=(1.02, 1), loc='upper left')
+plt.savefig(os.path.join(stats_path, "7_pareto.png"), dpi=300, bbox_inches='tight')
+plt.close()
+
+# 8. Method ranking
+best_m = df_m.loc[df_m.groupby(['Gen', 'Signal'])['R2'].idxmax()]
+plt.figure(figsize=(10, 6))
+sns.countplot(data=best_m, x="Method", hue="Method", order=method_order, palette="viridis", legend=False)
+plt.title("Best Method Ranking (Max $R^2$)", fontweight='bold')
+plt.ylabel("Frequency")
+plt.savefig(os.path.join(stats_path, "8_ranking.png"), dpi=300, bbox_inches='tight')
+plt.close()
