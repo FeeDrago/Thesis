@@ -143,3 +143,65 @@ plt.title("Best Method Ranking (Max $R^2$)", fontweight='bold')
 plt.ylabel("Frequency")
 plt.savefig(os.path.join(stats_path, "8_ranking.png"), dpi=300, bbox_inches='tight')
 plt.close()
+
+# 9. Best Reconstruction 4x4 Grid
+fig, axes = plt.subplots(4, 4, figsize=(20, 16), sharex=True)
+fig.suptitle("Absolute Best Signal Reconstruction (Max $R^2$)", fontsize=22, fontweight='bold', y=0.97)
+
+gens = list(gen_id_map.values())
+sigs = list(signals_map.keys())
+
+for i, glabel in enumerate(gens):
+    # Retrieve the original gen id (g1, g2...) to read the csv
+    gid = [k for k, v in gen_id_map.items() if v == glabel][0]
+    csv_file = os.path.join(path, f"{gid}.csv")
+    
+    if not os.path.exists(csv_file): 
+        for j in range(4): axes[i, j].axis('off')
+        continue
+    
+    raw_df = pd.read_csv(csv_file)
+    t_f = raw_df.iloc[:, 0].values
+    mask = t_f > 1.2
+    t = t_f[mask].copy() - t_f[mask][0]
+
+    for j, sig_l in enumerate(sigs):
+        ax = axes[i, j]
+        col = signals_map[sig_l]
+        if col not in raw_df.columns: 
+            ax.axis('off')
+            continue
+        
+        # Get the original filtered signal
+        y_ref = filter_signal(detrend(raw_df[col].values[mask]), t, fc=10)
+        
+        # Find the best method from the best_m dataframe
+        best_row = best_m[(best_m['Gen'] == glabel) & (best_m['Signal'] == sig_l)]
+        if best_row.empty:
+            ax.text(0.5, 0.5, "No Data", ha='center', va='center', transform=ax.transAxes)
+            continue
+            
+        best_method = best_row.iloc[0]['Method']
+        best_r2 = best_row.iloc[0]['R2']
+        
+        # Recompute y_est for this specific best method
+        modes = df[(df['Gen'] == glabel) & (df['Signal'] == sig_l) & (df['Method'] == best_method)]
+        y_est = np.zeros_like(t)
+        for _, m in modes.iterrows():
+            y_est += 2 * m['Amplitude'] * np.exp(m['Damping'] * t) * np.cos(2 * np.pi * m['Frequency'] * t + m['Phase'])
+            
+        # Plotting
+        ax.plot(t, y_ref, color='black', alpha=0.3, linewidth=2, label='Original (filtered)')
+        ax.plot(t, y_est, '--', color='red', linewidth=1.5, label='MP Estimate')
+        
+        # Titles and formatting
+        ax.set_title(f"{glabel} - {sig_l}\nMethod: {best_method} ($R^2$: {best_r2:.4f})", fontsize=11, fontweight='semibold')
+        ax.grid(True, linestyle=':', alpha=0.6)
+        
+        if i == 3: ax.set_xlabel("Time (s)", fontsize=11)
+        if j == 0: ax.set_ylabel("Amplitude", fontsize=11)
+        if i == 0 and j == 3: ax.legend(loc='upper right', fontsize='medium')
+
+plt.tight_layout(rect=[0, 0.03, 1, 0.94])
+plt.savefig(os.path.join(stats_path, "9_best_reconstruction_grid.png"), dpi=300)
+plt.close()
