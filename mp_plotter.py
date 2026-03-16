@@ -63,7 +63,7 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
         gen_data = df_results[df_results['Gen'] == gen]
         if gen_data.empty: continue
         
-        fig, axes = plt.subplots(2, 2, figsize=(12, 10), sharex=True, sharey=True)
+        fig, axes = plt.subplots(2, 2, figsize=(16, 12), sharex=True, sharey=True)
         fig.suptitle(f"Modal Identification per Signal: Generator {gen.upper()}", fontsize=16, fontweight='bold')
         axes_flat = axes.flatten()
         
@@ -77,15 +77,15 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
             ax.set_title(signal, fontsize=12, fontweight='semibold')
             ax.grid(True, linestyle=':', alpha=0.6)
             
-            if i >= 2: ax.set_xlabel("Damping (Sigma) [rad/s]")
-            if i % 2 == 0: ax.set_ylabel("Frequency [Hz]")
+            if i >= 2: ax.set_xlabel("Damping (Sigma) [rad/s]", fontsize=12)
+            if i % 2 == 0: ax.set_ylabel("Frequency [Hz]", fontsize=12)
             
         plt.tight_layout(rect=[0, 0, 1, 0.96])
         plt.savefig(os.path.join(modal_maps_path, f"{gen}_2x2_grid.png"), dpi=300)
         plt.close(fig)
 
     # 2x2 Grid for all generators
-    fig, axes = plt.subplots(2, 2, figsize=(15, 12), sharex=True, sharey=True)
+    fig, axes = plt.subplots(2, 2, figsize=(16, 12), sharex=True, sharey=True)
     fig.suptitle("System-Wide Modal Identification (All Generators)", fontsize=16, fontweight='bold')
     axes_flat = axes.flatten()
     for i, gen in enumerate(generators):
@@ -97,12 +97,12 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
         ax.axvline(0, color='red', linestyle='--', alpha=0.5)
         ax.set_title(f"Generator {gen.upper()}")
         ax.grid(True, linestyle=':', alpha=0.4)
-        if i >= 2: ax.set_xlabel("Damping (Sigma)")
-        if i % 2 == 0: ax.set_ylabel("Frequency (Hz)")
+        if i >= 2: ax.set_xlabel("Damping (Sigma)", fontsize=12)
+        if i % 2 == 0: ax.set_ylabel("Frequency (Hz)", fontsize=12)
 
     handles = [plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=c, markersize=10, label=s) for s, c in colors.items()]
-    fig.legend(handles=handles, labels=colors.keys(), loc='center right', title="Signals")
-    plt.tight_layout(rect=[0, 0, 0.92, 0.95])
+    fig.legend(handles=handles, labels=colors.keys(), loc='lower center', ncol=4, title="Signals", fontsize=12, title_fontsize=13)
+    plt.tight_layout(rect=[0, 0.08, 1, 0.95])
     plt.savefig(os.path.join(modal_maps_path, "All_Generators_Grid.png"), dpi=300)
 
     # 2. SIGNAL RECONSTRUCTION PLOTS 
