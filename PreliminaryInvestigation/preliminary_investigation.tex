@@ -5,6 +5,13 @@
 \usepackage{fontspec}
 \usepackage[hidelinks]{hyperref}
 \usepackage{flushend}
+\usepackage{booktabs}
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{placeins}
 \urlstyle{same}
 
 
@@ -21,13 +28,10 @@
   BoldItalicFont = * Bold Italic
 ]{GFS Artemisia}
 
-\usepackage{cite}
-\usepackage{amsmath,amssymb,amsfonts}
-\usepackage{graphicx}
-\usepackage{textcomp}
-\usepackage{xcolor}
+
 \def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
     T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+
 \begin{document}
 
 \title{Προκαταρκτική Διερεύνηση και Εκτίμηση Ταλαντωτικών Ιδιομορφών στο Σύστημα Δύο Περιοχών (Kundur) μέσω Ανάλυσης Ringdown και της Μεθόδου Matrix Pencil}
@@ -183,6 +187,32 @@ Matrix Pencil Method, Kundur Two-Area System, Modal Analysis, Ringdown Response,
     \end{figure}
 \end{itemize}
 
+Στον Πίνακα \ref{tab:summary_modes} παρουσιάζονται οι κυρίαρχες ιδιομορφές που προέκυψαν από την ανάλυση Matrix Pencil, επιλεγμένες με βάση το μέγιστο πλάτος (\textit{Amplitude}) στην περιοχή συχνοτήτων $0.4$--$0.6$~Hz. Η σταθερή εμφάνιση της συχνότητας $f \approx 0.54$~Hz και της απόσβεσης $\sigma \approx -0.16$~rad/s σε όλα τα σήματα ($P$, $Q$, $V$ και $I$) επιβεβαιώνει την ταυτοποίηση της διασυνδετικής ιδιομορφής (\textit{inter-area mode}) του συστήματος. Παράλληλα, το αρνητικό πρόσημο της απόσβεσης σε όλες τις γεννήτριες πιστοποιεί τη δυναμική ευστάθεια της απόκρισης μετά τη διαταραχή.
+
+\begin{table*}[t] 
+\centering
+\caption{\textsc{Σύνοψη Κυρίαρχης Ιδιομορφής \textit{Inter-area Mode}}}
+\label{tab:summary_modes}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lcccc}
+\toprule
+\addlinespace[0.1cm]
+\textbf{Γεννήτρια} & \textbf{Active Power ($P$)} & \textbf{Reactive Power ($Q$)} & \textbf{Voltage ($V$)} & \textbf{Current ($I$)} \\
+ & $f$ ($\sigma$) [Hz] & $f$ ($\sigma$) [Hz] & $f$ ($\sigma$) [Hz] & $f$ ($\sigma$) [Hz] \\
+\addlinespace[0.1cm]
+\midrule
+\addlinespace[0.1cm]
+\textbf{G1} & 0.536 ($-0.156$) & 0.537 ($-0.158$) & 0.545 ($-0.126$) & 0.538 ($-0.149$) \\
+\textbf{G2} & 0.528 ($-0.174$) & 0.537 ($-0.134$) & 0.528 ($-0.143$) & 0.542 ($-0.153$) \\
+\textbf{G3} & 0.551 ($-0.170$) & 0.539 ($-0.180$) & 0.539 ($-0.147$) & 0.546 ($-0.176$) \\
+\textbf{G4} & 0.539 ($-0.170$) & 0.545 ($-0.161$) & 0.536 ($-0.156$) & 0.545 ($-0.169$) \\
+\addlinespace[0.1cm]
+\bottomrule
+\end{tabular}
+\end{table*}
+
+
+\FloatBarrier
 \section{Συμπεράσματα}
 Η ολοκλήρωση της προκαταρκτικής διερεύνησης επιβεβαιώνει την αξιοπιστία της μεθόδου ταυτοποίησης, με την εξαιρετική ακρίβεια στην ανακατασκευή των σημάτων να αποδεικνύει την ικανότητα του αλγορίθμου Matrix Pencil να εξάγει επιτυχώς τις ιδιοτιμές από τις \textit{ringdown} αποκρίσεις. Aπό την ανάλυση προκύπτει ότι το σύστημα Kundur παραμένει ευσταθές, καθώς σχεδόν όλες οι ιδιοτιμές διαθέτουν αρνητικό πραγματικό μέρος ($\sigma < 0$). Καθοριστικό ρόλο στην ορθή έκβαση των αποτελεσμάτων είχε η χρήση βαθυπερατού φίλτρου και η επιλογή του κατάλληλου χρονικού παραθύρου μετά τη διαταραχή, εξασφαλίζοντας την μελέτη στο καθαρό σήμα. Παρά την ακρίβεια των εκτιμήσεων ανά γεννήτρια, η παρατηρούμενη μικρή διασπορά των τιμών καθιστά αναγκαία τη χρήση αλγορίθμων συσταδοποίησης (όπως ο DBSCAN) για την απομόνωση των \textit{modes} \cite{estimation2021}. Συνολικά, η ροή εργασίας από το \textit{PowerFactory} στην Python λειτούργησε υποδειγματικά, θέτοντας τις βάσεις για την αυτοματοποιημένη παρακολούθηση της δυναμικής ευστάθειας του συστήματος σε πραγματικό χρόνο.
 
