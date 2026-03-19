@@ -10,7 +10,7 @@ import time
 start_time = time.time()
 
 
-path = path = os.path.dirname(os.path.abspath(__file__))
+path = os.path.dirname(os.path.abspath(__file__))
 generators = ['g1', 'g2', 'g3', 'g4']
 fixed_orders = [2, 4, 6]
 taus = [1, 0.1, 0.01]

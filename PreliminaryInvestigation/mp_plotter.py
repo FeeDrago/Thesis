@@ -6,6 +6,12 @@ from scipy.signal import detrend
 from sklearn.metrics import r2_score, mean_squared_error
 from matrix_pencil import filter_signal
 
+# Matching LaTeX Serif Font
+plt.rcParams.update({
+    "font.family": "serif",
+    "font.serif": ["GFS Artemisia", "Times New Roman", "serif"]
+})
+
 def generate_preliminary_report_plots(df_results, output_path, csv_path, generators, columns):
     colors = {
         'Voltage': 'tab:blue',
@@ -18,9 +24,12 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
     modal_maps_path = os.path.join(plots_path, "modal_maps")
     recon_path = os.path.join(plots_path, "reconstruction_grids")
     
+    # Create subdirectories for PDF and PNG
     for folder in [modal_maps_path, recon_path]:
-        if not os.path.exists(folder):
-            os.makedirs(folder)
+        for sub in ["pdf", "png"]:
+            d = os.path.join(folder, sub)
+            if not os.path.exists(d):
+                os.makedirs(d)
 
     # 1. Sigma vs Frequency Plots
     for gen in generators:
@@ -31,11 +40,14 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
             plt.figure(figsize=(8, 5))
             plt.scatter(data['Damping'], data['Frequency'], color=colors[signal], label=signal, alpha=0.6, edgecolors='k')
             plt.axvline(0, color='red', linestyle='--', alpha=0.5)
-            plt.title(f"Modal Analysis: {gen} - {signal}")
+            plt.title(f"Modal Analysis: Generator {gen.upper()} - {signal}")
             plt.xlabel("Damping (Sigma) [rad/s]")
             plt.ylabel("Frequency [Hz]")
             plt.grid(True, linestyle=':', alpha=0.6)
-            plt.savefig(os.path.join(modal_maps_path, f"{gen}_{signal.replace(' ', '_')}.png"))
+            
+            fname = f"{gen}_{signal.replace(' ', '_')}"
+            plt.savefig(os.path.join(modal_maps_path, "pdf", f"{fname}.pdf"), format='pdf', bbox_inches='tight')
+            plt.savefig(os.path.join(modal_maps_path, "png", f"{fname}.png"), dpi=300, bbox_inches='tight')
             plt.close()
 
     # Combined plot per generator
@@ -54,11 +66,13 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
         plt.ylabel("Frequency [Hz]")
         plt.legend()
         plt.grid(True, linestyle=':', alpha=0.6)
-        plt.savefig(os.path.join(modal_maps_path, f"{gen}_combined.png"))
+        
+        fname = f"{gen}_combined"
+        plt.savefig(os.path.join(modal_maps_path, "pdf", f"{fname}.pdf"), format='pdf', bbox_inches='tight')
+        plt.savefig(os.path.join(modal_maps_path, "png", f"{fname}.png"), dpi=300, bbox_inches='tight')
         plt.close()
 
-
-    #2x2 Per Generator Plots
+    # 2x2 Per Generator Plots
     for gen in generators:
         gen_data = df_results[df_results['Gen'] == gen]
         if gen_data.empty: continue
@@ -81,7 +95,9 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
             if i % 2 == 0: ax.set_ylabel("Frequency [Hz]", fontsize=12)
             
         plt.tight_layout(rect=[0, 0, 1, 0.96])
-        plt.savefig(os.path.join(modal_maps_path, f"{gen}_2x2_grid.png"), dpi=300)
+        fname = f"{gen}_2x2_grid"
+        plt.savefig(os.path.join(modal_maps_path, "pdf", f"{fname}.pdf"), format='pdf', bbox_inches='tight')
+        plt.savefig(os.path.join(modal_maps_path, "png", f"{fname}.png"), dpi=300, bbox_inches='tight')
         plt.close(fig)
 
     # 2x2 Grid for all generators
@@ -103,7 +119,11 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
     handles = [plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=c, markersize=10, label=s) for s, c in colors.items()]
     fig.legend(handles=handles, labels=colors.keys(), loc='lower center', ncol=4, title="Signals", fontsize=12, title_fontsize=13)
     plt.tight_layout(rect=[0, 0.08, 1, 0.95])
-    plt.savefig(os.path.join(modal_maps_path, "All_Generators_Grid.png"), dpi=300)
+    
+    fname = "All_Generators_Grid"
+    plt.savefig(os.path.join(modal_maps_path, "pdf", f"{fname}.pdf"), format='pdf', bbox_inches='tight')
+    plt.savefig(os.path.join(modal_maps_path, "png", f"{fname}.png"), dpi=300, bbox_inches='tight')
+    plt.close()
 
     # 2. SIGNAL RECONSTRUCTION PLOTS 
     row_configs = [('Order 2', 'Tau 1'), ('Order 4', 'Tau 0.1'), ('Order 6', 'Tau 0.01')]
@@ -159,12 +179,13 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
                     if row_idx == 2: ax.set_xlabel("Time (s)")
 
             plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-            save_name = f"{gen}_{signal_label.replace(' ', '_')}_Reconstruction.png"
-            plt.savefig(os.path.join(recon_path, save_name), dpi=200)
+            fname = f"{gen}_{signal_label.replace(' ', '_')}_Reconstruction"
+            plt.savefig(os.path.join(recon_path, "pdf", f"{fname}.pdf"), format='pdf', bbox_inches='tight')
+            plt.savefig(os.path.join(recon_path, "png", f"{fname}.png"), dpi=300, bbox_inches='tight')
             plt.close()
 
 if __name__ == "__main__":
-    output_path = path = os.path.dirname(os.path.abspath(__file__))
+    output_path = os.path.dirname(os.path.abspath(__file__))
     
     generators = ['g1', 'g2', 'g3', 'g4']
     cols = {
@@ -174,7 +195,6 @@ if __name__ == "__main__":
         's:Q1 in Mvar': 'Reactive Power'
     }
 
-    
     if os.path.exists(os.path.join(output_path, "results.csv")):
         df_results = pd.read_csv(os.path.join(output_path, "results.csv"))
         generate_preliminary_report_plots(df_results=df_results, output_path=output_path, csv_path=output_path, generators=generators, columns=cols)
