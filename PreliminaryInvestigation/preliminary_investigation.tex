@@ -12,6 +12,8 @@
 \usepackage{textcomp}
 \usepackage{xcolor}
 \usepackage{placeins}
+\usepackage{float}
+
 \urlstyle{same}
 
 
@@ -102,35 +104,35 @@ Matrix Pencil Method, Kundur Two-Area System, Modal Analysis, Ringdown Response,
 \label{sec:modal_and_reconstruction_plots}
 Ως αποτέλεσμα της εφαρμογής του αλγορίθμου Matrix Pencil, ελήφθησαν τα διαγράμματα της παρούσας παραγράφου, στα οποία παρουσιάζεται η κατανομή των ιδιομορφών στο μιγαδικό επίπεδο για τα μετρούμενα μεγέθη των γεννητριών του συστήματος. Συγκεκριμένα, στον οριζόντιο άξονα παρουσιάζεται ο ρυθμός απόσβεσης ($\sigma$), ο οποίος αποτελεί το πραγματικό μέρος των ιδιοτιμών, ενώ στον κατακόρυφο άξονα η συχνότητα ταλάντωσης ($f$) σε Hz.
 
-\begin{figure}[htbp]
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.8\linewidth]{./plots/modal_maps/pdf/g1_2x2_grid.pdf} 
     \caption{Κατανομή ιδιοτιμών (\textit{Real Part vs Frequency}) για τη γεννήτρια $G_1$.}
     \label{fig:poles_distribution_g1}
 \end{figure}
 
-\begin{figure}[htbp]
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.8\linewidth]{./plots/modal_maps/pdf/g2_2x2_grid.pdf} 
     \caption{Κατανομή ιδιοτιμών (\textit{Real Part vs Frequency}) για τη γεννήτρια $G_2$.}
     \label{fig:poles_distribution_g2}
 \end{figure}
 
-\begin{figure}[htbp]
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.8\linewidth]{./plots/modal_maps/pdf/g3_2x2_grid.pdf} 
     \caption{Κατανομή ιδιοτιμών (\textit{Real Part vs Frequency}) για τη γεννήτρια $G_3$.}
     \label{fig:poles_distribution_g3}
 \end{figure}
 
-\begin{figure}[htbp]
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.8\linewidth]{./plots/modal_maps/pdf/g4_2x2_grid.pdf} 
     \caption{Κατανομή ιδιοτιμών (\textit{Real Part vs Frequency}) για τη γεννήτρια $G_4$.}
     \label{fig:poles_distribution_g4}
 \end{figure}
 
-\begin{figure}[htbp]
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.8\linewidth]{./plots/modal_maps/pdf/All_Generators_Grid.pdf} 
     \caption{Κατανομή ιδιοτιμών (\textit{Real Part vs Frequency}) για τις γεννήτριες $G_1$-$G_4$.}
