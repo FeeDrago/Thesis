@@ -138,9 +138,14 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
             t_raw = raw_df.iloc[:, 0].values
             y_raw = raw_df[inv_columns[signal_label]].values
             
-            mask = t_raw > 1.2
-            t = t_raw[mask].copy()
-            y_proc = y_raw[mask].copy()
+            # Time Mask
+            # mask = t_raw > 0.1
+            # t = t_raw[mask].copy()
+            # y_proc = y_raw[mask].copy()
+
+            # No Time Mask
+            t = t_raw.copy()
+            y_proc = y_raw.copy()
             
             t = t - t[0]  
             y_ref = filter_signal(detrend(y_proc), t, fc=10)

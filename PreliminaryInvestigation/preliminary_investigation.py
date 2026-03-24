@@ -6,6 +6,8 @@ import os
 from matrix_pencil import apply_matrix_pencil_fixed_order, determine_MP_order, filter_signal
 from mp_plotter import generate_preliminary_report_plots
 import time
+from stats import generate_preliminary_report_stats
+
 
 start_time = time.time()
 
@@ -33,8 +35,14 @@ for gen in generators:
     df = pd.read_csv(csv_path)
 
     time_col = df.iloc[:, 0].values
-    mask = time_col > 1.2
-    time_col = time_col[mask].copy()
+
+    # Time Mask
+    # mask = time_col > 0.1
+    # time_col = time_col[mask].copy()
+    # time_col = time_col - time_col[0] 
+
+
+    # No Time Mask
     time_col = time_col - time_col[0]  
 
     for col, signal in columns.items():
@@ -42,7 +50,13 @@ for gen in generators:
             print(f"Column {col} missing in {gen}")
             continue
         print(f"Gen:{gen}, Signal: {signal}")
-        signal_col = df[col].values[mask].copy()
+
+        # Time Mask
+        # signal_col = df[col].values[mask].copy()
+
+        # No Time  Mask
+        signal_col = df[col].values.copy()
+
         signal_col = filter_signal(detrend(signal_col), time_col, fc=10, N=15)
 
         # Fixed Orders
@@ -86,5 +100,7 @@ print("Results saved.")
 
 # Create plots
 generate_preliminary_report_plots(df_results=df_results, output_path=path, csv_path=path, generators=generators, columns=columns)
+# Generate statistics
+generate_preliminary_report_stats(path)
 end_time = time.time()
 print("-"*30, f"Execution Time: {(end_time - start_time)//60} minutes and {(end_time - start_time)%60} seconds", "-"*30)
