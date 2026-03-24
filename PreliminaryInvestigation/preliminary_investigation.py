@@ -37,13 +37,13 @@ for gen in generators:
     time_col = df.iloc[:, 0].values
 
     # Time Mask
-    # mask = time_col > 0.1
-    # time_col = time_col[mask].copy()
-    # time_col = time_col - time_col[0] 
+    mask = time_col > 0.1
+    time_col = time_col[mask].copy()
+    time_col = time_col - time_col[0] 
 
 
     # No Time Mask
-    time_col = time_col - time_col[0]  
+    # time_col = time_col - time_col[0]  
 
     for col, signal in columns.items():
         if col not in df.columns:
@@ -52,10 +52,10 @@ for gen in generators:
         print(f"Gen:{gen}, Signal: {signal}")
 
         # Time Mask
-        # signal_col = df[col].values[mask].copy()
+        signal_col = df[col].values[mask].copy()
 
         # No Time  Mask
-        signal_col = df[col].values.copy()
+        # signal_col = df[col].values.copy()
 
         signal_col = filter_signal(detrend(signal_col), time_col, fc=10, N=15)
 

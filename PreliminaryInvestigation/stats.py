@@ -52,23 +52,23 @@ def generate_preliminary_report_stats(path):
         raw_df = pd.read_csv(csv_file)
 
         # Time Mask
-        # t_f = raw_df.iloc[:, 0].values
-        # mask = t_f > 0.1
-        # t = t_f[mask].copy() - t_f[mask][0]
+        t_f = raw_df.iloc[:, 0].values
+        mask = t_f > 0.1
+        t = t_f[mask].copy() - t_f[mask][0]
 
         # No Time Mask
-        t_f = raw_df.iloc[:, 0].values
-        t = t_f.copy() - t_f[0]
+        # t_f = raw_df.iloc[:, 0].values
+        # t = t_f.copy() - t_f[0]
 
 
         for sig_l, col in signals_map.items():
             if col not in raw_df.columns: continue
 
             # Time Mask
-            # y_ref = filter_signal(detrend(raw_df[col].values[mask]), t, fc=10)
+            y_ref = filter_signal(detrend(raw_df[col].values[mask]), t, fc=10)
 
             # No Time Mask
-            y_ref = filter_signal(detrend(raw_df[col].values), t, fc=10)
+            # y_ref = filter_signal(detrend(raw_df[col].values), t, fc=10)
             
             for meth in method_order:
                 modes = df[(df['Gen_ID'] == gid) & (df['Signal'] == sig_l) & (df['Method'] == meth)]
@@ -191,13 +191,13 @@ def generate_preliminary_report_stats(path):
         raw_df = pd.read_csv(csv_file)
         
         # Time Mask
-        # t_f = raw_df.iloc[:, 0].values
-        # mask = t_f > 0.1
-        # t = t_f[mask].copy() - t_f[mask][0]
+        t_f = raw_df.iloc[:, 0].values
+        mask = t_f > 0.1
+        t = t_f[mask].copy() - t_f[mask][0]
         
         # No Time Mask
-        t_f = raw_df.iloc[:, 0].values
-        t = t_f.copy() - t_f[0]  
+        # t_f = raw_df.iloc[:, 0].values
+        # t = t_f.copy() - t_f[0]  
 
         for j, sig_l in enumerate(sigs):
             ax = axes[i, j]
@@ -207,10 +207,10 @@ def generate_preliminary_report_stats(path):
                 continue
 
             # Time Mask
-            # y_ref = filter_signal(detrend(raw_df[col].values[mask]), t, fc=10)
+            y_ref = filter_signal(detrend(raw_df[col].values[mask]), t, fc=10)
             
             # No Time Mask
-            y_ref = filter_signal(detrend(raw_df[col].values), t, fc=10)
+            # y_ref = filter_signal(detrend(raw_df[col].values), t, fc=10)
 
             best_row = best_m[(best_m['Gen'] == glabel) & (best_m['Signal'] == sig_l)]
             if best_row.empty:
