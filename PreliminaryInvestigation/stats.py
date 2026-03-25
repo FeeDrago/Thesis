@@ -7,16 +7,22 @@ import os
 from scipy.signal import detrend
 from sklearn.metrics import r2_score, mean_squared_error
 from matrix_pencil import filter_signal
+from matplotlib.ticker import MaxNLocator
+
 
 # Settings - Matching LaTeX Serif Font
 plt.rcParams.update({
     "font.family": "serif",
     "font.serif": ["GFS Artemisia", "Times New Roman", "serif"],
-    "font.size": 11,
-    "axes.labelsize": 12,
-    "axes.titlesize": 14
+    "font.size": 16,
+    "axes.labelsize": 18,
+    "axes.titlesize": 20,
+    "legend.fontsize": 16,
+    "xtick.labelsize": 14,
+    "ytick.labelsize": 14
 })
 sns.set_theme(style="whitegrid", font="serif")
+sns.set_context("paper", font_scale=1.2)
 
 
 def generate_preliminary_report_stats(path):
@@ -95,23 +101,31 @@ def generate_preliminary_report_stats(path):
     plt.savefig(os.path.join(png_path, "1_heatmap.png"), dpi=300, bbox_inches='tight')
     plt.close()
 
-    # 2. Poles per signal grid
+   # 2. Modes per signal grid
     g1 = sns.catplot(data=df, kind="count", x="Signal", hue="Method", hue_order=method_order, 
                     col="Gen", col_wrap=2, palette="muted", height=5, aspect=1.2, edgecolor="0.2", legend_out=True)
-    g1.fig.suptitle("Poles Count by Signal Type", fontweight='bold', y=1.05)
+    g1.fig.suptitle("Mode Count by Signal Type", fontweight='bold', y=1.05)
     g1.set_titles("{col_name}")
-    g1.set_axis_labels("Signal Type", "Pole Count")
+    g1.set_axis_labels("Signal Type", "Mode Count")
+
+    for ax in g1.axes.flat:
+        ax.yaxis.set_major_locator(MaxNLocator(integer=True))
+        
     plt.savefig(os.path.join(pdf_path, "2_bar_grid_signal.pdf"), format='pdf', bbox_inches='tight')
     plt.savefig(os.path.join(png_path, "2_bar_grid_signal.png"), dpi=300, bbox_inches='tight')
     plt.close()
 
-    # 3. Poles per method grid
+    # 3. Modes per method grid
     g2 = sns.catplot(data=df, kind="count", x="Method", order=method_order, hue="Signal", 
                     col="Gen", col_wrap=2, palette="muted", height=5, aspect=1.2, edgecolor="0.2", legend_out=True)
-    g2.fig.suptitle("Poles Count by Method", fontweight='bold', y=1.05)
+    g2.fig.suptitle("Mode Count by Method", fontweight='bold', y=1.05)
     g2.set_titles("{col_name}")
-    g2.set_axis_labels("Method", "Pole Count")
-    for ax in g2.axes.flat: ax.tick_params(axis='x', rotation=30)
+    g2.set_axis_labels("Method", "Mode Count")
+    
+    for ax in g2.axes.flat: 
+        ax.yaxis.set_major_locator(MaxNLocator(integer=True))
+        ax.tick_params(axis='x', rotation=30)
+        
     plt.savefig(os.path.join(pdf_path, "3_bar_grid_method.pdf"), format='pdf', bbox_inches='tight')
     plt.savefig(os.path.join(png_path, "3_bar_grid_method.png"), dpi=300, bbox_inches='tight')
     plt.close()
@@ -132,10 +146,12 @@ def generate_preliminary_report_stats(path):
     plt.savefig(os.path.join(pdf_path, "4_3D_overview.pdf"), format='pdf', bbox_inches='tight')
     plt.savefig(os.path.join(png_path, "4_3D_overview.png"), dpi=300, bbox_inches='tight')
     plt.close()
-
     # 5. Modal bubble map
     plt.figure(figsize=(14, 9))
-    df['Src'] = df['Gen'] + " | " + df['Signal']
+    df['Src'] = df['Gen'] + " | " + df['Signal'] 
+    counts = df.groupby('Src').size().reset_index(name='Count')
+    df = df.merge(counts, on='Src')
+    df['Src'] = df['Src'] + f" | Poles: " + df['Count'].astype(str)
     norm_a = (df['Amplitude'] - df['Amplitude'].min()) / (df['Amplitude'].max() - df['Amplitude'].min() + 1e-9)
     plt.scatter(df['Frequency'], df['Src'], s=norm_a*800+100, c=df['Damping'], cmap='RdYlGn', edgecolors='black')
     plt.colorbar().set_label(r'Damping ($\sigma$)')
@@ -177,7 +193,7 @@ def generate_preliminary_report_stats(path):
 
     # 9. Best Reconstruction 4x4 Grid
     fig, axes = plt.subplots(4, 4, figsize=(20, 16), sharex=True)
-    fig.suptitle("Absolute Best Signal Reconstruction (Max $R^2$)", fontsize=22, fontweight='bold', y=0.97)
+    fig.suptitle("Absolute Best Signal Reconstruction (Max $R^2$)", fontsize=28, fontweight='bold', y=0.97)
 
     gens = list(gen_id_map.values())
     sigs = list(signals_map.keys())
@@ -224,16 +240,18 @@ def generate_preliminary_report_stats(path):
                 y_est += 2 * m['Amplitude'] * np.exp(m['Damping'] * t) * np.cos(2 * np.pi * m['Frequency'] * t + m['Phase'])
             ax.plot(t, y_ref, color='black', alpha=0.3, linewidth=2, label='Original (filtered)')
             ax.plot(t, y_est, '--', color='red', linewidth=1.5, label='MP Estimate')
-            ax.set_title(f"{glabel} - {sig_l}\nMethod: {best_method} ($R^2$: {best_r2:.4f})", fontsize=11, fontweight='semibold')
+            ax.set_title(f"{glabel} - {sig_l}\nMethod: {best_method} ($R^2$: {best_r2:.4f})", fontsize=16, fontweight='semibold')
             ax.grid(True, linestyle=':', alpha=0.6)
-            if i == 3: ax.set_xlabel("Time (s)", fontsize=11)
-            if j == 0: ax.set_ylabel("Amplitude", fontsize=11)
-            if i == 0 and j == 3: ax.legend(loc='upper right', fontsize='medium')
+            if i == 3: ax.set_xlabel("Time (s)", fontsize=15)
+            if j == 0: ax.set_ylabel("Amplitude", fontsize=15)
+            if i == 0 and j == 3: ax.legend(loc='upper right', fontsize=14)
 
     plt.tight_layout(rect=[0, 0.03, 1, 0.94])
     plt.savefig(os.path.join(pdf_path, "9_best_reconstruction_grid.pdf"), format='pdf', bbox_inches='tight')
     plt.savefig(os.path.join(png_path, "9_best_reconstruction_grid.png"), dpi=300, bbox_inches='tight')
     plt.close()
+
+    print("Stats done")
 
 if __name__ == "__main__":
     generate_preliminary_report_stats(os.path.dirname(os.path.abspath(__file__)))
