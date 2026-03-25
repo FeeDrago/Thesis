@@ -150,6 +150,7 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
             t = t - t[0]  
             y_ref = filter_signal(detrend(y_proc), t, fc=10)
 
+
             fig, axes = plt.subplots(3, 2, figsize=(16, 14), sharex=True)
             fig.suptitle(f"Reconstruction Accuracy: {gen.upper()} - {signal_label}\nLeft: Fixed Orders | Right: Adaptive Tau", 
                          fontsize=18, fontweight='bold', y=0.98)
