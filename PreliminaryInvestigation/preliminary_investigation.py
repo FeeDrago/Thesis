@@ -57,7 +57,11 @@ for gen in generators:
         # No Time  Mask
         # signal_col = df[col].values.copy()
 
-        signal_col = filter_signal(detrend(signal_col), time_col, fc=10, N=15)
+        
+        
+        signal_col = detrend(signal_col)
+        signal_col = filter_signal(signal_col, time_col, fc=10, N=15)
+        signal_col = signal_col - np.mean(signal_col)  
 
         # Fixed Orders
         for order in fixed_orders:
