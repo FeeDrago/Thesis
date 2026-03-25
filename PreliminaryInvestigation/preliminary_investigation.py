@@ -37,7 +37,7 @@ for gen in generators:
     time_col = df.iloc[:, 0].values
 
     # Time Mask
-    mask = time_col > 0.1
+    mask = time_col > 0.15
     time_col = time_col[mask].copy()
     time_col = time_col - time_col[0] 
 

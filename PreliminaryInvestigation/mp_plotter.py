@@ -139,7 +139,7 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
             y_raw = raw_df[inv_columns[signal_label]].values
             
             # Time Mask
-            mask = t_raw > 0.1
+            mask = t_raw > 0.15
             t = t_raw[mask].copy()
             y_proc = y_raw[mask].copy()
 

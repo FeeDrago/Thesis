@@ -53,7 +53,7 @@ def generate_preliminary_report_stats(path):
 
         # Time Mask
         t_f = raw_df.iloc[:, 0].values
-        mask = t_f > 0.1
+        mask = t_f > 0.15
         t = t_f[mask].copy() - t_f[mask][0]
 
         # No Time Mask
@@ -192,7 +192,7 @@ def generate_preliminary_report_stats(path):
         
         # Time Mask
         t_f = raw_df.iloc[:, 0].values
-        mask = t_f > 0.1
+        mask = t_f > 0.15
         t = t_f[mask].copy() - t_f[mask][0]
         
         # No Time Mask
