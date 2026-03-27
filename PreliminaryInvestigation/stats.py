@@ -10,19 +10,20 @@ from matrix_pencil import filter_signal
 from matplotlib.ticker import MaxNLocator
 
 
-# Settings - Matching LaTeX Serif Font
+
+sns.set_theme(style="whitegrid", font="serif")
+sns.set_context("paper", font_scale=1.2)
 plt.rcParams.update({
     "font.family": "serif",
     "font.serif": ["GFS Artemisia", "Times New Roman", "serif"],
-    "font.size": 16,
-    "axes.labelsize": 18,
-    "axes.titlesize": 20,
-    "legend.fontsize": 16,
-    "xtick.labelsize": 14,
-    "ytick.labelsize": 14
+    "font.size": 20,
+    "axes.labelsize": 20,
+    "axes.titlesize": 28,
+    "figure.titlesize": 32,
+    "legend.fontsize": 20,
+    "xtick.labelsize": 20,
+    "ytick.labelsize": 20
 })
-sns.set_theme(style="whitegrid", font="serif")
-sns.set_context("paper", font_scale=1.2)
 
 
 def generate_preliminary_report_stats(path):
@@ -192,8 +193,8 @@ def generate_preliminary_report_stats(path):
     plt.close()
 
     # 9. Best Reconstruction 4x4 Grid
-    fig, axes = plt.subplots(4, 4, figsize=(20, 16), sharex=True)
-    fig.suptitle("Absolute Best Signal Reconstruction (Max $R^2$)", fontsize=28, fontweight='bold', y=0.97)
+    fig, axes = plt.subplots(4, 4, figsize=(28, 22), sharex=True)
+    fig.suptitle("Absolute Best Signal Reconstruction (Max $R^2$)", fontsize=34, fontweight='bold', y=0.975)
 
     gens = list(gen_id_map.values())
     sigs = list(signals_map.keys())
@@ -240,18 +241,99 @@ def generate_preliminary_report_stats(path):
                 y_est += 2 * m['Amplitude'] * np.exp(m['Damping'] * t) * np.cos(2 * np.pi * m['Frequency'] * t + m['Phase'])
             ax.plot(t, y_ref, color='black', alpha=0.3, linewidth=2, label='Original (filtered)')
             ax.plot(t, y_est, '--', color='red', linewidth=1.5, label='MP Estimate')
-            ax.set_title(f"{glabel} - {sig_l}\nMethod: {best_method} ($R^2$: {best_r2:.4f})", fontsize=16, fontweight='semibold')
+            ax.set_title(
+                f"{glabel} - {sig_l}\nMethod: {best_method} ($R^2$: {best_r2:.4f})",
+                fontsize=20,
+                fontweight='semibold'
+            )
+            ax.tick_params(axis='both', labelsize=18)
             ax.grid(True, linestyle=':', alpha=0.6)
-            if i == 3: ax.set_xlabel("Time (s)", fontsize=15)
-            if j == 0: ax.set_ylabel("Amplitude", fontsize=15)
-            if i == 0 and j == 3: ax.legend(loc='upper right', fontsize=14)
-
-    plt.tight_layout(rect=[0, 0.03, 1, 0.94])
+            if i == 3: ax.set_xlabel("Time (s)")
+            labels_map = {
+                'Voltage': r"$\Delta V$ [p.u.]",
+                'Current': r"$\Delta \mathrm{I}$ [p.u.]",
+                'Active Power': r"$\Delta P$ [MW]",
+                'Reactive Power': r"$\Delta Q$ [Mvar]"
+            }
+            ax.set_ylabel(labels_map.get(sig_l, ""))
+            if i == 0 and j == 3: ax.legend(loc='upper right')
+    fig.subplots_adjust(left=0.07, right=0.98, bottom=0.07, top=0.92, wspace=0.22, hspace=0.42)
     plt.savefig(os.path.join(pdf_path, "9_best_reconstruction_grid.pdf"), format='pdf', bbox_inches='tight')
     plt.savefig(os.path.join(png_path, "9_best_reconstruction_grid.png"), dpi=300, bbox_inches='tight')
     plt.close()
 
-    print("Stats done")
+    # 10. Best Reconstruction 2x2 per Generator
+    labels_map = {
+        'Voltage': r"$\Delta V$ [p.u.]",
+        'Current': r"$\Delta \mathrm{I}$ [p.u.]",
+        'Active Power': r"$\Delta P$ [MW]",
+        'Reactive Power': r"$\Delta Q$ [Mvar]"
+    }
+
+    for glabel in gens:
+        gid = [k for k, v in gen_id_map.items() if v == glabel][0]
+        csv_file = os.path.join(path, f"{gid}.csv")
+        if not os.path.exists(csv_file):
+            continue
+
+        raw_df = pd.read_csv(csv_file)
+
+        # Time Mask
+        t_f = raw_df.iloc[:, 0].values
+        mask = t_f > 0.2
+        t = t_f[mask].copy() - t_f[mask][0]
+
+        # No Time Mask
+        # t_f = raw_df.iloc[:, 0].values
+        # t = t_f.copy() - t_f[0]
+
+        fig_g, axes_g = plt.subplots(2, 2, figsize=(24, 16), sharex=True)
+        fig_g.suptitle(f"Absolute Best Signal Reconstruction (Max $R^2$) - {glabel}", fontweight='bold', y=0.99)
+        axes_flat = axes_g.flatten()
+
+        for j, sig_l in enumerate(sigs):
+            ax = axes_flat[j]
+            col = signals_map[sig_l]
+            if col not in raw_df.columns:
+                ax.axis('off')
+                continue
+
+            # Time Mask
+            y_ref = filter_signal(detrend(raw_df[col].values[mask]), t, fc=10)
+
+            # No Time Mask
+            # y_ref = filter_signal(detrend(raw_df[col].values), t, fc=10)
+
+            best_row = best_m[(best_m['Gen'] == glabel) & (best_m['Signal'] == sig_l)]
+            if best_row.empty:
+                ax.text(0.5, 0.5, "No Data", ha='center', va='center', transform=ax.transAxes)
+                continue
+
+            best_method = best_row.iloc[0]['Method']
+            best_r2 = best_row.iloc[0]['R2']
+            modes = df[(df['Gen'] == glabel) & (df['Signal'] == sig_l) & (df['Method'] == best_method)]
+            y_est = np.zeros_like(t)
+            for _, m in modes.iterrows():
+                y_est += 2 * m['Amplitude'] * np.exp(m['Damping'] * t) * np.cos(2 * np.pi * m['Frequency'] * t + m['Phase'])
+
+            ax.plot(t, y_ref, color='black', alpha=0.3, linewidth=2, label='Original (filtered)')
+            ax.plot(t, y_est, '--', color='red', linewidth=1.5, label='MP Estimate')
+            ax.set_title(f"{glabel} - {sig_l}\nMethod: {best_method} ($R^2$: {best_r2:.4f})", fontweight='semibold')
+            ax.tick_params(axis='both', labelsize=18)
+            if j >= 2:
+                ax.set_xlabel("Time (s)")
+            ax.set_ylabel(labels_map.get(sig_l, ""))
+            ax.grid(True, linestyle=':', alpha=0.75, linewidth=1.3, color='gray')
+            if j == 1:
+                ax.legend(loc='upper right')
+
+        fig_g.subplots_adjust(left=0.08, right=0.98, bottom=0.08, top=0.90, wspace=0.22, hspace=0.36)
+        plt.savefig(os.path.join(pdf_path, f"10_best_reconstruction_{gid}_2x2.pdf"), format='pdf', bbox_inches='tight')
+        plt.savefig(os.path.join(png_path, f"10_best_reconstruction_{gid}_2x2.png"), dpi=300, bbox_inches='tight')
+        plt.close(fig_g)
+
+    
 
 if __name__ == "__main__":
     generate_preliminary_report_stats(os.path.dirname(os.path.abspath(__file__)))
+    print("Stats done")

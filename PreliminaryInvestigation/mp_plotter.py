@@ -9,12 +9,13 @@ from matrix_pencil import filter_signal
 plt.rcParams.update({
     "font.family": "serif",
     "font.serif": ["GFS Artemisia", "Times New Roman", "serif"],
-    "font.size": 16,
-    "axes.labelsize": 17,
-    "axes.titlesize": 19,
-    "legend.fontsize": 15,
-    "xtick.labelsize": 14,
-    "ytick.labelsize": 14
+    "font.size": 20,
+    "axes.labelsize": 20,
+    "axes.titlesize": 28,
+    "figure.titlesize": 32,
+    "legend.fontsize": 20,
+    "xtick.labelsize": 20,
+    "ytick.labelsize": 20
 })
 
 def generate_preliminary_report_plots(df_results, output_path, csv_path, generators, columns):
@@ -83,7 +84,7 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
         if gen_data.empty: continue
         
         fig, axes = plt.subplots(2, 2, figsize=(16, 12), sharex=True, sharey=True)
-        fig.suptitle(f"Modal Identification per Signal: Generator {gen.upper()}", fontsize=24, fontweight='bold')
+        fig.suptitle(f"Modal Identification per Signal: Generator {gen.upper()}", fontweight='bold')
         axes_flat = axes.flatten()
         
         for i, signal in enumerate(columns.values()):
@@ -93,11 +94,11 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
             ax.scatter(sig_data['Damping'], sig_data['Frequency'], 
                        color=colors[signal], alpha=0.6, edgecolors='k', s=50)
             ax.axvline(0, color='red', linestyle='--', alpha=0.5)
-            ax.set_title(signal, fontsize=18, fontweight='semibold')
+            ax.set_title(signal, fontweight='semibold')
             ax.grid(True, linestyle=':', alpha=0.6)
             
-            if i >= 2: ax.set_xlabel("Damping (Sigma) [rad/s]", fontsize=17)
-            if i % 2 == 0: ax.set_ylabel("Frequency [Hz]", fontsize=17)
+            if i >= 2: ax.set_xlabel("Damping (Sigma) [rad/s]")
+            if i % 2 == 0: ax.set_ylabel("Frequency [Hz]")
             
         plt.tight_layout(rect=[0, 0, 1, 0.96])
         fname = f"{gen}_2x2_grid"
@@ -107,7 +108,7 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
 
     # 2x2 Grid for all generators
     fig, axes = plt.subplots(2, 2, figsize=(16, 12), sharex=True, sharey=True)
-    fig.suptitle("System-Wide Modal Identification (All Generators)", fontsize=24, fontweight='bold')
+    fig.suptitle("System-Wide Modal Identification (All Generators)", fontweight='bold')
     axes_flat = axes.flatten()
     for i, gen in enumerate(generators):
         ax = axes_flat[i]
@@ -116,13 +117,13 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
             sig_data = gen_data[gen_data['Signal'] == signal]
             ax.scatter(sig_data['Damping'], sig_data['Frequency'], c=colors[signal], alpha=0.5, s=40, edgecolors='none')
         ax.axvline(0, color='red', linestyle='--', alpha=0.5)
-        ax.set_title(f"Generator {gen.upper()}", fontsize=19)
+        ax.set_title(f"Generator {gen.upper()}")
         ax.grid(True, linestyle=':', alpha=0.4)
-        if i >= 2: ax.set_xlabel("Damping (Sigma)", fontsize=17)
-        if i % 2 == 0: ax.set_ylabel("Frequency (Hz)", fontsize=17)
+        if i >= 2: ax.set_xlabel("Damping (Sigma)")
+        if i % 2 == 0: ax.set_ylabel("Frequency (Hz)")
 
     handles = [plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=c, markersize=12, label=s) for s, c in colors.items()]
-    fig.legend(handles=handles, labels=colors.keys(), loc='lower center', ncol=4, title="Signals", fontsize=16, title_fontsize=18)
+    fig.legend(handles=handles, labels=colors.keys(), loc='lower center', ncol=4, title="Signals")
     plt.tight_layout(rect=[0, 0.08, 1, 0.95])
     
     fname = "All_Generators_Grid"
@@ -158,7 +159,7 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
 
             fig, axes = plt.subplots(3, 2, figsize=(16, 14), sharex=True)
             fig.suptitle(f"Reconstruction Accuracy: {gen.upper()} - {signal_label}\nLeft: Fixed Orders | Right: Adaptive Tau", 
-                         fontsize=24, fontweight='bold', y=0.98)
+                         fontweight='bold', y=0.98)
 
             for row_idx, (left_meth, right_meth) in enumerate(row_configs):
                 for col_idx, method in enumerate([left_meth, right_meth]):
@@ -182,12 +183,19 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
                     
                     ax.plot(t, y_ref, color='black', alpha=0.3, label='Original (Filtered)')
                     ax.plot(t, y_est, '--', color='red', label=f'MP Estimate ($R^2$={r2:.4f})')
-                    ax.set_title(f"Method: {method} (RMSE: {rmse:.2e})", fontsize=16, fontweight='semibold')
-                    ax.legend(loc='upper right', fontsize=14)
+                    ax.set_title(f"Method: {method} (RMSE: {rmse:.2e})", fontweight='semibold')
+                    ax.legend(loc='upper right')
                     ax.grid(True, linestyle=':', alpha=0.5)
                     
-                    if col_idx == 0: ax.set_ylabel("Amplitude", fontsize=16)
-                    if row_idx == 2: ax.set_xlabel("Time (s)", fontsize=16)
+                    if col_idx == 0: 
+                       labels_map = {
+                            'Voltage': r"$\Delta V$ [p.u.]",
+                            'Current': r"$\Delta \mathrm{I}$ [p.u.]",
+                            'Active Power': r"$\Delta P$ [MW]",
+                            'Reactive Power': r"$\Delta Q$ [Mvar]"
+                        }
+                    ax.set_ylabel(labels_map.get(signal_label, ""))
+                    if row_idx == 2: ax.set_xlabel("Time (s)")
 
             plt.tight_layout(rect=[0, 0.03, 1, 0.95])
             fname = f"{gen}_{signal_label.replace(' ', '_')}_Reconstruction"
