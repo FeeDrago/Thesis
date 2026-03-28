@@ -4,6 +4,21 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
+from matplotlib.colors import ListedColormap 
+
+
+CLUSTER_COLORS = [
+    "#1f77b4",  
+    "#ff7f0e",  
+    "#2ca02c",  
+    "#9467bd",  
+    "#8c564b",  
+    "#e377c2",  
+    "#7f7f7f",  
+    "#17becf",  
+    "#808000",  
+    "#393b79",  
+]
 
 plt.rcParams.update({
     "font.family": "serif",
@@ -37,8 +52,9 @@ def run_kmeans_modal_analysis(results_path, output_path):
     wcss = []
     k_values = np.arange(1, 11)
     stored_results = {}
+    cluster_stats = []
 
-    cmap_to_use = 'tab10'
+    cmap_to_use = ListedColormap(CLUSTER_COLORS)
 
     for k in k_values:
         kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
@@ -48,6 +64,15 @@ def run_kmeans_modal_analysis(results_path, output_path):
         
         centers = scaler.inverse_transform(kmeans.cluster_centers_)
         stored_results[k] = (labels, centers, inertia)
+
+        for c in range(k):
+            cluster_stats.append({
+                'k': k,
+                'Cluster': c,
+                'Frequency': centers[c, 0],
+                'Damping': centers[c, 1],
+                'Size': np.sum(labels == c)
+            })
 
         plt.figure(figsize=(10, 7))
         plt.scatter(df['Damping'], df['Frequency'], c=labels, cmap=cmap_to_use, 
@@ -59,7 +84,7 @@ def run_kmeans_modal_analysis(results_path, output_path):
         plt.axvline(0, color='red', linestyle='-', alpha=0.3)
         plt.xlabel("Damping (Sigma) [rad/s]")
         plt.ylabel("Frequency [Hz]")
-        plt.title(f"Modal Partitioning ($k={k}$)\nWCSS: {inertia:.2f}")
+        plt.title(f"Modal Clustering ($k={k}$)\nWCSS: {inertia:.2f}")
         plt.legend(loc='upper right')
         plt.grid(True, linestyle=':', alpha=0.6)
         
@@ -68,7 +93,7 @@ def run_kmeans_modal_analysis(results_path, output_path):
         plt.savefig(os.path.join(base_output, "png", f"{fname}.png"), dpi=300, bbox_inches='tight')
         plt.close()
 
-    # KNEE DETECTION
+    # Knee Detection
     wcss = np.array(wcss)
     p1 = np.array([k_values[0], wcss[0]])
     p2 = np.array([k_values[-1], wcss[-1]])
@@ -78,9 +103,9 @@ def run_kmeans_modal_analysis(results_path, output_path):
         d = np.abs(np.cross(p2-p1, p1-p3)) / np.linalg.norm(p2-p1)
         distances.append(d)
     
-    k_opt = k_values[np.argmax(distances)]
+    k_opt_idx = np.argmax(distances)
+    k_opt = k_values[k_opt_idx]
     
-    # SELECTION OF 4 K VALUES FOR THE 2x2 GRID AROUND THE KNEE
     grid_ks = [max(2, k_opt-1), k_opt, k_opt+1, k_opt+2]
     grid_ks = [k for k in grid_ks if k in k_values]
     if len(grid_ks) < 4: grid_ks = [2, 3, 4, 5]
@@ -93,11 +118,11 @@ def run_kmeans_modal_analysis(results_path, output_path):
         ax = axes_flat[i]
         labels, centers, inertia = stored_results[k]
         
-        ax.scatter(df['Damping'], df['Frequency'], c=labels, cmap='Set1', alpha=0.6, s=50, edgecolors='none')
+        ax.scatter(df['Damping'], df['Frequency'], c=labels, cmap=cmap_to_use, alpha=0.6, s=50, edgecolors='none')
         ax.scatter(centers[:, 1], centers[:, 0], c='red', marker='x', s=120, linewidths=3)
         
         ax.axvline(0, color='red', linestyle='--', alpha=0.3)
-        ax.set_title(f"Modal Structure: $k={k}$ | WCSS: {inertia:.1f}", fontsize=20, fontweight='semibold')
+        ax.set_title(f"K-Means Results: $k={k}$ | WCSS: {inertia:.1f}", fontweight='semibold')
         ax.grid(True, linestyle=':', alpha=0.4)
         
         if i >= 2: ax.set_xlabel("Damping (Sigma) [rad/s]")
@@ -110,7 +135,8 @@ def run_kmeans_modal_analysis(results_path, output_path):
 
     plt.figure(figsize=(10, 6))
     plt.plot(k_values, wcss, marker='o', color='tab:blue', linewidth=3, markersize=10)
-    plt.axvline(k_opt, color='red', linestyle='--', alpha=0.5, label=f'Detected Knee (k={k_opt})')
+    plt.scatter(k_opt, wcss[k_opt_idx], color='red', marker='o', s=200, edgecolors='k', zorder=5, 
+                label='Optimal Knee Point by Maximum Chord Distance')
     plt.xticks(k_values)
     plt.xlabel("Number of clusters (k)")
     plt.ylabel("WCSS")
@@ -121,6 +147,8 @@ def run_kmeans_modal_analysis(results_path, output_path):
     plt.savefig(os.path.join(base_output, "pdf", "elbow_method.pdf"), format='pdf', bbox_inches='tight')
     plt.savefig(os.path.join(base_output, "png", "elbow_method.png"), dpi=300, bbox_inches='tight')
     plt.close()
+
+    pd.DataFrame(cluster_stats).to_csv(os.path.join(base_output, "cluster_centers_sizes.csv"), index=False)
 
 if __name__ == "__main__":
     base_dir = os.path.dirname(os.path.abspath(__file__))
