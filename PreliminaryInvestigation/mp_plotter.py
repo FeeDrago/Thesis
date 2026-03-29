@@ -5,26 +5,12 @@ import matplotlib.pyplot as plt
 from scipy.signal import detrend
 from sklearn.metrics import r2_score, mean_squared_error
 from matrix_pencil import filter_signal
+from plot_style import apply_thesis_style, style_axis, SIGNAL_COLORS
 
-plt.rcParams.update({
-    "font.family": "serif",
-    "font.serif": ["GFS Artemisia", "Times New Roman", "serif"],
-    "font.size": 20,
-    "axes.labelsize": 20,
-    "axes.titlesize": 28,
-    "figure.titlesize": 32,
-    "legend.fontsize": 20,
-    "xtick.labelsize": 20,
-    "ytick.labelsize": 20
-})
+apply_thesis_style()
 
 def generate_preliminary_report_plots(df_results, output_path, csv_path, generators, columns):
-    colors = {
-        'Voltage': 'tab:blue',
-        "Current": 'tab:green',
-        "Active Power": 'tab:orange',
-        "Reactive Power": 'tab:red'
-    }
+    colors = SIGNAL_COLORS.copy()
     
     plots_path = os.path.join(output_path, "plots")
     modal_maps_path = os.path.join(plots_path, "modal_maps")
@@ -49,7 +35,7 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
             plt.title(f"Modal Analysis: Generator {gen.upper()} - {signal}")
             plt.xlabel("Damping (Sigma) [rad/s]")
             plt.ylabel("Frequency [Hz]")
-            plt.grid(True, linestyle=':', alpha=0.6)
+            style_axis(plt.gca())
             
             fname = f"{gen}_{signal.replace(' ', '_')}"
             plt.savefig(os.path.join(modal_maps_path, "pdf", f"{fname}.pdf"), format='pdf', bbox_inches='tight')
@@ -71,7 +57,7 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
         plt.xlabel("Damping (Sigma) [rad/s]")
         plt.ylabel("Frequency [Hz]")
         plt.legend()
-        plt.grid(True, linestyle=':', alpha=0.6)
+        style_axis(plt.gca())
         
         fname = f"{gen}_combined"
         plt.savefig(os.path.join(modal_maps_path, "pdf", f"{fname}.pdf"), format='pdf', bbox_inches='tight')
@@ -95,7 +81,7 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
                        color=colors[signal], alpha=0.6, edgecolors='k', s=50)
             ax.axvline(0, color='red', linestyle='--', alpha=0.5)
             ax.set_title(signal, fontweight='semibold')
-            ax.grid(True, linestyle=':', alpha=0.6)
+            style_axis(ax)
             
             if i >= 2: ax.set_xlabel("Damping (Sigma) [rad/s]")
             if i % 2 == 0: ax.set_ylabel("Frequency [Hz]")
@@ -118,7 +104,7 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
             ax.scatter(sig_data['Damping'], sig_data['Frequency'], c=colors[signal], alpha=0.5, s=40, edgecolors='none')
         ax.axvline(0, color='red', linestyle='--', alpha=0.5)
         ax.set_title(f"Generator {gen.upper()}")
-        ax.grid(True, linestyle=':', alpha=0.4)
+        style_axis(ax, grid_alpha=0.4)
         if i >= 2: ax.set_xlabel("Damping (Sigma)")
         if i % 2 == 0: ax.set_ylabel("Frequency (Hz)")
 
@@ -185,7 +171,7 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
                     ax.plot(t, y_est, '--', color='red', label=f'MP Estimate ($R^2$={r2:.4f})')
                     ax.set_title(f"Method: {method} (RMSE: {rmse:.2e})", fontweight='semibold')
                     ax.legend(loc='upper right')
-                    ax.grid(True, linestyle=':', alpha=0.5)
+                    style_axis(ax, grid_alpha=0.5)
                     
                     if col_idx == 0: 
                        labels_map = {

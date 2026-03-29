@@ -8,22 +8,10 @@ from scipy.signal import detrend
 from sklearn.metrics import r2_score, mean_squared_error
 from matrix_pencil import filter_signal
 from matplotlib.ticker import MaxNLocator
+from plot_style import apply_thesis_style, style_axis
 
 
-
-sns.set_theme(style="whitegrid", font="serif")
-sns.set_context("paper", font_scale=1.2)
-plt.rcParams.update({
-    "font.family": "serif",
-    "font.serif": ["GFS Artemisia", "Times New Roman", "serif"],
-    "font.size": 20,
-    "axes.labelsize": 20,
-    "axes.titlesize": 28,
-    "figure.titlesize": 32,
-    "legend.fontsize": 20,
-    "xtick.labelsize": 20,
-    "ytick.labelsize": 20
-})
+apply_thesis_style()
 
 
 def generate_preliminary_report_stats(path):
@@ -98,6 +86,7 @@ def generate_preliminary_report_stats(path):
     sns.heatmap(h_data, annot=True, cmap="YlGnBu", fmt='d', cbar_kws={'label': 'Poles Count'})
     plt.title("Pole Density Heatmap", fontweight='bold')
     plt.ylabel("Generator")
+    style_axis(plt.gca())
     plt.savefig(os.path.join(pdf_path, "1_heatmap.pdf"), format='pdf', bbox_inches='tight')
     plt.savefig(os.path.join(png_path, "1_heatmap.png"), dpi=300, bbox_inches='tight')
     plt.close()
@@ -111,6 +100,7 @@ def generate_preliminary_report_stats(path):
 
     for ax in g1.axes.flat:
         ax.yaxis.set_major_locator(MaxNLocator(integer=True))
+        style_axis(ax)
         
     plt.savefig(os.path.join(pdf_path, "2_bar_grid_signal.pdf"), format='pdf', bbox_inches='tight')
     plt.savefig(os.path.join(png_path, "2_bar_grid_signal.png"), dpi=300, bbox_inches='tight')
@@ -125,7 +115,9 @@ def generate_preliminary_report_stats(path):
     
     for ax in g2.axes.flat: 
         ax.yaxis.set_major_locator(MaxNLocator(integer=True))
+        style_axis(ax)
         ax.tick_params(axis='x', rotation=30)
+        style_axis(ax)
         
     plt.savefig(os.path.join(pdf_path, "3_bar_grid_method.pdf"), format='pdf', bbox_inches='tight')
     plt.savefig(os.path.join(png_path, "3_bar_grid_method.png"), dpi=300, bbox_inches='tight')
@@ -166,6 +158,7 @@ def generate_preliminary_report_stats(path):
     sns.boxplot(data=df_m, x="Method", y="R2", hue="Method", order=method_order, palette="Set2", legend=False)
     plt.title("Method Reliability ($R^2$)", fontweight='bold')
     plt.ylabel("$R^2$ Accuracy Score")
+    style_axis(plt.gca())
     if df_m['R2'].min() < 0.5: plt.ylim(0.0, 1.05)
     else: plt.ylim(df_m['R2'].min()*0.98, 1.02)
     plt.savefig(os.path.join(pdf_path, "6_R2_boxplot.pdf"), format='pdf', bbox_inches='tight')
@@ -177,6 +170,7 @@ def generate_preliminary_report_stats(path):
     sns.scatterplot(data=df_m, x="Poles", y="R2", hue="Method", style="Gen", s=150)
     plt.title("Accuracy vs Complexity", fontweight='bold')
     plt.ylabel("$R^2$ Score")
+    style_axis(plt.gca())
     plt.legend(bbox_to_anchor=(1.02, 1), loc='upper left')
     plt.savefig(os.path.join(pdf_path, "7_pareto.pdf"), format='pdf', bbox_inches='tight')
     plt.savefig(os.path.join(png_path, "7_pareto.png"), dpi=300, bbox_inches='tight')
@@ -188,6 +182,7 @@ def generate_preliminary_report_stats(path):
     sns.countplot(data=best_m, x="Method", hue="Method", order=method_order, palette="viridis", legend=False)
     plt.title("Best Method Ranking (Max $R^2$)", fontweight='bold')
     plt.ylabel("Frequency")
+    style_axis(plt.gca())
     plt.savefig(os.path.join(pdf_path, "8_ranking.pdf"), format='pdf', bbox_inches='tight')
     plt.savefig(os.path.join(png_path, "8_ranking.png"), dpi=300, bbox_inches='tight')
     plt.close()
