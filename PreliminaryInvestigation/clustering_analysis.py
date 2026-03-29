@@ -263,7 +263,10 @@ def run_kmeans_modal_analysis(results_path, output_path):
         ax.axvline(0, color=ACCENT_RED, linestyle='--', alpha=0.35, linewidth=2)
         ax.set_xlabel("Damping (Sigma) [rad/s]")
         ax.set_ylabel("Frequency [Hz]")
-        ax.set_title(f"Modal Clustering ($k={k}$)\nWCSS: {inertia:.2f} | MAD: {overall_mad:.4f}", fontweight='bold')
+        ax.set_title(
+            f"Modal Clustering with $k-Means$ ($k={k}$)\nWCSS: {inertia:.2f} | MAD: {overall_mad:.4f}",
+            fontweight='bold'
+        )
         ax.legend(loc='upper left')
         _apply_axis_style(ax)
         _save_figure(fig, base_output, f"kmeans_modal_map_k{k}")
@@ -289,7 +292,7 @@ def run_kmeans_modal_analysis(results_path, output_path):
     grid_ks = _unique_grid_ks(k_opt, k_values)
 
     fig, axes = plt.subplots(2, 2, figsize=(16, 12), sharex=True, sharey=True)
-    fig.suptitle("K-Means Parameter Optimization Grid", fontweight='bold')
+    fig.suptitle("$k-Means$ Parameter Optimization Grid", fontweight='bold')
     axes_flat = axes.flatten()
 
     for idx, ax in enumerate(axes_flat):
@@ -306,7 +309,10 @@ def run_kmeans_modal_analysis(results_path, output_path):
         ax.scatter(centers[:, 1], centers[:, 0], c=ACCENT_RED, marker='x', s=REP_GRID_SIZE, linewidths=3)
 
         ax.axvline(0, color=ACCENT_RED, linestyle='--', alpha=0.35, linewidth=2)
-        ax.set_title(f"K-Means Results: $k={k}$\nWCSS: {inertia:.1f} | MAD: {overall_mad:.3f}", fontweight='semibold')
+        ax.set_title(
+            f"$k-Means$ Results: $k={k}$\nWCSS: {inertia:.1f} | MAD: {overall_mad:.3f}",
+            fontweight='semibold'
+        )
         _apply_axis_style(ax, GRID_ALPHA_SUB)
 
         if idx >= 2:
@@ -329,7 +335,7 @@ def run_kmeans_modal_analysis(results_path, output_path):
     ax.set_xticks(k_values)
     ax.set_xlabel("Number of clusters (k)")
     ax.set_ylabel("WCSS")
-    ax.set_title("Elbow Method for K-Means Optimization", fontweight='bold')
+    ax.set_title("Elbow Method for $k-Means$ Optimization", fontweight='bold')
     ax.legend()
     _apply_axis_style(ax)
     _save_figure(fig, base_output, "elbow_method")
@@ -400,7 +406,10 @@ def run_kmedoids_modal_analysis(results_path, output_path):
         ax.axvline(0, color=ACCENT_RED, linestyle='--', alpha=0.35, linewidth=2)
         ax.set_xlabel("Damping (Sigma) [rad/s]")
         ax.set_ylabel("Frequency [Hz]")
-        ax.set_title(f"Modal Clustering with K-Medoids ($k={k}$)\nCost: {cost:.2f} | MAD: {overall_mad:.4f}", fontweight='bold')
+        ax.set_title(
+            f"Modal Clustering with $k-Medoids$ ($k={k}$)\nCost: {cost:.2f} | MAD: {overall_mad:.4f}",
+            fontweight='bold'
+        )
         ax.legend(loc='upper left')
         _apply_axis_style(ax)
         _save_figure(fig, base_output, f"kmedoids_modal_map_k{k}")
@@ -426,7 +435,7 @@ def run_kmedoids_modal_analysis(results_path, output_path):
     grid_ks = _unique_grid_ks(k_opt, k_values)
 
     fig, axes = plt.subplots(2, 2, figsize=(16, 12), sharex=True, sharey=True)
-    fig.suptitle("K-Medoids Parameter Optimization Grid", fontweight='bold')
+    fig.suptitle("$k-Medoids$ Parameter Optimization Grid", fontweight='bold')
     axes_flat = axes.flatten()
 
     for idx, ax in enumerate(axes_flat):
@@ -443,7 +452,10 @@ def run_kmedoids_modal_analysis(results_path, output_path):
         ax.scatter(medoids[:, 1], medoids[:, 0], c=ACCENT_RED, marker='x', s=REP_GRID_SIZE, linewidths=3)
 
         ax.axvline(0, color=ACCENT_RED, linestyle='--', alpha=0.35, linewidth=2)
-        ax.set_title(f"K-Medoids Results: $k={k}$\nCost: {cost:.1f} | MAD: {overall_mad:.3f}", fontweight='semibold')
+        ax.set_title(
+            f"$k-Medoids$ Results: $k={k}$\nCost: {cost:.1f} | MAD: {overall_mad:.3f}",
+            fontweight='semibold'
+        )
         _apply_axis_style(ax, GRID_ALPHA_SUB)
 
         if idx >= 2:
@@ -471,7 +483,7 @@ def run_kmedoids_modal_analysis(results_path, output_path):
     ax.set_xticks(k_values)
     ax.set_xlabel("Number of clusters (k)")
     ax.set_ylabel("Total Medoid Distance")
-    ax.set_title("Elbow-Like Method for K-Medoids Optimization", fontweight='bold')
+    ax.set_title("Elbow-Like Method for $k-Medoids$ Optimization", fontweight='bold')
     ax.legend()
     _apply_axis_style(ax)
     _save_figure(fig, base_output, "kmedoids_elbow_method")
@@ -534,13 +546,13 @@ def run_silhouette_analysis(results_path, output_path):
     k_opt_kmedoids = int(k_values[np.argmax(kmedoids_scores)])
 
     fig, ax = plt.subplots(figsize=(11, 7))
-    ax.plot(k_values, kmeans_scores, marker='o', linewidth=3, color=LINE_BLUE, label='K-Means')
-    ax.plot(k_values, kmedoids_scores, marker='s', linewidth=3, color=LINE_GREEN, label='K-Medoids')
+    ax.plot(k_values, kmeans_scores, marker='o', linewidth=3, color=LINE_BLUE, label='$k-Means$')
+    ax.plot(k_values, kmedoids_scores, marker='s', linewidth=3, color=LINE_GREEN, label='$k-Medoids$')
     ax.scatter(k_opt_kmeans, np.max(kmeans_scores), s=220, color=LINE_BLUE, edgecolors='k', zorder=5)
     ax.scatter(k_opt_kmedoids, np.max(kmedoids_scores), s=220, color=LINE_GREEN, edgecolors='k', zorder=5)
     ax.set_xlabel("Number of clusters (k)")
     ax.set_ylabel("Average Silhouette Score")
-    ax.set_title("Silhouette Analysis: K-Means vs K-Medoids", fontweight='bold')
+    ax.set_title("Silhouette Analysis: $k$-Means vs $k$-Medoids", fontweight='bold')
     ax.set_xticks(k_values)
     ax.legend(loc='lower left')
     _apply_axis_style(ax)
@@ -551,21 +563,23 @@ def run_silhouette_analysis(results_path, output_path):
     kmeans_opt_labels = kmeans_opt_model.fit_predict(X_scaled)
     kmeans_opt_centers = scaler.inverse_transform(kmeans_opt_model.cluster_centers_)
     kmeans_cluster_mad_df, kmeans_overall_mad = _compute_cluster_mad_stats(X, kmeans_opt_labels, kmeans_opt_centers)
+    kmeans_opt_wcss = float(kmeans_opt_model.inertia_)
     kmeans_cluster_mad_df.to_csv(os.path.join(base_output, "kmeans_silhouette_selected_cluster_mad.csv"), index=False)
 
-    kmedoids_opt_labels, kmedoids_opt_medoid_indices, _ = _pam_kmedoids(
+    kmedoids_opt_labels, kmedoids_opt_medoid_indices, kmedoids_opt_cost = _pam_kmedoids(
         distance_matrix, n_clusters=k_opt_kmedoids, random_state=42
     )
     kmedoids_opt_medoids = scaler.inverse_transform(X_scaled[kmedoids_opt_medoid_indices])
     kmedoids_cluster_mad_df, kmedoids_overall_mad = _compute_cluster_mad_stats(X, kmedoids_opt_labels, kmedoids_opt_medoids)
+    kmedoids_opt_cost = float(kmedoids_opt_cost)
     kmedoids_cluster_mad_df.to_csv(os.path.join(base_output, "kmedoids_silhouette_selected_cluster_mad.csv"), index=False)
 
     methods = [
-        ("K-Means", k_opt_kmeans, kmeans_opt_labels, kmeans_opt_centers, "Centroids", kmeans_overall_mad),
-        ("K-Medoids", k_opt_kmedoids, kmedoids_opt_labels, kmedoids_opt_medoids, "Medoids", kmedoids_overall_mad)
+        ("k-Means", k_opt_kmeans, kmeans_opt_labels, kmeans_opt_centers, "Centroids", kmeans_overall_mad, f"WCSS: {kmeans_opt_wcss:.2f}"),
+        ("k-Medoids", k_opt_kmedoids, kmedoids_opt_labels, kmedoids_opt_medoids, "Medoids", kmedoids_overall_mad, f"Cost: {kmedoids_opt_cost:.2f}")
     ]
 
-    for method_name, k_opt, labels, representatives, rep_label, overall_mad in methods:
+    for method_name, k_opt, labels, representatives, rep_label, overall_mad, compactness_text in methods:
         sample_silhouette_values = silhouette_samples(X_scaled, labels)
         avg_score = float(silhouette_score(X_scaled, labels))
 
@@ -589,9 +603,9 @@ def run_silhouette_analysis(results_path, output_path):
             x=avg_score, color=ACCENT_RED, linestyle='--', linewidth=2.2,
             label=f"Average silhouette = {avg_score:.3f}"
         )
-        ax1.set_title(f"{method_name} Silhouette Profile ($k={k_opt}$)", fontweight='bold')
-        ax1.set_xlabel("Silhouette coefficient")
-        ax1.set_ylabel("Cluster label")
+        ax1.set_title(fr"${method_name}$ Silhouette Profile ($k={k_opt}$)", fontweight='bold')
+        ax1.set_xlabel("Silhouette Coefficient")
+        ax1.set_ylabel("Cluster")
         ax1.set_yticks([])
         x_min = min(-0.1, sample_silhouette_values.min() - 0.05)
         ax1.set_xlim(x_min, 1.0)
@@ -611,7 +625,10 @@ def run_silhouette_analysis(results_path, output_path):
             s=REP_SIZE, linewidths=4, label=rep_label
         )
         ax2.axvline(0, color=ACCENT_RED, linestyle='--', alpha=0.35, linewidth=2)
-        ax2.set_title(f"{method_name} Cluster Map ($k={k_opt}$)\nMAD: {overall_mad:.4f}", fontweight='bold')
+        ax2.set_title(
+            f"${method_name}$ Cluster Map ($k={k_opt}$)\n{compactness_text} | MAD: {overall_mad:.4f}",
+            fontweight='bold'
+        )
         ax2.set_xlabel("Damping (Sigma) [rad/s]")
         ax2.set_ylabel("Frequency [Hz]")
         _apply_axis_style(ax2, GRID_ALPHA_SUB)
@@ -636,8 +653,8 @@ def run_silhouette_analysis(results_path, output_path):
     summary_df.to_csv(os.path.join(base_output, "silhouette_scores.csv"), index=False)
 
     optimal_summary = pd.DataFrame([
-        {"Method": "K-Means", "Selection_Criterion": "Silhouette", "k_opt": k_opt_kmeans, "Silhouette": float(np.max(kmeans_scores)), "MAD_2D_overall": kmeans_overall_mad},
-        {"Method": "K-Medoids", "Selection_Criterion": "Silhouette", "k_opt": k_opt_kmedoids, "Silhouette": float(np.max(kmedoids_scores)), "MAD_2D_overall": kmedoids_overall_mad},
+        {"Method": "k-Means", "Selection_Criterion": "Silhouette", "k_opt": k_opt_kmeans, "Silhouette": float(np.max(kmeans_scores)), "MAD_2D_overall": kmeans_overall_mad},
+        {"Method": "k-Medoids", "Selection_Criterion": "Silhouette", "k_opt": k_opt_kmedoids, "Silhouette": float(np.max(kmedoids_scores)), "MAD_2D_overall": kmedoids_overall_mad},
     ])
     optimal_summary.to_csv(os.path.join(base_output, "silhouette_optimal_k_summary.csv"), index=False)
 
