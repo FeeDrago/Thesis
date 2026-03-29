@@ -569,7 +569,7 @@ def run_silhouette_analysis(results_path, output_path):
         sample_silhouette_values = silhouette_samples(X_scaled, labels)
         avg_score = float(silhouette_score(X_scaled, labels))
 
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 7), gridspec_kw={"width_ratios": [1.05, 1.0]})
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 10), gridspec_kw={"width_ratios": [1.05, 1.0]})
 
         y_lower = 10
         for i in range(k_opt):
