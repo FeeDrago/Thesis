@@ -9,6 +9,10 @@ from plot_style import apply_thesis_style, style_axis, SIGNAL_COLORS
 
 apply_thesis_style()
 
+RECON_X_LIMS = (0, 50)
+RECON_TICK_LABEL_SIZE = 30
+RECON_AXIS_LABEL_SIZE = 34
+
 def generate_preliminary_report_plots(df_results, output_path, csv_path, generators, columns):
     colors = SIGNAL_COLORS.copy()
     
@@ -150,6 +154,8 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
             for row_idx, (left_meth, right_meth) in enumerate(row_configs):
                 for col_idx, method in enumerate([left_meth, right_meth]):
                     ax = axes[row_idx, col_idx]
+                    ax.set_xlim(*RECON_X_LIMS)
+                    ax.tick_params(axis='both', labelsize=RECON_TICK_LABEL_SIZE)
                     
                     modes = df_results[(df_results['Gen'] == gen) & 
                                        (df_results['Signal'] == signal_label) & 
@@ -180,8 +186,9 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
                             'Active Power': r"$\Delta P$ [MW]",
                             'Reactive Power': r"$\Delta Q$ [Mvar]"
                         }
-                    ax.set_ylabel(labels_map.get(signal_label, ""))
-                    if row_idx == 2: ax.set_xlabel("Time (s)")
+                    ax.set_ylabel(labels_map.get(signal_label, ""), fontsize=RECON_AXIS_LABEL_SIZE)
+                    if row_idx == 2:
+                        ax.set_xlabel("Time (s)", fontsize=RECON_AXIS_LABEL_SIZE)
 
             plt.tight_layout(rect=[0, 0.03, 1, 0.95])
             fname = f"{gen}_{signal_label.replace(' ', '_')}_Reconstruction"

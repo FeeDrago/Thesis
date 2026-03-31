@@ -13,6 +13,10 @@ from plot_style import apply_thesis_style, style_axis
 
 apply_thesis_style()
 
+RECON_X_LIMS = (0, 50)
+RECON_TICK_LABEL_SIZE = 30
+RECON_AXIS_LABEL_SIZE = 34
+
 
 def generate_preliminary_report_stats(path):
     # Path configuration
@@ -189,7 +193,7 @@ def generate_preliminary_report_stats(path):
 
     # 9. Best Reconstruction 4x4 Grid
     fig, axes = plt.subplots(4, 4, figsize=(28, 22), sharex=True)
-    fig.suptitle("Absolute Best Signal Reconstruction (Max $R^2$)", fontsize=34, fontweight='bold', y=0.975)
+    fig.suptitle("Absolute Best Signal Reconstruction (Max $R^2$)", fontweight='bold', y=0.975)
 
     gens = list(gen_id_map.values())
     sigs = list(signals_map.keys())
@@ -213,6 +217,8 @@ def generate_preliminary_report_stats(path):
 
         for j, sig_l in enumerate(sigs):
             ax = axes[i, j]
+            ax.set_xlim(*RECON_X_LIMS)
+            ax.tick_params(axis='both', labelsize=RECON_TICK_LABEL_SIZE)
             col = signals_map[sig_l]
             if col not in raw_df.columns: 
                 ax.axis('off')
@@ -238,19 +244,18 @@ def generate_preliminary_report_stats(path):
             ax.plot(t, y_est, '--', color='red', linewidth=1.5, label='MP Estimate')
             ax.set_title(
                 f"{glabel} - {sig_l}\nMethod: {best_method} ($R^2$: {best_r2:.4f})",
-                fontsize=20,
                 fontweight='semibold'
             )
-            ax.tick_params(axis='both', labelsize=18)
             ax.grid(True, linestyle=':', alpha=0.6)
-            if i == 3: ax.set_xlabel("Time (s)")
+            if i == 3:
+                ax.set_xlabel("Time (s)", fontsize=RECON_AXIS_LABEL_SIZE)
             labels_map = {
                 'Voltage': r"$\Delta V$ [p.u.]",
                 'Current': r"$\Delta \mathrm{I}$ [p.u.]",
                 'Active Power': r"$\Delta P$ [MW]",
                 'Reactive Power': r"$\Delta Q$ [Mvar]"
             }
-            ax.set_ylabel(labels_map.get(sig_l, ""))
+            ax.set_ylabel(labels_map.get(sig_l, ""), fontsize=RECON_AXIS_LABEL_SIZE)
             if i == 0 and j == 3: ax.legend(loc='upper right')
     fig.subplots_adjust(left=0.07, right=0.98, bottom=0.07, top=0.92, wspace=0.22, hspace=0.42)
     plt.savefig(os.path.join(pdf_path, "9_best_reconstruction_grid.pdf"), format='pdf', bbox_inches='tight')
@@ -288,6 +293,8 @@ def generate_preliminary_report_stats(path):
 
         for j, sig_l in enumerate(sigs):
             ax = axes_flat[j]
+            ax.set_xlim(*RECON_X_LIMS)
+            ax.tick_params(axis='both', labelsize=RECON_TICK_LABEL_SIZE)
             col = signals_map[sig_l]
             if col not in raw_df.columns:
                 ax.axis('off')
@@ -314,10 +321,9 @@ def generate_preliminary_report_stats(path):
             ax.plot(t, y_ref, color='black', alpha=0.3, linewidth=2, label='Original (filtered)')
             ax.plot(t, y_est, '--', color='red', linewidth=1.5, label='MP Estimate')
             ax.set_title(f"{glabel} - {sig_l}\nMethod: {best_method} ($R^2$: {best_r2:.4f})", fontweight='semibold')
-            ax.tick_params(axis='both', labelsize=18)
             if j >= 2:
-                ax.set_xlabel("Time (s)")
-            ax.set_ylabel(labels_map.get(sig_l, ""))
+                ax.set_xlabel("Time (s)", fontsize=RECON_AXIS_LABEL_SIZE)
+            ax.set_ylabel(labels_map.get(sig_l, ""), fontsize=RECON_AXIS_LABEL_SIZE)
             ax.grid(True, linestyle=':', alpha=0.75, linewidth=1.3, color='gray')
             if j == 1:
                 ax.legend(loc='upper right')
