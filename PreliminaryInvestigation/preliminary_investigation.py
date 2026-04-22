@@ -7,7 +7,13 @@ from matrix_pencil import apply_matrix_pencil_fixed_order, determine_MP_order, f
 from mp_plotter import generate_preliminary_report_plots
 import time
 from stats import generate_preliminary_report_stats
-
+from clustering_analysis import (
+    _load_screened_data,
+    _save_reference_mad_outputs,
+    run_kmeans_modal_analysis,
+    run_kmedoids_modal_analysis,
+    run_silhouette_analysis,
+)
 
 start_time = time.time()
 
@@ -23,6 +29,7 @@ columns = {
     's:Q1 in Mvar': 'Reactive Power'
 }
 results = []
+stats_lines = []
 
 
 for gen in generators:
@@ -58,8 +65,19 @@ for gen in generators:
         # signal_col = df[col].values.copy()
         
         signal_col = detrend(signal_col)
+        mean_after_detrend = np.mean(signal_col)
         signal_col = filter_signal(signal_col, time_col, fc=10, N=15)
+        mean_after_lpf = np.mean(signal_col)
         signal_col = signal_col - np.mean(signal_col)  
+        mean_after_demean = np.mean(signal_col)
+
+        stats_lines.append({
+    "Generator": gen,
+    "Signal": signal,
+    "Mean after detrend": mean_after_detrend,
+    "Mean after LPF": mean_after_lpf,
+    "Mean after demean": mean_after_demean
+})
 
         # Fixed Orders
         for order in fixed_orders:
@@ -98,11 +116,21 @@ for gen in generators:
 # Save results to CSV
 df_results = pd.DataFrame(results)
 df_results.to_csv(os.path.join(path, "results.csv"), index=False)
-print("Results saved.")
+df_stats = pd.DataFrame(stats_lines)
+df_stats.to_csv(os.path.join(path, "signal_means.csv"), index=False)
 
 # Create plots
 generate_preliminary_report_plots(df_results=df_results, output_path=path, csv_path=path, generators=generators, columns=columns)
 # Generate statistics
 generate_preliminary_report_stats(path)
+# Clustering Analysis
+res_path = os.path.join(path, "results.csv")
+out_path = os.path.join(path, "clustering")
+df_for_mad = _load_screened_data(res_path, out_path)
+if df_for_mad is not None:
+    _save_reference_mad_outputs(df_for_mad, path)
+run_kmeans_modal_analysis(res_path, out_path)
+run_kmedoids_modal_analysis(res_path, out_path)
+run_silhouette_analysis(res_path, out_path)
 end_time = time.time()
 print("-"*30, f"Execution Time: {(end_time - start_time)//60} minutes and {(end_time - start_time)%60} seconds", "-"*30)

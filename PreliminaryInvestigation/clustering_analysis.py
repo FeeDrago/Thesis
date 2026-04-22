@@ -28,6 +28,12 @@ apply_thesis_style()
 FREQ_MIN = 0.1
 FREQ_MAX = 2.0
 
+REFERENCE_MODES = {
+    "Inter-area": {"Frequency": 0.540, "Damping": -0.127},
+    "Intra-area 1": {"Frequency": 1.083, "Damping": -0.603},
+    "Intra-area 2": {"Frequency": 1.119, "Damping": -0.631},
+}
+
 
 def _label_colors(labels):
     return [CLUSTER_COLORS[int(lbl) % len(CLUSTER_COLORS)] for lbl in labels]
@@ -161,6 +167,107 @@ def _load_screened_data(results_path, output_path):
     return df
 
 
+
+
+def _assign_reference_modes(df):
+    """
+    Assign each MP estimate to the nearest reference eigenvalue and compute
+    the 2D distance used in Eq. (26)-style MAD evaluation.
+    """
+    df = df.copy()
+    reference_names = list(REFERENCE_MODES.keys())
+    reference_points = np.array([
+        [REFERENCE_MODES[name]["Frequency"], REFERENCE_MODES[name]["Damping"]]
+        for name in reference_names
+    ], dtype=float)
+
+    X = df[["Frequency", "Damping"]].to_numpy(dtype=float)
+    diffs = X[:, None, :] - reference_points[None, :, :]
+    distances = np.sqrt(np.sum(diffs ** 2, axis=2))
+    best_idx = np.argmin(distances, axis=1)
+
+    df["Reference_Mode"] = [reference_names[i] for i in best_idx]
+    df["Reference_Frequency"] = [reference_points[i, 0] for i in best_idx]
+    df["Reference_Damping"] = [reference_points[i, 1] for i in best_idx]
+    df["Distance_to_Reference"] = distances[np.arange(len(df)), best_idx]
+    return df
+
+
+def _save_reference_mad_outputs(df, output_path):
+    """
+    Save MAD summaries exactly in the spirit of Eq. (26) of the reference paper:
+    MAD_i = median(|lambda_hat_{i,j} - lambda_i|)
+
+    Here lambda_hat_{i,j} are all screened MP estimates and lambda_i are the
+    reference eigenvalues of the Kundur system.
+    """
+    ref_dir = os.path.join(output_path, "reference_mad")
+    os.makedirs(ref_dir, exist_ok=True)
+
+    assigned_df = _assign_reference_modes(df)
+    assigned_df.to_csv(
+        os.path.join(ref_dir, "mp_estimates_with_reference_assignment.csv"),
+        index=False
+    )
+
+    overall_by_mode = (
+        assigned_df.groupby("Reference_Mode", as_index=False)
+        .agg(
+            Reference_Frequency=("Reference_Frequency", "first"),
+            Reference_Damping=("Reference_Damping", "first"),
+            Count=("Distance_to_Reference", "size"),
+            MAD=("Distance_to_Reference", "median"),
+            Mean_Distance=("Distance_to_Reference", "mean"),
+            Max_Distance=("Distance_to_Reference", "max"),
+        )
+    )
+    overall_by_mode.to_csv(
+        os.path.join(ref_dir, "reference_mad_summary_overall.csv"),
+        index=False
+    )
+
+    by_method = (
+        assigned_df.groupby(["Method", "Reference_Mode"], as_index=False)
+        .agg(
+            Reference_Frequency=("Reference_Frequency", "first"),
+            Reference_Damping=("Reference_Damping", "first"),
+            Count=("Distance_to_Reference", "size"),
+            MAD=("Distance_to_Reference", "median"),
+            Mean_Distance=("Distance_to_Reference", "mean"),
+            Max_Distance=("Distance_to_Reference", "max"),
+        )
+    )
+    by_method.to_csv(
+        os.path.join(ref_dir, "reference_mad_summary_by_method.csv"),
+        index=False
+    )
+
+    by_gen_signal = (
+        assigned_df.groupby(["Gen", "Signal", "Reference_Mode"], as_index=False)
+        .agg(
+            Reference_Frequency=("Reference_Frequency", "first"),
+            Reference_Damping=("Reference_Damping", "first"),
+            Count=("Distance_to_Reference", "size"),
+            MAD=("Distance_to_Reference", "median"),
+            Mean_Distance=("Distance_to_Reference", "mean"),
+            Max_Distance=("Distance_to_Reference", "max"),
+        )
+    )
+    by_gen_signal.to_csv(
+        os.path.join(ref_dir, "reference_mad_summary_by_gen_signal.csv"),
+        index=False
+    )
+
+    pd.DataFrame([{
+        "Count": int(len(assigned_df)),
+        "MAD": float(assigned_df["Distance_to_Reference"].median()),
+        "Mean_Distance": float(assigned_df["Distance_to_Reference"].mean()),
+        "Max_Distance": float(assigned_df["Distance_to_Reference"].max()),
+    }]).to_csv(
+        os.path.join(ref_dir, "reference_mad_overall.csv"),
+        index=False
+    )
+
 def _unique_grid_ks(k_opt, k_values):
     ordered_candidates = [k_opt - 1, k_opt, k_opt + 1, k_opt + 2]
     grid_ks = []
@@ -177,29 +284,6 @@ def _unique_grid_ks(k_opt, k_values):
                 break
     return grid_ks
 
-
-def _compute_cluster_mad_stats(X_original, labels, representatives):
-    records = []
-    point_distances = []
-
-    for cluster_idx in sorted(np.unique(labels)):
-        cluster_points = X_original[labels == cluster_idx]
-        rep = representatives[cluster_idx]
-        distances = np.sqrt(np.sum((cluster_points - rep) ** 2, axis=1))
-        point_distances.extend(distances.tolist())
-
-        records.append({
-            "Cluster": int(cluster_idx + 1),
-            "Size": int(cluster_points.shape[0]),
-            "Representative_Frequency": float(rep[0]),
-            "Representative_Damping": float(rep[1]),
-            "MAD_2D": float(np.median(distances)),
-            "Mean_2D_Distance": float(np.mean(distances)),
-            "Max_2D_Distance": float(np.max(distances)),
-        })
-
-    overall_mad = float(np.median(point_distances)) if point_distances else np.nan
-    return pd.DataFrame(records), overall_mad
 
 
 def _save_metrics_summary(base_output, metrics_rows, filename):
@@ -228,16 +312,11 @@ def run_kmeans_modal_analysis(results_path, output_path):
         labels = kmeans.fit_predict(X_scaled)
         inertia = float(kmeans.inertia_)
         centers = scaler.inverse_transform(kmeans.cluster_centers_)
-        cluster_mad_df, overall_mad = _compute_cluster_mad_stats(X, labels, centers)
-        cluster_mad_df.insert(0, "k", int(k))
-        cluster_mad_df.to_csv(os.path.join(base_output, f"kmeans_cluster_mad_k{k}.csv"), index=False)
-
-        stored_results[int(k)] = (labels, centers, inertia, overall_mad)
+        stored_results[int(k)] = (labels, centers, inertia)
 
         metrics_rows.append({
             "k": int(k),
             "WCSS": inertia,
-            "MAD_2D_overall": overall_mad,
         })
 
         for c in range(k):
@@ -264,7 +343,7 @@ def run_kmeans_modal_analysis(results_path, output_path):
         ax.set_xlabel("Damping (Sigma) [rad/s]")
         ax.set_ylabel("Frequency [Hz]")
         ax.set_title(
-            f"Modal Clustering with $k-Means$ ($k={k}$)\nWCSS: {inertia:.2f} | MAD: {overall_mad:.4f}",
+            f"Modal Clustering with $k-Means$ ($k={k}$)\nWCSS: {inertia:.2f}",
             fontweight='bold'
         )
         ax.legend(loc='upper left')
@@ -281,7 +360,9 @@ def run_kmeans_modal_analysis(results_path, output_path):
         distances = []
         for i in range(len(k_values)):
             p3 = np.array([k_values[i], wcss[i]])
-            d = np.abs(np.cross(p2 - p1, p1 - p3)) / np.linalg.norm(p2 - p1)
+            v = p2 - p1
+            w = p3 - p1
+            d = np.abs(v[0] * w[1] - v[1] * w[0]) / np.linalg.norm(v)
             distances.append(d)
         k_opt_idx = int(np.argmax(distances))
         k_opt = int(k_values[k_opt_idx])
@@ -301,7 +382,7 @@ def run_kmeans_modal_analysis(results_path, output_path):
             continue
 
         k = grid_ks[idx]
-        labels, centers, inertia, overall_mad = stored_results[k]
+        labels, centers, inertia = stored_results[k]
 
         point_colors = _label_colors(labels)
         ax.scatter(df['Damping'], df['Frequency'], c=point_colors, alpha=POINT_ALPHA, s=GRID_POINT_SIZE,
@@ -310,7 +391,7 @@ def run_kmeans_modal_analysis(results_path, output_path):
 
         ax.axvline(0, color=ACCENT_RED, linestyle='--', alpha=0.35, linewidth=2)
         ax.set_title(
-            f"$k-Means$ Results: $k={k}$\nWCSS: {inertia:.1f} | MAD: {overall_mad:.3f}",
+            f"$k-Means$ Results: $k={k}$\nWCSS: {inertia:.1f}",
             fontweight='semibold'
         )
         _apply_axis_style(ax, GRID_ALPHA_SUB)
@@ -369,16 +450,11 @@ def run_kmedoids_modal_analysis(results_path, output_path):
         labels, medoid_indices, cost = _pam_kmedoids(distance_matrix, n_clusters=k, random_state=42)
         cost = float(cost)
         medoids = scaler.inverse_transform(X_scaled[medoid_indices])
-        cluster_mad_df, overall_mad = _compute_cluster_mad_stats(X, labels, medoids)
-        cluster_mad_df.insert(0, "k", int(k))
-        cluster_mad_df.to_csv(os.path.join(base_output, f"kmedoids_cluster_mad_k{k}.csv"), index=False)
-
-        stored_results[int(k)] = (labels, medoids, cost, overall_mad)
+        stored_results[int(k)] = (labels, medoids, cost)
 
         metrics_rows.append({
             "k": int(k),
             "Cost": cost,
-            "MAD_2D_overall": overall_mad,
         })
 
         for c in range(k):
@@ -407,7 +483,7 @@ def run_kmedoids_modal_analysis(results_path, output_path):
         ax.set_xlabel("Damping (Sigma) [rad/s]")
         ax.set_ylabel("Frequency [Hz]")
         ax.set_title(
-            f"Modal Clustering with $k-Medoids$ ($k={k}$)\nCost: {cost:.2f} | MAD: {overall_mad:.4f}",
+            f"Modal Clustering with $k-Medoids$ ($k={k}$)\nCost: {cost:.2f}",
             fontweight='bold'
         )
         ax.legend(loc='upper left')
@@ -424,7 +500,9 @@ def run_kmedoids_modal_analysis(results_path, output_path):
         distances = []
         for i in range(len(k_values)):
             p3 = np.array([k_values[i], costs[i]])
-            d = np.abs(np.cross(p2 - p1, p1 - p3)) / np.linalg.norm(p2 - p1)
+            v = p2 - p1
+            w = p3 - p1
+            d = np.abs(v[0] * w[1] - v[1] * w[0]) / np.linalg.norm(v)
             distances.append(d)
         k_opt_idx = int(np.argmax(distances))
         k_opt = int(k_values[k_opt_idx])
@@ -444,7 +522,7 @@ def run_kmedoids_modal_analysis(results_path, output_path):
             continue
 
         k = grid_ks[idx]
-        labels, medoids, cost, overall_mad = stored_results[k]
+        labels, medoids, cost = stored_results[k]
 
         point_colors = _label_colors(labels)
         ax.scatter(df['Damping'], df['Frequency'], c=point_colors, alpha=POINT_ALPHA, s=GRID_POINT_SIZE,
@@ -453,7 +531,7 @@ def run_kmedoids_modal_analysis(results_path, output_path):
 
         ax.axvline(0, color=ACCENT_RED, linestyle='--', alpha=0.35, linewidth=2)
         ax.set_title(
-            f"$k-Medoids$ Results: $k={k}$\nCost: {cost:.1f} | MAD: {overall_mad:.3f}",
+            f"$k-Medoids$ Results: $k={k}$\nCost: {cost:.1f}",
             fontweight='semibold'
         )
         _apply_axis_style(ax, GRID_ALPHA_SUB)
@@ -520,27 +598,17 @@ def run_silhouette_analysis(results_path, output_path):
     k_values = np.arange(2, max_k + 1)
     kmeans_scores = []
     kmedoids_scores = []
-    kmeans_mad = []
-    kmedoids_mad = []
 
     for k in k_values:
         kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
         kmeans_labels = kmeans.fit_predict(X_scaled)
         kmeans_scores.append(float(silhouette_score(X_scaled, kmeans_labels)))
-        kmeans_centers = scaler.inverse_transform(kmeans.cluster_centers_)
-        _, overall_kmeans_mad = _compute_cluster_mad_stats(X, kmeans_labels, kmeans_centers)
-        kmeans_mad.append(overall_kmeans_mad)
 
         kmedoids_labels, kmedoids_medoid_indices, _ = _pam_kmedoids(distance_matrix, n_clusters=k, random_state=42)
         kmedoids_scores.append(float(silhouette_score(X_scaled, kmedoids_labels)))
-        kmedoids_medoids = scaler.inverse_transform(X_scaled[kmedoids_medoid_indices])
-        _, overall_kmedoids_mad = _compute_cluster_mad_stats(X, kmedoids_labels, kmedoids_medoids)
-        kmedoids_mad.append(overall_kmedoids_mad)
 
     kmeans_scores = np.array(kmeans_scores)
     kmedoids_scores = np.array(kmedoids_scores)
-    kmeans_mad = np.array(kmeans_mad)
-    kmedoids_mad = np.array(kmedoids_mad)
 
     k_opt_kmeans = int(k_values[np.argmax(kmeans_scores)])
     k_opt_kmedoids = int(k_values[np.argmax(kmedoids_scores)])
@@ -562,24 +630,20 @@ def run_silhouette_analysis(results_path, output_path):
     kmeans_opt_model = KMeans(n_clusters=k_opt_kmeans, random_state=42, n_init=10)
     kmeans_opt_labels = kmeans_opt_model.fit_predict(X_scaled)
     kmeans_opt_centers = scaler.inverse_transform(kmeans_opt_model.cluster_centers_)
-    kmeans_cluster_mad_df, kmeans_overall_mad = _compute_cluster_mad_stats(X, kmeans_opt_labels, kmeans_opt_centers)
     kmeans_opt_wcss = float(kmeans_opt_model.inertia_)
-    kmeans_cluster_mad_df.to_csv(os.path.join(base_output, "kmeans_silhouette_selected_cluster_mad.csv"), index=False)
 
     kmedoids_opt_labels, kmedoids_opt_medoid_indices, kmedoids_opt_cost = _pam_kmedoids(
         distance_matrix, n_clusters=k_opt_kmedoids, random_state=42
     )
     kmedoids_opt_medoids = scaler.inverse_transform(X_scaled[kmedoids_opt_medoid_indices])
-    kmedoids_cluster_mad_df, kmedoids_overall_mad = _compute_cluster_mad_stats(X, kmedoids_opt_labels, kmedoids_opt_medoids)
     kmedoids_opt_cost = float(kmedoids_opt_cost)
-    kmedoids_cluster_mad_df.to_csv(os.path.join(base_output, "kmedoids_silhouette_selected_cluster_mad.csv"), index=False)
 
     methods = [
-        ("k-Means", k_opt_kmeans, kmeans_opt_labels, kmeans_opt_centers, "Centroids", kmeans_overall_mad, f"WCSS: {kmeans_opt_wcss:.2f}"),
-        ("k-Medoids", k_opt_kmedoids, kmedoids_opt_labels, kmedoids_opt_medoids, "Medoids", kmedoids_overall_mad, f"Cost: {kmedoids_opt_cost:.2f}")
+        ("k-Means", k_opt_kmeans, kmeans_opt_labels, kmeans_opt_centers, "Centroids", f"WCSS: {kmeans_opt_wcss:.2f}"),
+        ("k-Medoids", k_opt_kmedoids, kmedoids_opt_labels, kmedoids_opt_medoids, "Medoids", f"Cost: {kmedoids_opt_cost:.2f}")
     ]
 
-    for method_name, k_opt, labels, representatives, rep_label, overall_mad, compactness_text in methods:
+    for method_name, k_opt, labels, representatives, rep_label, compactness_text in methods:
         sample_silhouette_values = silhouette_samples(X_scaled, labels)
         avg_score = float(silhouette_score(X_scaled, labels))
 
@@ -626,7 +690,7 @@ def run_silhouette_analysis(results_path, output_path):
         )
         ax2.axvline(0, color=ACCENT_RED, linestyle='--', alpha=0.35, linewidth=2)
         ax2.set_title(
-            f"${method_name}$ Cluster Map ($k={k_opt}$)\n{compactness_text} | MAD: {overall_mad:.4f}",
+            f"${method_name}$ Cluster Map ($k={k_opt}$)\n{compactness_text}",
             fontweight='bold'
         )
         ax2.set_xlabel("Damping (Sigma) [rad/s]")
@@ -645,16 +709,14 @@ def run_silhouette_analysis(results_path, output_path):
         'k': k_values,
         'kmeans_silhouette': kmeans_scores,
         'kmedoids_silhouette': kmedoids_scores,
-        'kmeans_mad_2d': kmeans_mad,
-        'kmedoids_mad_2d': kmedoids_mad,
         'kmeans_selected_by_silhouette': k_values == k_opt_kmeans,
         'kmedoids_selected_by_silhouette': k_values == k_opt_kmedoids,
     })
     summary_df.to_csv(os.path.join(base_output, "silhouette_scores.csv"), index=False)
 
     optimal_summary = pd.DataFrame([
-        {"Method": "k-Means", "Selection_Criterion": "Silhouette", "k_opt": k_opt_kmeans, "Silhouette": float(np.max(kmeans_scores)), "MAD_2D_overall": kmeans_overall_mad},
-        {"Method": "k-Medoids", "Selection_Criterion": "Silhouette", "k_opt": k_opt_kmedoids, "Silhouette": float(np.max(kmedoids_scores)), "MAD_2D_overall": kmedoids_overall_mad},
+        {"Method": "k-Means", "Selection_Criterion": "Silhouette", "k_opt": k_opt_kmeans, "Silhouette": float(np.max(kmeans_scores))},
+        {"Method": "k-Medoids", "Selection_Criterion": "Silhouette", "k_opt": k_opt_kmedoids, "Silhouette": float(np.max(kmedoids_scores))},
     ])
     optimal_summary.to_csv(os.path.join(base_output, "silhouette_optimal_k_summary.csv"), index=False)
 
@@ -663,6 +725,10 @@ if __name__ == "__main__":
     base_dir = os.path.dirname(os.path.abspath(__file__))
     res_path = os.path.join(base_dir, "results.csv")
     out_path = os.path.join(base_dir, "clustering")
+
+    df_for_mad = _load_screened_data(res_path, out_path)
+    if df_for_mad is not None:
+        _save_reference_mad_outputs(df_for_mad, base_dir)
 
     run_kmeans_modal_analysis(res_path, out_path)
     run_kmedoids_modal_analysis(res_path, out_path)

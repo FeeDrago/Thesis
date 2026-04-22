@@ -143,16 +143,27 @@ def generate_preliminary_report_stats(path):
     plt.savefig(os.path.join(pdf_path, "4_3D_overview.pdf"), format='pdf', bbox_inches='tight')
     plt.savefig(os.path.join(png_path, "4_3D_overview.png"), dpi=300, bbox_inches='tight')
     plt.close()
+
     # 5. Modal bubble map
     plt.figure(figsize=(14, 9))
-    df['Src'] = df['Gen'] + " | " + df['Signal'] 
+    df['Src'] = df['Gen'] + " | " + df['Signal']
     counts = df.groupby('Src').size().reset_index(name='Count')
     df = df.merge(counts, on='Src')
-    df['Src'] = df['Src'] + f" | Poles: " + df['Count'].astype(str)
-    norm_a = (df['Amplitude'] - df['Amplitude'].min()) / (df['Amplitude'].max() - df['Amplitude'].min() + 1e-9)
-    plt.scatter(df['Frequency'], df['Src'], s=norm_a*800+100, c=df['Damping'], cmap='RdYlGn', edgecolors='black')
+    df['Src'] = df['Src'] + " | Poles: " + df['Count'].astype(str)
+    omega = 2 * np.pi * df['Frequency']
+    df['Energy'] = 0.5 * (omega**2) * (df['Amplitude']**2)
+    norm_e = (df['Energy'] - df['Energy'].min()) / (df['Energy'].max() - df['Energy'].min() + 1e-12)
+    plt.scatter(
+        df['Frequency'],
+        df['Src'],
+        s=norm_e * 800 + 100,
+        c=df['Damping'],
+        cmap='RdYlGn',
+        edgecolors='black'
+    )
     plt.colorbar().set_label(r'Damping ($\sigma$)')
-    plt.title("Modal Frequency/Damping Map", fontweight='bold')
+    plt.title("Modal Frequency/Damping/Energy Map", fontweight='bold')
+    style_axis(plt.gca())
     plt.savefig(os.path.join(pdf_path, "5_bubble_map.pdf"), format='pdf', bbox_inches='tight')
     plt.savefig(os.path.join(png_path, "5_bubble_map.png"), dpi=300, bbox_inches='tight')
     plt.close()
