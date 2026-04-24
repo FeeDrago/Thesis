@@ -67,17 +67,17 @@ for gen in generators:
         signal_col = detrend(signal_col)
         mean_after_detrend = np.mean(signal_col)
         signal_col = filter_signal(signal_col, time_col, fc=10, N=15)
-        mean_after_lpf = np.mean(signal_col)
-        signal_col = signal_col - np.mean(signal_col)  
-        mean_after_demean = np.mean(signal_col)
+        # mean_after_lpf = np.mean(signal_col)
+        # signal_col = signal_col - np.mean(signal_col)  
+        # mean_after_demean = np.mean(signal_col)
 
-        stats_lines.append({
-    "Generator": gen,
-    "Signal": signal,
-    "Mean after detrend": mean_after_detrend,
-    "Mean after LPF": mean_after_lpf,
-    "Mean after demean": mean_after_demean
-})
+#         stats_lines.append({
+#     "Generator": gen,
+#     "Signal": signal,
+#     "Mean after detrend": mean_after_detrend,
+#     "Mean after LPF": mean_after_lpf,
+#     "Mean after demean": mean_after_demean
+# })
 
         # Fixed Orders
         for order in fixed_orders:
@@ -116,8 +116,8 @@ for gen in generators:
 # Save results to CSV
 df_results = pd.DataFrame(results)
 df_results.to_csv(os.path.join(path, "results.csv"), index=False)
-df_stats = pd.DataFrame(stats_lines)
-df_stats.to_csv(os.path.join(path, "signal_means.csv"), index=False)
+# df_stats = pd.DataFrame(stats_lines)
+# df_stats.to_csv(os.path.join(path, "signal_means.csv"), index=False)
 
 # Create plots
 generate_preliminary_report_plots(df_results=df_results, output_path=path, csv_path=path, generators=generators, columns=columns)
