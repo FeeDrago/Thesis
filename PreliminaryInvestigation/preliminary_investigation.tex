@@ -1,7 +1,6 @@
 \documentclass[conference]{IEEEtran}
 \IEEEoverridecommandlockouts
 
-\usepackage[greek,english]{babel}
 \usepackage{fontspec}
 \usepackage[hidelinks]{hyperref}
 \usepackage{flushend}
@@ -17,13 +16,7 @@
 \urlstyle{same}
 
 
-\babelfont{rm}[
-  UprightFont = *,
-  BoldFont = * Bold,
-  ItalicFont = * Italic,
-  BoldItalicFont = * Bold Italic
-]{GFS Artemisia}
-\babelfont[greek]{rm}[
+\setmainfont[
   UprightFont = *,
   BoldFont = * Bold,
   ItalicFont = * Italic,
@@ -108,42 +101,41 @@ Matrix Pencil Method, Kundur Two-Area System, Modal Analysis, Ringdown Response,
 
 Η πιστότητα της ανακατασκευής αξιολογήθηκε μέσω του συντελεστή προσδιορισμού $R^{2}$ και του μέσου τετραγωνικού σφάλματος RMSE. Η διαδικασία αυτή εξασφαλίζει ότι οι ταυτοποιημένες ιδιοτιμές αντιπροσωπεύουν με ακρίβεια τη φυσική απόκριση του συστήματος Kundur και δεν αποτελούν μαθηματικά σφάλματα της προσέγγισης.
 
+\section{Αποτελέσματα και Γραφικές Παραστάσεις}
 
-
-\section{Αποτελέσματα και Γραφικές Παραστάσεις }
 \subsection{Απεικόνιση Παραμέτρων Ιδιοτιμών (\textit{Real Part vs Frequency})}
 \label{sec:modal_and_reconstruction_plots}
 Ως αποτέλεσμα της εφαρμογής του αλγορίθμου MP, ελήφθησαν τα διαγράμματα της παρούσας παραγράφου, στα οποία παρουσιάζεται η κατανομή των ιδιοτιμών στο μιγαδικό επίπεδο για τα μετρούμενα μεγέθη των γεννητριών του συστήματος. Συγκεκριμένα, στον οριζόντιο άξονα παρουσιάζεται ο ρυθμός απόσβεσης ($\sigma$), ο οποίος αποτελεί το πραγματικό μέρος των ιδιοτιμών, ενώ στον κατακόρυφο άξονα η συχνότητα ταλάντωσης ($f$) σε Hz.
 
-\begin{figure}[H]
+\begin{figure}[!htbp]
     \centering
     \includegraphics[width=0.95\linewidth]{./plots/modal_maps/pdf/g1_2x2_grid.pdf} 
     \caption{Κατανομή ιδιοτιμών (\textit{Real Part vs Frequency}) για τη γεννήτρια $G_1$.}
     \label{fig:poles_distribution_g1}
 \end{figure}
 
-\begin{figure}[H]
+\begin{figure}[!htbp]
     \centering
     \includegraphics[width=0.95\linewidth]{./plots/modal_maps/pdf/g2_2x2_grid.pdf} 
     \caption{Κατανομή ιδιοτιμών (\textit{Real Part vs Frequency}) για τη γεννήτρια $G_2$.}
     \label{fig:poles_distribution_g2}
 \end{figure}
 
-\begin{figure}[H]
+\begin{figure}[!htbp]
     \centering
     \includegraphics[width=0.95\linewidth]{./plots/modal_maps/pdf/g3_2x2_grid.pdf} 
     \caption{Κατανομή ιδιοτιμών (\textit{Real Part vs Frequency}) για τη γεννήτρια $G_3$.}
     \label{fig:poles_distribution_g3}
 \end{figure}
 
-\begin{figure}[H]
+\begin{figure}[!htbp]
     \centering
     \includegraphics[width=0.95\linewidth]{./plots/modal_maps/pdf/g4_2x2_grid.pdf} 
     \caption{Κατανομή ιδιοτιμών (\textit{Real Part vs Frequency}) για τη γεννήτρια $G_4$.}
     \label{fig:poles_distribution_g4}
 \end{figure}
 
-\begin{figure}[H]
+\begin{figure}[!htbp]
     \centering
     \includegraphics[width=0.95\linewidth]{./plots/modal_maps/pdf/All_Generators_Grid.pdf} 
     \caption{Κατανομή ιδιοτιμών (\textit{Real Part vs Frequency}) για τις γεννήτριες $G_1$-$G_4$.}
@@ -441,14 +433,7 @@ $0.1596$, μέση απόσταση $0.1598$ και συνολικά $43$ αντ
 Συνολικά, η ροή εργασίας από το \textit{PowerFactory} στην \textit{Python} λειτούργησε υποδειγματικά, θέτοντας γερές βάσεις για την αυτοματοποιημένη παρακολούθηση της δυναμικής ευστάθειας σε συστήματα ηλεκτρικής ενέργειας.
 
 \FloatBarrier
-\bibliographystyle{IEEEtran}
-\bibliography{../references}
-
-\end{document}
-
-
-\FloatBarrier
-\bibliographystyle{IEEEtran}
+\bibliographystyle{ieeetr}
 \bibliography{../references}
 
 \end{document}
