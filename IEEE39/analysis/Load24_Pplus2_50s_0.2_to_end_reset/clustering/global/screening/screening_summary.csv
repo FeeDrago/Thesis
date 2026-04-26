@@ -1,0 +1,6 @@
+step,count
+initial_rows,632
+after_finite_numeric_filter,632
+removed_non_finite_rows,0
+after_frequency_screening,274
+removed_out_of_range_frequency_rows,358
