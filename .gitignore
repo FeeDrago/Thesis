@@ -138,6 +138,7 @@ celerybeat.pid
 .env
 .envrc
 .venv
+.venv-wsl
 env/
 venv/
 ENV/
@@ -208,6 +209,7 @@ __marimo__/
 
 
 test.ipynb
+test.py
 *.aux
 *.log
 *.gz
@@ -218,3 +220,16 @@ test.ipynb
 *.fls
 *.fdb_latexmk
 *.xdv
+
+# IEEE39 generated data and analysis outputs
+# Results: keep only generator CSVs and scenario metadata.
+IEEE39/results/**
+!IEEE39/results/**/
+!IEEE39/results/**/g*.csv
+!IEEE39/results/**/scenario.json
+
+# Analysis: keep CSVs and analysis configs; keep plots and other generated artifacts local.
+IEEE39/analysis/**
+!IEEE39/analysis/**/
+!IEEE39/analysis/**/*.csv
+!IEEE39/analysis/**/analysis_config.json

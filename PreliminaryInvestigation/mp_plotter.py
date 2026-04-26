@@ -105,12 +105,12 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
         gen_data = df_results[df_results['Gen'] == gen]
         for signal in columns.values():
             sig_data = gen_data[gen_data['Signal'] == signal]
-            ax.scatter(sig_data['Damping'], sig_data['Frequency'], c=colors[signal], alpha=0.5, s=40, edgecolors='none')
-        ax.axvline(0, color='red', linestyle='--', alpha=0.5)
+            ax.scatter(sig_data['Damping'], sig_data['Frequency'], label=signal, c=colors[signal], alpha=0.6, edgecolors='k', s=60)
+        ax.axvline(0, color='red', linestyle='-', alpha=0.3)
         ax.set_title(f"Generator {gen.upper()}")
-        style_axis(ax, grid_alpha=0.4)
-        if i >= 2: ax.set_xlabel("Damping (Sigma)")
-        if i % 2 == 0: ax.set_ylabel("Frequency (Hz)")
+        style_axis(ax)
+        if i >= 2: ax.set_xlabel("Damping (Sigma) [rad/s]")
+        if i % 2 == 0: ax.set_ylabel("Frequency [Hz]")
 
     handles = [plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=c, markersize=12, label=s) for s, c in colors.items()]
     fig.legend(handles=handles, labels=colors.keys(), loc='lower center', ncol=4, title="Signals")
@@ -173,11 +173,11 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
                     r2 = r2_score(y_ref, y_est)
                     rmse = np.sqrt(mean_squared_error(y_ref, y_est))
                     
-                    ax.plot(t, y_ref, color='black', alpha=0.3, label='Original (Filtered)')
-                    ax.plot(t, y_est, '--', color='red', label=f'MP Estimate ($R^2$={r2:.4f})')
+                    ax.plot(t, y_ref, color='black', alpha=0.3, linewidth=2, label='Original (Filtered)')
+                    ax.plot(t, y_est, '--', color='red', linewidth=1.5, label=f'MP Estimate ($R^2$={r2:.4f})')
                     ax.set_title(f"Method: {method} (RMSE: {rmse:.2e})", fontweight='semibold')
                     ax.legend(loc='upper right')
-                    style_axis(ax, grid_alpha=0.5)
+                    ax.grid(True, linestyle=':', alpha=0.75, linewidth=1.3, color='gray')
                     
                     if col_idx == 0: 
                        labels_map = {

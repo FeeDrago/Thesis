@@ -169,15 +169,18 @@ def _load_screened_data(results_path, output_path):
 
 
 
-def _assign_reference_modes(df):
+def _assign_reference_modes(df, reference_modes=None):
     """
     Assign each MP estimate to the nearest reference eigenvalue and compute
     the 2D distance used in Eq. (26)-style MAD evaluation.
     """
     df = df.copy()
-    reference_names = list(REFERENCE_MODES.keys())
+    if reference_modes is None:
+        reference_modes = REFERENCE_MODES
+
+    reference_names = list(reference_modes.keys())
     reference_points = np.array([
-        [REFERENCE_MODES[name]["Frequency"], REFERENCE_MODES[name]["Damping"]]
+        [reference_modes[name]["Frequency"], reference_modes[name]["Damping"]]
         for name in reference_names
     ], dtype=float)
 
@@ -193,7 +196,7 @@ def _assign_reference_modes(df):
     return df
 
 
-def _save_reference_mad_outputs(df, output_path):
+def _save_reference_mad_outputs(df, output_path, reference_modes=None):
     """
     Save MAD summaries exactly in the spirit of Eq. (26) of the reference paper:
     MAD_i = median(|lambda_hat_{i,j} - lambda_i|)
@@ -204,7 +207,7 @@ def _save_reference_mad_outputs(df, output_path):
     ref_dir = os.path.join(output_path, "reference_mad")
     os.makedirs(ref_dir, exist_ok=True)
 
-    assigned_df = _assign_reference_modes(df)
+    assigned_df = _assign_reference_modes(df, reference_modes=reference_modes)
     assigned_df.to_csv(
         os.path.join(ref_dir, "mp_estimates_with_reference_assignment.csv"),
         index=False

@@ -1,11 +1,19 @@
 from pathlib import Path
+import argparse
 import csv
 import json
 import re
-import traceback
 import time
-import pandas as pd
-import powerfactory as pf
+
+try:
+    import pandas as pd
+except ImportError:
+    pd = None
+
+try:
+    import powerfactory as pf
+except ImportError:
+    pf = None
 
 
 # ============================================================
@@ -19,9 +27,9 @@ GRID_NAME = "Grid"
 MIN_LOAD_MW = 100.0
 
 # RMS simulation settings
-EVENT_TIME_S = 1.0
+EVENT_TIME_S = 0
 SIM_STOP_TIME_S = 50.0
-SIM_STEP_S = 0.01
+SIM_STEP_MS = 10
 
 # Generator selection.
 # None = all generators
@@ -35,6 +43,7 @@ SCENARIOS = [
     # Zone 1
     {
         "name": None,              # None = auto folder name
+        "key": "load29",
         "load_name": "Load 29",
         "dp_percent": 2.0,
         "dq_percent": 0.0,
@@ -42,6 +51,7 @@ SCENARIOS = [
     # Zone 2
     {
         "name": None,
+        "key": "load03",
         "load_name": "Load 03",
         "dp_percent": 2.0,
         "dq_percent": 0.0,
@@ -49,11 +59,56 @@ SCENARIOS = [
     # Zone 3
     {
         "name": None,
+        "key": "load24",
         "load_name": "Load 24",
         "dp_percent": 2.0,
         "dq_percent": 0.0,
     },
 ]
+
+def make_scenario_key(load_name, dp_percent, dq_percent):
+    return f"{load_name.replace(' ', '').lower()}_p{float(dp_percent):g}_q{float(dq_percent):g}"
+
+
+def make_load_alias(load_name):
+    return load_name.replace(" ", "").lower()
+
+
+def make_scenario_folder_alias(load_name, dp_percent, dq_percent, sim_stop_time):
+    load_part = re.sub(r"[^\w\-.+]+", "_", load_name.strip()).replace("_", "")
+    p_part = f"Pplus{abs(float(dp_percent)):g}" if float(dp_percent) >= 0 else f"Pminus{abs(float(dp_percent)):g}"
+
+    if dq_percent is None or abs(float(dq_percent)) < 1e-12:
+        return f"{load_part}_{p_part}_{sim_stop_time:g}s"
+
+    q_part = f"Qplus{abs(float(dq_percent)):g}" if float(dq_percent) >= 0 else f"Qminus{abs(float(dq_percent)):g}"
+    return f"{load_part}_{p_part}_{q_part}_{sim_stop_time:g}s"
+
+
+def build_scenario_lookup(scenarios):
+    lookup = {}
+
+    for scenario in scenarios:
+        dq_percent = scenario.get("dq_percent", 0.0)
+        aliases = [
+            make_load_alias(scenario["load_name"]),
+            make_scenario_key(scenario["load_name"], scenario["dp_percent"], dq_percent),
+            make_scenario_folder_alias(scenario["load_name"], scenario["dp_percent"], dq_percent, SIM_STOP_TIME_S),
+        ]
+
+        if scenario.get("key"):
+            aliases.append(scenario["key"])
+
+        if scenario.get("name"):
+            aliases.append(scenario["name"])
+
+        for alias in aliases:
+            lookup[alias] = scenario
+
+    return lookup
+
+
+SCENARIOS_BY_NAME = build_scenario_lookup(SCENARIOS)
 
 GEN_VARIABLES = [
     "s:ut",
@@ -80,6 +135,24 @@ def get_base_dir() -> Path:
         return Path(__file__).resolve().parent
     except NameError:
         return Path.cwd()
+
+
+def resolve_results_root(output_dir=None) -> Path:
+    if output_dir is None:
+        return get_base_dir() / "results"
+
+    path = Path(output_dir)
+    if path.is_absolute():
+        return path
+
+    return get_base_dir() / path
+
+
+def path_for_metadata(path: Path) -> str:
+    try:
+        return path.relative_to(get_base_dir()).as_posix()
+    except ValueError:
+        return path.name
 
 
 def safe_name(text: str) -> str:
@@ -120,6 +193,9 @@ def make_scenario_name(load, dp_percent, dq_percent, sim_stop_time, custom_name=
 # ============================================================
 
 def get_app():
+    if pf is None:
+        raise RuntimeError("PowerFactory Python module is not available in this environment.")
+
     app = pf.GetApplication()
 
     if app is None:
@@ -547,6 +623,9 @@ def read_comres_csv_flexible(raw_csv):
     """
     Tries common ComRes CSV formats.
     """
+    if pd is None:
+        raise RuntimeError("pandas is required to split ComRes CSV results.")
+
     attempts = [
         {"sep": ";", "header": [0, 1]},
         {"sep": ",", "header": [0, 1]},
@@ -642,12 +721,127 @@ def find_generator_variable_column(df, gen_name, variable):
     )
 
 
+def parse_numeric_text(value):
+    value = str(value).strip().replace(",", ".")
+
+    if not value or value.lower() in ("nan", "none"):
+        return ""
+
+    try:
+        return f"{float(value):.10g}"
+    except ValueError:
+        return ""
+
+
+def find_generator_variable_index(object_headers, variable_headers, gen_name, variable):
+    gen_key = compact_text(gen_name)
+    var_key = compact_text(variable)
+    gen_digits = "".join(ch for ch in gen_name if ch.isdigit())
+
+    for idx, (object_header, variable_header) in enumerate(zip(object_headers, variable_headers)):
+        compact_object = compact_text(object_header)
+        compact_variable = compact_text(variable_header)
+
+        if var_key not in compact_variable:
+            continue
+
+        if gen_key in compact_object or (gen_digits and gen_digits in compact_object):
+            return idx
+
+    raise RuntimeError(f"Could not find raw CSV column for generator '{gen_name}', variable '{variable}'.")
+
+
+def split_raw_comres_standard_csv(raw_csv, generators, scenario_dir):
+    with open(raw_csv, newline="") as f:
+        reader = csv.reader(f, delimiter=";")
+        try:
+            object_headers = next(reader)
+            variable_headers = next(reader)
+        except StopIteration as e:
+            raise RuntimeError(f"Raw ComRes CSV is missing headers: {raw_csv}") from e
+
+        if len(object_headers) <= 1 or len(variable_headers) <= 1:
+            raise RuntimeError("Raw ComRes CSV does not look like a semicolon-separated two-header export.")
+
+        time_idx = next(
+            (
+                idx
+                for idx, header in enumerate(variable_headers)
+                if "tnow" in compact_text(header) or "time" in compact_text(header)
+            ),
+            0,
+        )
+
+        generator_columns = []
+
+        for gen in generators:
+            generator_columns.append(
+                [find_generator_variable_index(object_headers, variable_headers, gen.loc_name, var) for var in GEN_VARIABLES]
+            )
+
+        outputs = []
+        writers = []
+
+        try:
+            for idx in range(1, len(generators) + 1):
+                out_csv = scenario_dir / f"g{idx}.csv"
+                out_file = open(out_csv, "w", newline="")
+                writer = csv.writer(out_file)
+                writer.writerow(CSV_HEADERS)
+                outputs.append((out_csv, out_file))
+                writers.append(writer)
+
+            row_counts = [0] * len(generators)
+
+            for row in reader:
+                if not row:
+                    continue
+
+                for gen_idx, column_indices in enumerate(generator_columns):
+                    values = [parse_numeric_text(row[time_idx] if time_idx < len(row) else "")]
+                    values.extend(parse_numeric_text(row[col_idx] if col_idx < len(row) else "") for col_idx in column_indices)
+
+                    if any(value != "" for value in values):
+                        row_counts[gen_idx] += 1
+
+                    writers[gen_idx].writerow(values)
+
+            for gen_idx, (gen, (out_csv, _)) in enumerate(zip(generators, outputs)):
+                if row_counts[gen_idx] == 0:
+                    raise RuntimeError(f"Split produced no numeric rows for {gen.loc_name} -> {out_csv}")
+                print(f"Saved {out_csv}", flush=True)
+        finally:
+            for _, out_file in outputs:
+                out_file.close()
+
+
+def to_numeric_dot_decimal(series):
+    """
+    Converts ComRes values to numeric floats regardless of comma/dot decimal export.
+    """
+    if isinstance(series, pd.DataFrame):
+        series = series.iloc[:, 0]
+
+    series = series.astype(str).str.strip().str.replace(",", ".", regex=False)
+
+    missing = series.str.lower().isin(["", "nan", "none"])
+    series = series.mask(missing)
+
+    return pd.to_numeric(series, errors="coerce")
+
+
 def split_raw_comres_to_generator_csvs(raw_csv, generators, scenario_dir):
     """
     Splits raw_all_generators.csv into g1.csv, g2.csv, ...
     with clean headers requested by the user.
     """
     print("Splitting raw CSV into one file per generator...", flush=True)
+
+    try:
+        split_raw_comres_standard_csv(raw_csv, generators, scenario_dir)
+        return
+    except Exception as e:
+        print(f"Standard CSV split failed, trying pandas fallback: {e}", flush=True)
 
     df = read_comres_csv_flexible(raw_csv)
     time_col = find_time_column_pandas(df)
@@ -656,14 +850,18 @@ def split_raw_comres_to_generator_csvs(raw_csv, generators, scenario_dir):
         print(f"Splitting {gen.loc_name} -> g{idx}.csv", flush=True)
 
         output = pd.DataFrame()
-        output[CSV_HEADERS[0]] = df[time_col]
+        output[CSV_HEADERS[0]] = to_numeric_dot_decimal(df[time_col])
 
         for variable, clean_header in zip(GEN_VARIABLES, CSV_HEADERS[1:]):
             raw_col = find_generator_variable_column(df, gen.loc_name, variable)
-            output[clean_header] = df[raw_col]
+            output[clean_header] = to_numeric_dot_decimal(df[raw_col])
 
         out_csv = scenario_dir / f"g{idx}.csv"
-        output.to_csv(out_csv, index=False)
+
+        if output.empty or output.dropna(how="all").empty:
+            raise RuntimeError(f"Split produced no numeric rows for {gen.loc_name} -> {out_csv}")
+
+        output.to_csv(out_csv, index=False, float_format="%.10g")
 
         print(f"Saved {out_csv}", flush=True)
 
@@ -671,6 +869,80 @@ def split_raw_comres_to_generator_csvs(raw_csv, generators, scenario_dir):
 def export_results_fast_and_split(app, elmres, generators, scenario_dir):
     raw_csv = export_raw_results_fast_comres(app, elmres, scenario_dir)
     split_raw_comres_to_generator_csvs(raw_csv, generators, scenario_dir)
+    return validate_generator_csvs(scenario_dir, generators)
+
+
+def parse_csv_float(value, csv_path, row_number, column_name):
+    text = str(value).strip().replace(",", ".")
+    if not text:
+        raise RuntimeError(f"Empty value in {csv_path}, row {row_number}, column '{column_name}'")
+
+    try:
+        return float(text)
+    except ValueError as e:
+        raise RuntimeError(
+            f"Non-numeric value in {csv_path}, row {row_number}, column '{column_name}': {value}"
+        ) from e
+
+
+def validate_generator_csvs(scenario_dir, generators):
+    csv_files = []
+
+    for idx, gen in enumerate(generators, start=1):
+        csv_path = scenario_dir / f"g{idx}.csv"
+
+        if not csv_path.exists():
+            raise RuntimeError(f"Missing generated CSV: {csv_path}")
+
+        with open(csv_path, newline="") as f:
+            reader = csv.reader(f)
+            try:
+                headers = next(reader)
+            except StopIteration as e:
+                raise RuntimeError(f"Generated CSV is empty: {csv_path}") from e
+
+            if headers != CSV_HEADERS:
+                raise RuntimeError(
+                    f"Unexpected headers in {csv_path}.\n"
+                    f"Expected: {CSV_HEADERS}\n"
+                    f"Found: {headers}"
+                )
+
+            row_count = 0
+            previous_time = None
+
+            for row_number, row in enumerate(reader, start=2):
+                if not row or all(str(value).strip() == "" for value in row):
+                    continue
+
+                if len(row) != len(CSV_HEADERS):
+                    raise RuntimeError(
+                        f"Wrong number of columns in {csv_path}, row {row_number}. "
+                        f"Expected {len(CSV_HEADERS)}, found {len(row)}"
+                    )
+
+                values = [
+                    parse_csv_float(value, csv_path, row_number, column_name)
+                    for value, column_name in zip(row, CSV_HEADERS)
+                ]
+
+                current_time = values[0]
+                if previous_time is not None and current_time < previous_time:
+                    raise RuntimeError(f"Time column is not monotonic in {csv_path}, row {row_number}")
+
+                previous_time = current_time
+                row_count += 1
+
+        if row_count == 0:
+            raise RuntimeError(f"Generated CSV has no numeric data rows: {csv_path}")
+
+        csv_files.append({
+            "generator": gen.loc_name,
+            "file": path_for_metadata(csv_path),
+            "rows": row_count,
+        })
+
+    return csv_files
 
 
 # ============================================================
@@ -762,7 +1034,7 @@ def run_single_scenario(app, scenario, results_root):
         "dq_percent": dq_percent,
         "event_time_s": EVENT_TIME_S,
         "sim_stop_time_s": SIM_STOP_TIME_S,
-        "sim_step_s": SIM_STEP_S,
+        "sim_step_ms": SIM_STEP_MS,
         "csv_headers": CSV_HEADERS,
         "generator_names_setting": GENERATOR_NAMES,
     }
@@ -790,65 +1062,194 @@ def run_single_scenario(app, scenario, results_root):
         run_load_flow_initial_conditions_and_rms(
             app=app,
             tstop=SIM_STOP_TIME_S,
-            step=SIM_STEP_S,
+            step=SIM_STEP_MS,
         )
 
-        export_results_fast_and_split(app, elmres, generators, scenario_dir)
+        config["csv_files"] = export_results_fast_and_split(app, elmres, generators, scenario_dir)
 
         config["status"] = "OK"
 
-        with open(scenario_dir / "config.json", "w") as f:
+        with open(scenario_dir / "scenario.json", "w") as f:
             json.dump(config, f, indent=2)
-
-        with open(scenario_dir / "log.txt", "w") as f:
-            f.write("OK\n")
 
         app.PrintPlain(f"Scenario done: {scenario_name}")
         print(f"Scenario done: {scenario_name}", flush=True)
 
-        return True
+        return config
 
     except Exception as e:
         config["status"] = "FAILED"
         config["error"] = str(e)
 
-        with open(scenario_dir / "config.json", "w") as f:
+        with open(scenario_dir / "scenario.json", "w") as f:
             json.dump(config, f, indent=2)
-
-        with open(scenario_dir / "log.txt", "w") as f:
-            f.write("FAILED\n")
-            f.write(str(e))
-            f.write("\n\n")
-            f.write(traceback.format_exc())
 
         app.PrintPlain(f"FAILED scenario {scenario_name}: {e}")
         print(f"FAILED scenario {scenario_name}: {e}", flush=True)
 
-        return False
+        return config
 
 
-def run_all_scenarios():
+def parse_inline_scenario(spec):
+    """
+    Parses CLI specs in the form load_name:dp[:dq[:name]].
+    Examples: "Load 29:2", "Load 24:-5:2:my_case".
+    """
+    parts = [part.strip() for part in spec.split(":")]
+
+    if len(parts) not in (2, 3, 4) or not parts[0]:
+        raise SystemExit(
+            f"Invalid scenario spec '{spec}'. Use load_name:dp[:dq[:name]], "
+            "for example 'Load 29:2:0'."
+        )
+
+    try:
+        scenario = {
+            "name": parts[3] if len(parts) == 4 and parts[3] else None,
+            "load_name": parts[0],
+            "dp_percent": float(parts[1]),
+            "dq_percent": float(parts[2]) if len(parts) >= 3 and parts[2] else 0.0,
+        }
+    except ValueError as e:
+        raise SystemExit(f"Invalid numeric value in scenario spec '{spec}': {e}") from e
+
+    return scenario
+
+
+def parse_case_args(case_args):
+    scenarios = []
+
+    for values in case_args or []:
+        if len(values) not in (2, 3, 4):
+            raise SystemExit("Each --case must be: LOAD_NAME DP_PERCENT [DQ_PERCENT] [NAME]")
+
+        try:
+            scenarios.append(
+                {
+                    "name": values[3] if len(values) == 4 else None,
+                    "load_name": values[0],
+                    "dp_percent": float(values[1]),
+                    "dq_percent": float(values[2]) if len(values) >= 3 else 0.0,
+                }
+            )
+        except ValueError as e:
+            raise SystemExit(f"Invalid numeric value in --case {' '.join(values)}: {e}") from e
+
+    return scenarios
+
+
+def select_scenarios(names, cli_cases=None):
+    selected = []
+
+    if not names:
+        if not cli_cases:
+            selected.extend(SCENARIOS)
+    elif names == ["all"]:
+        selected.extend(SCENARIOS)
+    elif "all" in names:
+        if len(names) > 1:
+            raise SystemExit("Use either --scenario all or specific scenario names/specs, not both.")
+        selected.extend(SCENARIOS)
+    else:
+        for name in names:
+            if ":" in name:
+                selected.append(parse_inline_scenario(name))
+                continue
+
+            if name not in SCENARIOS_BY_NAME:
+                available = ", ".join(SCENARIOS_BY_NAME.keys())
+                raise SystemExit(f"Unknown scenario '{name}'. Available: {available}")
+
+            selected.append(SCENARIOS_BY_NAME[name])
+
+    selected.extend(parse_case_args(cli_cases))
+
+    if not selected:
+        raise SystemExit("No scenarios selected.")
+
+    return selected
+
+
+def list_scenarios():
+    seen = set()
+
+    for scenario in SCENARIOS:
+        key = make_scenario_key(
+            scenario["load_name"],
+            scenario["dp_percent"],
+            scenario.get("dq_percent", 0.0),
+        )
+
+        if key in seen:
+            continue
+
+        seen.add(key)
+        folder_alias = make_scenario_folder_alias(
+            scenario["load_name"],
+            scenario["dp_percent"],
+            scenario.get("dq_percent", 0.0),
+            SIM_STOP_TIME_S,
+        )
+        aliases = [scenario.get("key"), key, folder_alias]
+        aliases = [alias for alias in aliases if alias]
+
+        print(
+            f"{aliases[0]} ({', '.join(aliases[1:])}): "
+            f"load={scenario['load_name']}, "
+            f"dp={scenario['dp_percent']}, "
+            f"dq={scenario.get('dq_percent', 0.0)}"
+        )
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Generate IEEE39 PowerFactory scenario CSV data.")
+    parser.add_argument(
+        "--scenario",
+        nargs="+",
+        default=None,
+        help="Scenario keys/folder aliases to run, 'all', or inline specs load_name:dp[:dq[:name]].",
+    )
+    parser.add_argument(
+        "--case",
+        action="append",
+        nargs="+",
+        default=[],
+        metavar="VALUE",
+        help="Add an ad-hoc scenario: --case LOAD_NAME DP_PERCENT [DQ_PERCENT] [NAME]. Can be repeated.",
+    )
+    parser.add_argument(
+        "--output-dir",
+        default=None,
+        help="Results directory relative to IEEE39, or an absolute path. Default: results.",
+    )
+    parser.add_argument("--list-scenarios", action="store_true", help="Print available scenario keys and exit.")
+    return parser.parse_args()
+
+
+def run_all_scenarios(scenarios=None, output_dir=None):
+    if scenarios is None:
+        scenarios = SCENARIOS
+
     app = get_app()
 
     activate_context(app)
     print_debug_context(app)
 
-    base_dir = get_base_dir()
-    results_root = base_dir / "results"
-    results_root.mkdir(exist_ok=True)
+    results_root = resolve_results_root(output_dir)
+    results_root.mkdir(parents=True, exist_ok=True)
 
     total_start = time.time()
 
     ok_count = 0
     fail_count = 0
 
-    for i, scenario in enumerate(SCENARIOS, start=1):
-        print(f"\nStarting scenario {i}/{len(SCENARIOS)}", flush=True)
-        app.PrintPlain(f"Starting scenario {i}/{len(SCENARIOS)}")
+    for i, scenario in enumerate(scenarios, start=1):
+        print(f"\nStarting scenario {i}/{len(scenarios)}", flush=True)
+        app.PrintPlain(f"Starting scenario {i}/{len(scenarios)}")
 
         scenario_start = time.time()
 
-        ok = run_single_scenario(
+        result = run_single_scenario(
             app=app,
             scenario=scenario,
             results_root=results_root,
@@ -858,12 +1259,12 @@ def run_all_scenarios():
         elapsed = scenario_end - scenario_start
 
         print(
-            f"Scenario {i}/{len(SCENARIOS)} finished in "
+            f"Scenario {i}/{len(scenarios)} finished in "
             f"{elapsed // 60:.0f} min {elapsed % 60:.1f} sec",
             flush=True,
         )
 
-        if ok:
+        if result.get("status") == "OK":
             ok_count += 1
         else:
             fail_count += 1
@@ -887,8 +1288,12 @@ def run_all_scenarios():
 
 
 if __name__ == "__main__":
+    args = parse_args()
+    if args.list_scenarios:
+        list_scenarios()
+        raise SystemExit(0)
+
     start_time = time.time()
-    run_all_scenarios()
+    run_all_scenarios(select_scenarios(args.scenario, args.case), args.output_dir)
     end_time = time.time()
     print("-"*30, f"Execution Time: {(end_time - start_time)//60} minutes and {(end_time - start_time)%60} seconds", "-"*30)
-
