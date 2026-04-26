@@ -1,0 +1,93 @@
+{
+  "scenario_name": "Load03_Pplus2_50s",
+  "project_name": "39 Bus New England System",
+  "study_case_name": "RMS mine",
+  "grid_name": "Grid",
+  "load_name": "Load 03",
+  "load_initial_p_mw": 322.0,
+  "min_load_mw": 100.0,
+  "dp_percent": 2.0,
+  "dq_percent": 0.0,
+  "event_time_s": 0,
+  "sim_stop_time_s": 50.0,
+  "sim_step_ms": 10,
+  "csv_headers": [
+    "b:tnow in s",
+    "s:ut in p.u.",
+    "s:cur1 in p.u.",
+    "s:Q1 in Mvar",
+    "s:P1 in MW"
+  ],
+  "generator_names_setting": null,
+  "event_name": "load_event_Load_03",
+  "event_attributes_used": {
+    "target_attribute": "p_target",
+    "active_power_attribute": "dP",
+    "reactive_power_attribute": "dQ"
+  },
+  "generators": [
+    "G 01",
+    "G 02",
+    "G 03",
+    "G 04",
+    "G 05",
+    "G 06",
+    "G 07",
+    "G 08",
+    "G 09",
+    "G 10"
+  ],
+  "csv_files": [
+    {
+      "generator": "G 01",
+      "file": "results/Load03_Pplus2_50s/g1.csv",
+      "rows": 5001
+    },
+    {
+      "generator": "G 02",
+      "file": "results/Load03_Pplus2_50s/g2.csv",
+      "rows": 5001
+    },
+    {
+      "generator": "G 03",
+      "file": "results/Load03_Pplus2_50s/g3.csv",
+      "rows": 5001
+    },
+    {
+      "generator": "G 04",
+      "file": "results/Load03_Pplus2_50s/g4.csv",
+      "rows": 5001
+    },
+    {
+      "generator": "G 05",
+      "file": "results/Load03_Pplus2_50s/g5.csv",
+      "rows": 5001
+    },
+    {
+      "generator": "G 06",
+      "file": "results/Load03_Pplus2_50s/g6.csv",
+      "rows": 5001
+    },
+    {
+      "generator": "G 07",
+      "file": "results/Load03_Pplus2_50s/g7.csv",
+      "rows": 5001
+    },
+    {
+      "generator": "G 08",
+      "file": "results/Load03_Pplus2_50s/g8.csv",
+      "rows": 5001
+    },
+    {
+      "generator": "G 09",
+      "file": "results/Load03_Pplus2_50s/g9.csv",
+      "rows": 5001
+    },
+    {
+      "generator": "G 10",
+      "file": "results/Load03_Pplus2_50s/g10.csv",
+      "rows": 5001
+    }
+  ],
+  "status": "OK"
+}
