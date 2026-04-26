@@ -854,6 +854,7 @@ def main():
     for name, scenario in selected.items():
         print("=" * 80, flush=True)
         print(f"Analyzing scenario: {name}", flush=True)
+        scenario_start = time.time()
 
         if args.skip_matrix_pencil:
             output_dir, results_path, df_results = load_existing_results_for_scenario(name, scenario, args.results_file, args)
@@ -867,6 +868,13 @@ def main():
 
         if scenario.get("clustering", {}).get("global", False) or scenario.get("clustering", {}).get("by_control_area", False):
             run_clustering_for_scenario(output_dir, results_path, df_results, scenario)
+
+        scenario_elapsed = time.time() - scenario_start
+        print(
+            f"Scenario {name} finished in "
+            f"{scenario_elapsed // 60:.0f} minutes and {scenario_elapsed % 60:.1f} seconds",
+            flush=True,
+        )
 
     elapsed = time.time() - start
     print("-" * 30, f"Execution Time: {elapsed // 60:.0f} minutes and {elapsed % 60:.1f} seconds", "-" * 30)
