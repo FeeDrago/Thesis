@@ -22,6 +22,8 @@ def build_arg_parser():
     parser.add_argument("--time-start", type=float, default=None, help="Inclusive analysis start time in seconds. Default: 0.2.")
     parser.add_argument("--time-end", type=float, default=None, help="Inclusive analysis end time in seconds. Default: last CSV timestamp.")
     parser.add_argument("--no-reset-time", action="store_true", help="Do not shift the selected time window to start at zero.")
+    parser.add_argument("--generators", nargs="+", default=None, help="Optional generator subset, e.g. g1 g2 g3.")
+    parser.add_argument("--signals", nargs="+", default=None, help="Optional signal subset by label or CSV column, e.g. Voltage 'Active Power' or 's:P1 in MW'.")
     return parser
 
 
@@ -185,12 +187,34 @@ def _time_mask_suffix(time_mask):
     return f"{start_part}_to_{end_part}_{reset_part}"
 
 
+def _sanitize_suffix_part(value):
+    return str(value).strip().lower().replace(" ", "_").replace(":", "").replace("/", "_")
+
+
+def _selection_suffix(scenario):
+    parts = []
+
+    generators = scenario.get("generator_subset") or []
+    if generators:
+        parts.append("g-" + "-".join(generators))
+
+    signal_subset = scenario.get("signal_subset") or []
+    if signal_subset:
+        parts.append("sig-" + "-".join(_sanitize_suffix_part(signal) for signal in signal_subset))
+
+    return "_".join(parts)
+
+
 def _analysis_output_dir(scenario):
     output_dir = _resolve_path(scenario.get("output_dir", "analysis"))
     if scenario.get("output_dir_explicit"):
         return output_dir
 
-    return output_dir.parent / f"{output_dir.name}_{_time_mask_suffix(scenario.get('time_mask'))}"
+    base_name = f"{output_dir.name}_{_time_mask_suffix(scenario.get('time_mask'))}"
+    selection_suffix = _selection_suffix(scenario)
+    if selection_suffix:
+        base_name = f"{base_name}_{selection_suffix}"
+    return output_dir.parent / base_name
 
 
 def _read_numeric_csv(csv_path):
@@ -269,10 +293,40 @@ def _scenario_runtime_config(scenario):
     data_dir = _resolve_path(scenario["data_dir"])
     output_dir = _analysis_output_dir(scenario)
     generated_config = _load_scenario_json(data_dir)
-    generators = _scenario_generators_from_json(generated_config) or scenario.get("generators", IEEE39_GENERATORS)
+    generators = scenario.get("generators") or _scenario_generators_from_json(generated_config) or IEEE39_GENERATORS
     columns = scenario.get("columns", COLUMNS)
 
     return data_dir, output_dir, generated_config, generators, columns
+
+
+def _resolve_signal_subset(signal_values):
+    if not signal_values:
+        return None
+
+    resolved = {}
+    label_to_col = {label.lower(): col for col, label in COLUMNS.items()}
+    col_to_label = {col.lower(): label for col, label in COLUMNS.items()}
+
+    for raw_value in signal_values:
+        key = str(raw_value).strip().lower()
+        if key in label_to_col:
+            col = label_to_col[key]
+            resolved[col] = COLUMNS[col]
+            continue
+        if key in col_to_label:
+            label = col_to_label[key]
+            resolved[str(raw_value).strip()] = label
+            continue
+        available = ", ".join(sorted(COLUMNS.values()))
+        raise SystemExit(f"Unknown signal '{raw_value}'. Available labels: {available}")
+
+    return resolved
+
+
+def _resolve_generator_subset(generator_values):
+    if not generator_values:
+        return None
+    return [str(gen).strip() for gen in generator_values]
 
 
 def _preprocess_signal(df, column_name, scenario):
@@ -678,7 +732,7 @@ def apply_existing_analysis_config(scenario, results_path, args):
     if args.time_start is None and args.time_end is None and not args.no_reset_time and config.get("time_mask"):
         scenario["time_mask"] = config["time_mask"]
 
-    for key in ["filter", "columns", "fixed_orders", "taus", "auto_order_decimation"]:
+    for key in ["filter", "columns", "fixed_orders", "taus", "auto_order_decimation", "generator_subset", "signal_subset"]:
         if key in config:
             scenario[key] = config[key]
 
@@ -819,6 +873,16 @@ def apply_cli_overrides(selected, args):
         if args.output_dir:
             scenario["output_dir"] = args.output_dir
             scenario["output_dir_explicit"] = True
+
+        generator_subset = _resolve_generator_subset(args.generators)
+        if generator_subset is not None:
+            scenario["generator_subset"] = generator_subset
+            scenario["generators"] = generator_subset
+
+        signal_subset = _resolve_signal_subset(args.signals)
+        if signal_subset is not None:
+            scenario["signal_subset"] = list(signal_subset.values())
+            scenario["columns"] = signal_subset
 
         time_mask = dict(scenario.get("time_mask", {}))
         if args.time_start is not None:

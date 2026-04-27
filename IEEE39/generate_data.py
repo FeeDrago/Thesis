@@ -74,15 +74,22 @@ def make_load_alias(load_name):
     return load_name.replace(" ", "").lower()
 
 
-def make_scenario_folder_alias(load_name, dp_percent, dq_percent, sim_stop_time):
+def event_time_suffix(event_time_s):
+    if abs(float(event_time_s) - float(EVENT_TIME_S)) < 1e-12:
+        return ""
+    return f"_evt{float(event_time_s):g}s"
+
+
+def make_scenario_folder_alias(load_name, dp_percent, dq_percent, sim_stop_time, event_time_s=EVENT_TIME_S):
     load_part = re.sub(r"[^\w\-.+]+", "_", load_name.strip()).replace("_", "")
     p_part = f"Pplus{abs(float(dp_percent)):g}" if float(dp_percent) >= 0 else f"Pminus{abs(float(dp_percent)):g}"
+    evt_part = event_time_suffix(event_time_s)
 
     if dq_percent is None or abs(float(dq_percent)) < 1e-12:
-        return f"{load_part}_{p_part}_{sim_stop_time:g}s"
+        return f"{load_part}_{p_part}_{sim_stop_time:g}s{evt_part}"
 
     q_part = f"Qplus{abs(float(dq_percent)):g}" if float(dq_percent) >= 0 else f"Qminus{abs(float(dq_percent)):g}"
-    return f"{load_part}_{p_part}_{q_part}_{sim_stop_time:g}s"
+    return f"{load_part}_{p_part}_{q_part}_{sim_stop_time:g}s{evt_part}"
 
 
 def build_scenario_lookup(scenarios):
@@ -161,14 +168,15 @@ def safe_name(text: str) -> str:
     return text
 
 
-def make_scenario_name(load, dp_percent, dq_percent, sim_stop_time, custom_name=None):
+def make_scenario_name(load, dp_percent, dq_percent, sim_stop_time, custom_name=None, event_time_s=EVENT_TIME_S):
     """
     Examples:
     Load03_Pplus2_50s
     Load39_Pminus5_Qplus2_50s
     """
+    evt_part = event_time_suffix(event_time_s)
     if custom_name:
-        return safe_name(custom_name)
+        return f"{safe_name(custom_name)}{evt_part}"
 
     load_part = safe_name(load.loc_name).replace("_", "")
 
@@ -178,14 +186,14 @@ def make_scenario_name(load, dp_percent, dq_percent, sim_stop_time, custom_name=
         p_part = f"Pminus{abs(dp_percent):g}"
 
     if dq_percent is None or abs(dq_percent) < 1e-12:
-        return f"{load_part}_{p_part}_{sim_stop_time:g}s"
+        return f"{load_part}_{p_part}_{sim_stop_time:g}s{evt_part}"
 
     if dq_percent >= 0:
         q_part = f"Qplus{abs(dq_percent):g}"
     else:
         q_part = f"Qminus{abs(dq_percent):g}"
 
-    return f"{load_part}_{p_part}_{q_part}_{sim_stop_time:g}s"
+    return f"{load_part}_{p_part}_{q_part}_{sim_stop_time:g}s{evt_part}"
 
 
 # ============================================================
@@ -996,6 +1004,7 @@ def run_single_scenario(app, scenario, results_root):
     load_name = scenario.get("load_name")
     dp_percent = float(scenario.get("dp_percent", 2.0))
     dq_percent = float(scenario.get("dq_percent", 0.0))
+    event_time_s = float(scenario.get("event_time_s", EVENT_TIME_S))
     custom_name = scenario.get("name")
 
     load = find_load(app, load_name, MIN_LOAD_MW)
@@ -1007,6 +1016,7 @@ def run_single_scenario(app, scenario, results_root):
         dq_percent=dq_percent,
         sim_stop_time=SIM_STOP_TIME_S,
         custom_name=custom_name,
+        event_time_s=event_time_s,
     )
 
     scenario_dir = results_root / scenario_name
@@ -1032,7 +1042,7 @@ def run_single_scenario(app, scenario, results_root):
         "min_load_mw": MIN_LOAD_MW,
         "dp_percent": dp_percent,
         "dq_percent": dq_percent,
-        "event_time_s": EVENT_TIME_S,
+        "event_time_s": event_time_s,
         "sim_stop_time_s": SIM_STOP_TIME_S,
         "sim_step_ms": SIM_STEP_MS,
         "csv_headers": CSV_HEADERS,
@@ -1046,7 +1056,7 @@ def run_single_scenario(app, scenario, results_root):
         event, event_attrs = create_load_event(
             app=app,
             load=load,
-            time_s=EVENT_TIME_S,
+            time_s=event_time_s,
             dp_percent=dp_percent,
             dq_percent=dq_percent,
         )
@@ -1222,6 +1232,12 @@ def parse_args():
         default=None,
         help="Results directory relative to IEEE39, or an absolute path. Default: results.",
     )
+    parser.add_argument(
+        "--event-time",
+        type=float,
+        default=EVENT_TIME_S,
+        help=f"Load event time in seconds. Default: {EVENT_TIME_S:g}.",
+    )
     parser.add_argument("--list-scenarios", action="store_true", help="Print available scenario keys and exit.")
     return parser.parse_args()
 
@@ -1294,6 +1310,9 @@ if __name__ == "__main__":
         raise SystemExit(0)
 
     start_time = time.time()
-    run_all_scenarios(select_scenarios(args.scenario, args.case), args.output_dir)
+    selected_scenarios = [dict(scenario) for scenario in select_scenarios(args.scenario, args.case)]
+    for scenario in selected_scenarios:
+        scenario["event_time_s"] = float(args.event_time)
+    run_all_scenarios(selected_scenarios, args.output_dir)
     end_time = time.time()
     print("-"*30, f"Execution Time: {(end_time - start_time)//60} minutes and {(end_time - start_time)%60} seconds", "-"*30)
