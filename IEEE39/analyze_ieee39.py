@@ -67,8 +67,10 @@ matrix_pencil = importlib.util.module_from_spec(matrix_pencil_spec)
 matrix_pencil_spec.loader.exec_module(matrix_pencil)
 
 apply_matrix_pencil_fixed_order = matrix_pencil.apply_matrix_pencil_fixed_order
+apply_matrix_pencil_fixed_order_prepared = matrix_pencil.apply_matrix_pencil_fixed_order_prepared
 determine_MP_order = matrix_pencil.determine_MP_order
 filter_signal = matrix_pencil.filter_signal
+prepare_matrix_pencil = matrix_pencil.prepare_matrix_pencil
 
 from plot_style import (
     apply_thesis_style,
@@ -555,6 +557,7 @@ def run_matrix_pencil_for_scenario(name, scenario):
             mean_after_lpf = float(np.mean(y))
             y = y - np.mean(y)
             mean_after_demean = float(np.mean(y))
+            prepared_mp = prepare_matrix_pencil(y, t)
 
             stats_lines.append({
                 "Scenario": name,
@@ -566,7 +569,7 @@ def run_matrix_pencil_for_scenario(name, scenario):
             })
 
             for order in fixed_orders:
-                freq, sigma, _, _, _, amplitudes = apply_matrix_pencil_fixed_order(y, t, order=order)
+                freq, sigma, _, _, _, amplitudes = apply_matrix_pencil_fixed_order_prepared(prepared_mp, order=order)
                 for f, s, amplitude in zip(freq, sigma, amplitudes):
                     if f > 0:
                         results.append({
@@ -582,7 +585,7 @@ def run_matrix_pencil_for_scenario(name, scenario):
 
             for tau in taus:
                 order = determine_MP_order(t, y, tau, rate=auto_order_decimation)
-                freq, sigma, _, _, _, amplitudes = apply_matrix_pencil_fixed_order(y, t, order=order)
+                freq, sigma, _, _, _, amplitudes = apply_matrix_pencil_fixed_order_prepared(prepared_mp, order=order)
                 for f, s, amplitude in zip(freq, sigma, amplitudes):
                     if f > 0:
                         results.append({

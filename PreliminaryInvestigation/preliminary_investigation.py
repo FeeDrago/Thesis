@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from scipy.signal import detrend
 import os
-from matrix_pencil import apply_matrix_pencil_fixed_order, determine_MP_order, filter_signal
+from matrix_pencil import apply_matrix_pencil_fixed_order_prepared, determine_MP_order, filter_signal, prepare_matrix_pencil
 from mp_plotter import generate_preliminary_report_plots
 import time
 from stats import generate_preliminary_report_stats
@@ -70,6 +70,7 @@ for gen in generators:
         mean_after_lpf = np.mean(signal_col)
         signal_col = signal_col - np.mean(signal_col)  
         mean_after_demean = np.mean(signal_col)
+        prepared_mp = prepare_matrix_pencil(signal_col, time_col)
 
         stats_lines.append({
     "Generator": gen,
@@ -81,7 +82,7 @@ for gen in generators:
 
         # Fixed Orders
         for order in fixed_orders:
-            freq, sigma, _, _, _, a = apply_matrix_pencil_fixed_order(signal_col, time_col, order=order)
+            freq, sigma, _, _, _, a = apply_matrix_pencil_fixed_order_prepared(prepared_mp, order=order)
             
             # Append results
             for f, s, a in zip(freq, sigma, a):
@@ -98,7 +99,7 @@ for gen in generators:
 
         # Automatic Order
         for tau in taus:
-            freq, sigma, _, _, _, a = apply_matrix_pencil_fixed_order(signal_col, time_col, order=determine_MP_order(time_col, signal_col, tau, rate = 10))
+            freq, sigma, _, _, _, a = apply_matrix_pencil_fixed_order_prepared(prepared_mp, order=determine_MP_order(time_col, signal_col, tau, rate = 10))
             
             # Append results
             for f, s, a in zip(freq, sigma, a):
