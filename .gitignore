@@ -210,6 +210,7 @@ __marimo__/
 
 test.ipynb
 test.py
+test.txt
 *.aux
 *.log
 *.gz
@@ -220,6 +221,7 @@ test.py
 *.fls
 *.fdb_latexmk
 *.xdv
+
 
 # IEEE39 generated data and analysis outputs
 # Results: keep only generator CSVs and scenario metadata.
@@ -233,3 +235,11 @@ IEEE39/analysis/**
 !IEEE39/analysis/**/
 !IEEE39/analysis/**/*.csv
 !IEEE39/analysis/**/analysis_config.json
+
+# Preliminary investigation generated outputs: keep CSV/JSON, ignore rendered figures.
+PreliminaryInvestigation/plots/**/*.png
+PreliminaryInvestigation/plots/**/*.pdf
+PreliminaryInvestigation/stats/**/*.png
+PreliminaryInvestigation/stats/**/*.pdf
+PreliminaryInvestigation/clustering/**/*.png
+PreliminaryInvestigation/clustering/**/*.pdf
