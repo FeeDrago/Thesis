@@ -235,11 +235,3 @@ IEEE39/analysis/**
 !IEEE39/analysis/**/
 !IEEE39/analysis/**/*.csv
 !IEEE39/analysis/**/analysis_config.json
-
-# Preliminary investigation generated outputs: keep CSV/JSON, ignore rendered figures.
-PreliminaryInvestigation/plots/**/*.png
-PreliminaryInvestigation/plots/**/*.pdf
-PreliminaryInvestigation/stats/**/*.png
-PreliminaryInvestigation/stats/**/*.pdf
-PreliminaryInvestigation/clustering/**/*.png
-PreliminaryInvestigation/clustering/**/*.pdf
