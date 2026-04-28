@@ -16,6 +16,8 @@
 
 **Ρύθμιση PowerFactory Python:** Για να τρέξει το data generation, το Python environment πρέπει να μπορεί να φορτώσει το Python API του PowerFactory. Στο virtual environment δημιουργήστε ένα αρχείο `powerfactory.pth` μέσα στο `.venv/Lib/site-packages` με μοναδική γραμμή το path προς τον φάκελο Python της εγκατάστασης του PowerFactory, π.χ. `C:\Program Files\DIgSILENT\PowerFactory <version>\Python\<python-version>`. Προσαρμόστε το `<version>` και το `<python-version>` ανάλογα με την εγκατάστασή σας.
 
+**Εκτέλεση Generate Data:** Πριν εκτελεστεί το `IEEE39/generate_data.py`, πρέπει να είναι ενεργό το VPN και το PowerFactory να είναι κλειστό. Αν το PowerFactory είναι ήδη ανοιχτό, κλείστε το πρώτα και μετά ξεκινήστε το script.
+
 **CLI Help:** Τα scripts που δέχονται παραμέτρους από command line εμφανίζουν όλες τις διαθέσιμες επιλογές με `--help`, π.χ. `python IEEE39/generate_data.py --help` και `python IEEE39/analyze_ieee39.py --help`.
 
 **PowerFactory Context:** Αν τα default ονόματα του PowerFactory δεν ταιριάζουν στο μηχάνημα που τρέχει το script, μπορούν να γίνουν override από command line με `--project-name`, `--study-case` και `--grid-name`, για παράδειγμα `python IEEE39/generate_data.py --scenario load29 --project-name "39 Bus New England System" --study-case "RMS" --grid-name "Grid"`.
