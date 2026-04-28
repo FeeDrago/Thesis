@@ -303,16 +303,18 @@ def activate_grid_if_needed(app, grid_name=None):
     )
 
 
-def activate_context(app):
-    project = activate_project(app, PROJECT_NAME)
-    study_case = activate_study_case(app, STUDY_CASE_NAME)
-    activate_grid_if_needed(app, GRID_NAME)
+def activate_context(app, project_name=PROJECT_NAME, study_case_name=STUDY_CASE_NAME, grid_name=GRID_NAME):
+    project = activate_project(app, project_name)
+    study_case = activate_study_case(app, study_case_name)
+    grid = activate_grid_if_needed(app, grid_name)
 
     app.PrintPlain("PowerFactory context activated.")
     app.PrintPlain(f"Project: {project.loc_name}")
     app.PrintPlain(f"Study case: {study_case.loc_name}")
+    if grid is not None:
+        app.PrintPlain(f"Grid: {grid.loc_name}")
 
-    return project, study_case
+    return project, study_case, grid
 
 
 def get_from_study_case(app, class_name: str):
@@ -995,7 +997,7 @@ def print_debug_context(app):
 # MAIN
 # ============================================================
 
-def run_single_scenario(app, scenario, results_root):
+def run_single_scenario(app, scenario, results_root, context_settings=None):
     """
     Runs exactly one scenario.
     Guarantees one event per scenario because it calls clean_old_events()
@@ -1007,6 +1009,7 @@ def run_single_scenario(app, scenario, results_root):
     sim_stop_time_s = float(scenario.get("sim_stop_time_s", SIM_STOP_TIME_S))
     event_time_s = float(scenario.get("event_time_s", EVENT_TIME_S))
     custom_name = scenario.get("name")
+    context_settings = context_settings or {}
 
     load = find_load(app, load_name, MIN_LOAD_MW)
     p_mw = get_load_p_mw(load)
@@ -1035,9 +1038,9 @@ def run_single_scenario(app, scenario, results_root):
 
     config = {
         "scenario_name": scenario_name,
-        "project_name": PROJECT_NAME,
-        "study_case_name": STUDY_CASE_NAME,
-        "grid_name": GRID_NAME,
+        "project_name": context_settings.get("project_name", PROJECT_NAME),
+        "study_case_name": context_settings.get("study_case_name", STUDY_CASE_NAME),
+        "grid_name": context_settings.get("grid_name", GRID_NAME),
         "load_name": load.loc_name,
         "load_initial_p_mw": p_mw,
         "min_load_mw": MIN_LOAD_MW,
@@ -1245,6 +1248,9 @@ def parse_args():
         default=None,
         help="Results directory relative to IEEE39, or an absolute path. Default: results.",
     )
+    parser.add_argument("--project-name", default=PROJECT_NAME, help=f"PowerFactory project name. Default: {PROJECT_NAME}.")
+    parser.add_argument("--study-case", default=STUDY_CASE_NAME, help=f"PowerFactory study case name. Default: {STUDY_CASE_NAME}.")
+    parser.add_argument("--grid-name", default=GRID_NAME, help=f"PowerFactory grid name. Default: {GRID_NAME}.")
     parser.add_argument(
         "--duration",
         type=float,
@@ -1261,14 +1267,24 @@ def parse_args():
     return parser.parse_args()
 
 
-def run_all_scenarios(scenarios=None, output_dir=None):
+def run_all_scenarios(scenarios=None, output_dir=None, project_name=PROJECT_NAME, study_case_name=STUDY_CASE_NAME, grid_name=GRID_NAME):
     if scenarios is None:
         scenarios = SCENARIOS
 
     app = get_app()
 
-    activate_context(app)
+    project, study_case, grid = activate_context(
+        app,
+        project_name=project_name,
+        study_case_name=study_case_name,
+        grid_name=grid_name,
+    )
     print_debug_context(app)
+    context_settings = {
+        "project_name": project.loc_name,
+        "study_case_name": study_case.loc_name,
+        "grid_name": grid.loc_name if grid is not None else None,
+    }
 
     results_root = resolve_results_root(output_dir)
     results_root.mkdir(parents=True, exist_ok=True)
@@ -1288,6 +1304,7 @@ def run_all_scenarios(scenarios=None, output_dir=None):
             app=app,
             scenario=scenario,
             results_root=results_root,
+            context_settings=context_settings,
         )
 
         scenario_end = time.time()
@@ -1333,6 +1350,12 @@ if __name__ == "__main__":
     for scenario in selected_scenarios:
         scenario.setdefault("sim_stop_time_s", float(args.duration))
         scenario.setdefault("event_time_s", float(args.event_time))
-    run_all_scenarios(selected_scenarios, args.output_dir)
+    run_all_scenarios(
+        selected_scenarios,
+        args.output_dir,
+        project_name=args.project_name,
+        study_case_name=args.study_case,
+        grid_name=args.grid_name,
+    )
     end_time = time.time()
     print("-"*30, f"Execution Time: {(end_time - start_time)//60} minutes and {(end_time - start_time)%60} seconds", "-"*30)

@@ -18,6 +18,8 @@
 
 **CLI Help:** Τα scripts που δέχονται παραμέτρους από command line εμφανίζουν όλες τις διαθέσιμες επιλογές με `--help`, π.χ. `python IEEE39/generate_data.py --help` και `python IEEE39/analyze_ieee39.py --help`.
 
+**PowerFactory Context:** Αν τα default ονόματα του PowerFactory δεν ταιριάζουν στο μηχάνημα που τρέχει το script, μπορούν να γίνουν override από command line με `--project-name`, `--study-case` και `--grid-name`, για παράδειγμα `python IEEE39/generate_data.py --scenario load29 --project-name "39 Bus New England System" --study-case "RMS" --grid-name "Grid"`.
+
 **Επιλογή Σεναρίων:** Τα διαθέσιμα σενάρια εμφανίζονται με την εντολή `python IEEE39/generate_data.py --list-scenarios`. Η εκτέλεση γίνεται με `--scenario`, για παράδειγμα `python IEEE39/generate_data.py --scenario load29`, `python IEEE39/generate_data.py --scenario load03 load24`, ή `python IEEE39/generate_data.py --scenario all`.
 
 **Προσαρμοσμένα Σενάρια:** Μπορεί να δοθεί σενάριο απευθείας από το command line με μορφή `load_name:dp[:dq[:duration[:event_time[:name]]]]`, για παράδειγμα `python IEEE39/generate_data.py --scenario "Load 29:2:0"` ή `python IEEE39/generate_data.py --scenario "Load 24:2:0:60:0.5"`. Εναλλακτικά μπορεί να χρησιμοποιηθεί το `--case`, είτε στην παλιά μορφή `python IEEE39/generate_data.py --case "Load 24" 2 0`, είτε ως quoted spec, για παράδειγμα `python IEEE39/generate_data.py --case "Load 24:2:0:60:0.5"`.
