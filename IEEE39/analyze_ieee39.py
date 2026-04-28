@@ -8,13 +8,12 @@ from pathlib import Path
 
 def build_arg_parser():
     parser = argparse.ArgumentParser(description="Run IEEE39 Matrix Pencil and clustering analysis.")
-    parser.add_argument("--scenario", nargs="+", default=["all"], help="Scenario keys, existing results folder names, or 'all'.")
+    parser.add_argument("--scenario", nargs="+", default=["all"], help="Scenario keys, existing results folder names, custom scenario names with --data-dir, or 'all'.")
     parser.add_argument("--list-scenarios", action="store_true", help="Print available scenario keys and exit.")
     parser.add_argument("--list-analysis", action="store_true", help="Print existing IEEE39 analysis folders and exit.")
     parser.add_argument("--skip-clustering", action="store_true", help="Only run Matrix Pencil extraction.")
-    parser.add_argument("--clustering-scope", choices=["both", "global", "areas", "none"], default="both", help="Choose clustering output scope. Default: both.")
+    parser.add_argument("--clustering-scope", choices=["both", "global", "areas", "none"], default="areas", help="Choose clustering output scope. Default: areas.")
     parser.add_argument("--skip-matrix-pencil", action="store_true", help="Reuse an existing results.csv instead of recomputing Matrix Pencil poles.")
-    parser.add_argument("--results-file", default=None, help="Existing pole results CSV to use with --skip-matrix-pencil. Default: output_dir/results.csv.")
     parser.add_argument("--analysis-dir", default=None, help="Existing analysis directory to use with --skip-matrix-pencil.")
     parser.add_argument("--skip-plots", action="store_true", help="Do not generate IEEE39 modal maps and reconstruction plots.")
     parser.add_argument("--data-dir", default=None, help="Data directory relative to IEEE39, or an absolute path. Use with one scenario.")
@@ -134,7 +133,7 @@ DEFAULT_SCENARIOS = {
         "taus": [1, 0.1, 0.01],
         "auto_order_decimation": AUTO_ORDER_DECIMATION,
         "filter": {"fc": 10, "N": 15},
-        "clustering": {"global": True, "by_control_area": True},
+        "clustering": {"global": False, "by_control_area": True},
     },
     "load03": {
         "data_dir": "results/Load03_Pplus2_50s",
@@ -146,7 +145,7 @@ DEFAULT_SCENARIOS = {
         "taus": [1, 0.1, 0.01],
         "auto_order_decimation": AUTO_ORDER_DECIMATION,
         "filter": {"fc": 10, "N": 15},
-        "clustering": {"global": True, "by_control_area": True},
+        "clustering": {"global": False, "by_control_area": True},
     },
     "load24": {
         "data_dir": "results/Load24_Pplus2_50s",
@@ -158,7 +157,7 @@ DEFAULT_SCENARIOS = {
         "taus": [1, 0.1, 0.01],
         "auto_order_decimation": AUTO_ORDER_DECIMATION,
         "filter": {"fc": 10, "N": 15},
-        "clustering": {"global": True, "by_control_area": True},
+        "clustering": {"global": False, "by_control_area": True},
     },
 }
 
@@ -841,7 +840,7 @@ def apply_existing_analysis_config(scenario, results_path, args):
     return config
 
 
-def load_existing_results_for_scenario(name, scenario, results_file, args):
+def load_existing_results_for_scenario(name, scenario, args):
     if args.analysis_dir:
         output_dir = _resolve_path(args.analysis_dir)
         scenario["output_dir"] = str(output_dir)
@@ -850,17 +849,12 @@ def load_existing_results_for_scenario(name, scenario, results_file, args):
         _, output_dir, _, _, _ = _scenario_runtime_config(scenario)
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    results_path = _resolve_path(results_file) if results_file else output_dir / "results.csv"
+    results_path = output_dir / "results.csv"
 
     if not results_path.exists():
         raise SystemExit(
             f"Cannot skip Matrix Pencil for '{name}' because results file does not exist: {results_path}"
         )
-
-    if results_file and not args.output_dir:
-        output_dir = results_path.parent
-        scenario["output_dir"] = str(output_dir)
-        scenario["output_dir_explicit"] = True
 
     config = apply_existing_analysis_config(scenario, results_path, args)
 
@@ -953,7 +947,7 @@ def select_scenarios(names, allow_custom=False):
                 "taus": [1, 0.1, 0.01],
                 "auto_order_decimation": AUTO_ORDER_DECIMATION,
                 "filter": {"fc": 10, "N": 15},
-                "clustering": {"global": True, "by_control_area": True},
+                "clustering": {"global": False, "by_control_area": True},
             }
             continue
 
@@ -1031,7 +1025,7 @@ def main():
         scenario_start = time.time()
 
         if args.skip_matrix_pencil:
-            output_dir, results_path, df_results = load_existing_results_for_scenario(name, scenario, args.results_file, args)
+            output_dir, results_path, df_results = load_existing_results_for_scenario(name, scenario, args)
         else:
             output_dir, results_path, df_results = run_matrix_pencil_for_scenario(name, scenario)
 
