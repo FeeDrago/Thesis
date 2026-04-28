@@ -70,6 +70,7 @@ matrix_pencil_spec.loader.exec_module(matrix_pencil)
 apply_matrix_pencil_fixed_order = matrix_pencil.apply_matrix_pencil_fixed_order
 apply_matrix_pencil_fixed_order_prepared = matrix_pencil.apply_matrix_pencil_fixed_order_prepared
 determine_MP_order = matrix_pencil.determine_MP_order
+determine_MP_orders = matrix_pencil.determine_MP_orders
 filter_signal = matrix_pencil.filter_signal
 prepare_matrix_pencil = matrix_pencil.prepare_matrix_pencil
 
@@ -798,17 +799,23 @@ def run_matrix_pencil_for_scenario(name, scenario):
                             "Phase": float(np.angle(amplitude)),
                         })
 
+            tau_order_map, auto_order_details = determine_MP_orders(
+                t,
+                y,
+                taus,
+                rate=auto_order_decimation,
+                return_details=True,
+            )
+            auto_order_search_elapsed = auto_order_details["elapsed_time"]
+
             for tau in taus:
-                tau_search_start = time.perf_counter()
-                order = determine_MP_order(t, y, tau, rate=auto_order_decimation)
-                tau_search_elapsed = time.perf_counter() - tau_search_start
-                auto_order_search_elapsed += tau_search_elapsed
+                order = tau_order_map[tau]
 
                 freq, sigma, _, elapsed_time, _, amplitudes = apply_matrix_pencil_fixed_order_prepared(prepared_mp, order=order)
                 auto_order_fit_elapsed += elapsed_time
                 tau_details[str(tau)] = {
                     "selected_order": int(order),
-                    "order_search": _timing_entry(tau_search_elapsed),
+                    "order_search_shared_across_taus": True,
                     "final_fit": _timing_entry(elapsed_time),
                 }
                 for f, s, amplitude in zip(freq, sigma, amplitudes):

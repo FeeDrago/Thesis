@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from scipy.signal import detrend
 import os
-from matrix_pencil import apply_matrix_pencil_fixed_order_prepared, determine_MP_order, filter_signal, prepare_matrix_pencil
+from matrix_pencil import apply_matrix_pencil_fixed_order_prepared, determine_MP_orders, filter_signal, prepare_matrix_pencil
 from mp_plotter import generate_preliminary_report_plots
 import time
 from stats import generate_preliminary_report_stats
@@ -98,8 +98,9 @@ for gen in generators:
                     })
 
         # Automatic Order
+        tau_orders = determine_MP_orders(time_col, signal_col, taus, rate=10)
         for tau in taus:
-            freq, sigma, _, _, _, a = apply_matrix_pencil_fixed_order_prepared(prepared_mp, order=determine_MP_order(time_col, signal_col, tau, rate = 10))
+            freq, sigma, _, _, _, a = apply_matrix_pencil_fixed_order_prepared(prepared_mp, order=tau_orders[tau])
             
             # Append results
             for f, s, a in zip(freq, sigma, a):

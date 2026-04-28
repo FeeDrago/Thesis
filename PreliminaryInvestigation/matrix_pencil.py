@@ -114,51 +114,63 @@ def filter_signal(noisy, t, fc, N=15):
     
     return y_filt
 
+
+def _prepare_decimated_signal(t, y, rate):
+    if rate > 1:
+        return t[::rate], y[::rate]
+    return t, y
+
+
+def _compute_rsq_curve(prepared, y_reference, max_order):
+    y_reference_arr = np.asarray(y_reference)
+    ss_tot = np.sum((y_reference_arr - np.mean(y_reference_arr)) ** 2)
+    rsq_curve = []
+
+    for order in range(1, max_order + 1):
+        _, _, y_est, _, _, _ = apply_matrix_pencil_fixed_order_prepared(prepared, order)
+        y_est_arr = np.asarray(y_est)
+        ss_res = np.sum((y_reference_arr - y_est_arr) ** 2)
+        rsq_curve.append((order, (1 - ss_res / ss_tot) * 100))
+
+    return rsq_curve
+
+
+def _select_order_from_rsq_curve(rsq_curve, tau):
+    prev_rsq = float('-inf')
+    for order, rsq in rsq_curve:
+        if abs(rsq - prev_rsq) <= tau:
+            return max(1, order - 1)
+        prev_rsq = rsq
+
+    return max(1, rsq_curve[-1][0]) if rsq_curve else 1
+
+
+def determine_MP_orders(t, y, taus, rate=1, max_order=50, return_details=False):
+    start = time.perf_counter()
+
+    t_decimated, y_decimated = _prepare_decimated_signal(t, y, rate)
+    prepared = prepare_matrix_pencil(y_decimated, t_decimated)
+    rsq_curve = _compute_rsq_curve(prepared, y_decimated, max_order)
+
+    tau_values = list(taus)
+    orders = {tau: _select_order_from_rsq_curve(rsq_curve, tau) for tau in tau_values}
+
+    if not return_details:
+        return orders
+
+    details = {
+        "elapsed_time": time.perf_counter() - start,
+        "orders_tested": len(rsq_curve),
+    }
+    return orders, details
+
 def determine_MP_order(t, y, tau, rate=1, max_order=50):
     """
     Βρίσκει αυτόματα την ιδανική τάξη (αριθμό modes) του συστήματος.
     Αυξάνει την τάξη μέχρι η βελτίωση του R-squared να είναι μικρότερη από tau.
     """
-    t_decimated = t
-    y_decimated = y
-
-    # Αν το rate > 1, κάνει υποδειγματοληψία (decimation) για να τρέξει πιο γρήγορα
-    if rate > 1:
-        t_decimated = t[::rate]
-        y_decimated = y[::rate]
-
-    prepared = prepare_matrix_pencil(y_decimated, t_decimated)
-    y_decimated_arr = np.asarray(y_decimated)
-    ss_tot = np.sum((y_decimated_arr - np.mean(y_decimated_arr)) ** 2)
-
-    prevRsq = float('-inf')
-    cond = True
-    order = 0
-
-    # Επαναληπτική διαδικασία εύρεσης τάξης
-    while cond:
-        order = order + 1
-
-        if order > max_order: # Ασφάλεια για να μην τρέχει επ' άπειρον
-            break
-
-        # Δοκιμαστική εκτέλεση του Matrix Pencil για την τρέχουσα τάξη
-        _, _, y_est, _, _, _ = apply_matrix_pencil_fixed_order_prepared(
-            prepared, order
-        )
-
-        y_est_arr = np.asarray(y_est)
-
-        # Υπολογισμός του συντελεστή προσδιορισμού R^2 (πόσο καλά ταιριάζει το μοντέλο)
-        ss_res = np.sum((y_decimated_arr - y_est_arr) ** 2) # Άθροισμα τετραγώνων σφαλμάτων
-        Rsq = (1 - ss_res / ss_tot ) * 100
-
-        # Αν η βελτίωση του R^2 είναι μικρότερη από tau, σταματάμε
-        cond = abs(Rsq - prevRsq) > tau
-        prevRsq = Rsq
-
-    order = max(1, order - 1) # Επιστρέφουμε στην τελευταία σταθερή τάξη
-    return order
+    orders = determine_MP_orders(t, y, [tau], rate=rate, max_order=max_order)
+    return orders[tau]
 
 def apply_matrix_pencil_fixed_order(y, t, order):
     """
