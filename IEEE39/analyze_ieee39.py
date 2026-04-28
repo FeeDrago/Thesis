@@ -257,6 +257,107 @@ def _time_window_description(time_values, mask_config):
     return {"start_s": float(start), "end_s": float(end)}
 
 
+def _time_mask_bound(mask_config, inclusive_key, exclusive_key):
+    mask_config = mask_config or {}
+    if mask_config.get(inclusive_key) is not None:
+        return float(mask_config[inclusive_key])
+    if mask_config.get(exclusive_key) is not None:
+        return float(mask_config[exclusive_key])
+    return None
+
+
+def _validate_time_mask_config(mask_config, scenario_name):
+    mask_config = mask_config or {}
+    for key in ["start", "start_inclusive", "end", "end_inclusive"]:
+        value = mask_config.get(key)
+        if value is None:
+            continue
+        value = float(value)
+        if not np.isfinite(value):
+            raise SystemExit(f"Invalid time mask for '{scenario_name}': {key} must be finite, got {value}.")
+
+    start = _time_mask_bound(mask_config, "start_inclusive", "start")
+    end = _time_mask_bound(mask_config, "end_inclusive", "end")
+    if start is not None and end is not None and end <= start:
+        raise SystemExit(
+            f"Invalid time mask for '{scenario_name}': time_end ({end:g}) must be greater than time_start ({start:g})."
+        )
+
+
+def validate_scenario_time_window(name, scenario, generated_config=None, generators=None):
+    _validate_time_mask_config(scenario.get("time_mask"), name)
+
+    data_dir = _resolve_path(scenario["data_dir"])
+    generators = list(generators or scenario.get("generators") or [])
+
+    reference_csv = None
+    finite_time = None
+    for gen in generators:
+        csv_path = data_dir / f"{gen}.csv"
+        if not csv_path.exists():
+            continue
+        time_values = _read_numeric_csv(csv_path).iloc[:, 0].to_numpy(dtype=float)
+        finite_time = time_values[np.isfinite(time_values)]
+        reference_csv = csv_path
+        break
+
+    if reference_csv is None or finite_time is None:
+        raise SystemExit(f"Could not validate time window for '{name}': no generator CSV files found in {data_dir}.")
+    if finite_time.size < 4:
+        raise SystemExit(
+            f"Could not validate time window for '{name}': {reference_csv.name} contains fewer than 4 finite time samples."
+        )
+    if np.any(np.diff(finite_time) <= 0):
+        raise SystemExit(
+            f"Invalid time column in {reference_csv}: timestamps must be strictly increasing for scenario '{name}'."
+        )
+
+    min_time = float(np.min(finite_time))
+    max_time = float(np.max(finite_time))
+    mask_config = scenario.get("time_mask") or {}
+    start = _time_mask_bound(mask_config, "start_inclusive", "start")
+    end = _time_mask_bound(mask_config, "end_inclusive", "end")
+    tol = 1e-9
+
+    if start is not None and start < min_time - tol:
+        raise SystemExit(
+            f"Invalid time_start for '{name}': requested {start:g}s but available data starts at {min_time:g}s in {reference_csv.name}."
+        )
+    if start is not None and start > max_time + tol:
+        raise SystemExit(
+            f"Invalid time_start for '{name}': requested {start:g}s but available data ends at {max_time:g}s in {reference_csv.name}."
+        )
+    if end is not None and end < min_time - tol:
+        raise SystemExit(
+            f"Invalid time_end for '{name}': requested {end:g}s but available data starts at {min_time:g}s in {reference_csv.name}."
+        )
+    if end is not None and end > max_time + tol:
+        raise SystemExit(
+            f"Invalid time_end for '{name}': requested {end:g}s but available data ends at {max_time:g}s in {reference_csv.name}."
+        )
+
+    sim_stop_time = None
+    if generated_config and generated_config.get("sim_stop_time_s") is not None:
+        sim_stop_time = float(generated_config["sim_stop_time_s"])
+        if not np.isfinite(sim_stop_time):
+            raise SystemExit(f"Invalid scenario.json for '{name}': sim_stop_time_s must be finite, got {sim_stop_time}.")
+        if end is not None and end > sim_stop_time + tol:
+            raise SystemExit(
+                f"Invalid time_end for '{name}': requested {end:g}s exceeds scenario duration {sim_stop_time:g}s from scenario.json."
+            )
+
+    mask = _time_mask(finite_time, mask_config)
+    selected_count = int(np.count_nonzero(mask))
+    if selected_count == 0:
+        raise SystemExit(
+            f"Invalid time mask for '{name}': no samples remain after applying the window [{start if start is not None else min_time:g}, {end if end is not None else max_time:g}] to {reference_csv.name}."
+        )
+    if selected_count < 4:
+        raise SystemExit(
+            f"Invalid time mask for '{name}': only {selected_count} time samples remain after masking {reference_csv.name}; at least 4 are required."
+        )
+
+
 def _save_json(path, data):
     with open(path, "w") as f:
         json.dump(data, f, indent=2)
@@ -555,6 +656,7 @@ def generate_ieee39_plots(df_results, scenario):
 
 def run_matrix_pencil_for_scenario(name, scenario):
     data_dir, output_dir, generated_config, generators, columns = _scenario_runtime_config(scenario)
+    validate_scenario_time_window(name, scenario, generated_config=generated_config, generators=generators)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     fixed_orders = scenario.get("fixed_orders", [2, 4, 6])
@@ -765,6 +867,11 @@ def load_existing_results_for_scenario(name, scenario, results_file, args):
             "using the current CLI/default time mask for reports and reconstructions.",
             flush=True,
         )
+
+    data_dir, _, generated_config, generators, _ = _scenario_runtime_config(scenario)
+    if not data_dir.exists():
+        raise SystemExit(f"Data directory does not exist for '{name}': {data_dir}")
+    validate_scenario_time_window(name, scenario, generated_config=generated_config, generators=generators)
 
     df_results = pd.read_csv(results_path)
     return output_dir, results_path, df_results
