@@ -1,0 +1,386 @@
+{
+  "name": "load03",
+  "data_dir": "results/Load03_Pplus2_50s",
+  "output_dir": "analysis/Load03_Pplus2_50s",
+  "time_mask": {
+    "start_inclusive": 1.5,
+    "reset_time": true
+  },
+  "generators": [
+    "g1",
+    "g2",
+    "g3",
+    "g4",
+    "g5",
+    "g6",
+    "g7",
+    "g8",
+    "g9",
+    "g10"
+  ],
+  "columns": {
+    "s:ut in p.u.": "Voltage",
+    "s:cur1 in p.u.": "Current",
+    "s:P1 in MW": "Active Power",
+    "s:Q1 in Mvar": "Reactive Power"
+  },
+  "fixed_orders": [
+    2,
+    4,
+    6
+  ],
+  "taus": [
+    1,
+    0.1,
+    0.01
+  ],
+  "auto_order_decimation": 10,
+  "filter": {
+    "fc": 10,
+    "N": 15
+  },
+  "clustering": {
+    "global": true,
+    "by_control_area": true
+  },
+  "data_scenario_json": "results/Load03_Pplus2_50s/scenario.json",
+  "generators_used": [
+    "g1",
+    "g2",
+    "g3",
+    "g4",
+    "g5",
+    "g6",
+    "g7",
+    "g8",
+    "g9",
+    "g10"
+  ],
+  "time_window_s": {
+    "start_s": 1.5,
+    "end_s": 50.0
+  },
+  "time_reset_to_zero": true,
+  "signal_means": [
+    {
+      "Scenario": "load03",
+      "Gen": "g1",
+      "Signal": "Voltage",
+      "Mean after detrend": -5.793940649641406e-16,
+      "Mean after LPF": 6.894246420703043e-10,
+      "Mean after demean": 1.4304048451674352e-21
+    },
+    {
+      "Scenario": "load03",
+      "Gen": "g1",
+      "Signal": "Current",
+      "Mean after detrend": -5.267608882813597e-17,
+      "Mean after LPF": 1.916217002756765e-09,
+      "Mean after demean": 2.8608096903348703e-21
+    },
+    {
+      "Scenario": "load03",
+      "Gen": "g1",
+      "Signal": "Active Power",
+      "Mean after detrend": -5.945416174313908e-13,
+      "Mean after LPF": 2.089359592116249e-05,
+      "Mean after demean": 5.858938245805815e-17
+    },
+    {
+      "Scenario": "load03",
+      "Gen": "g1",
+      "Signal": "Reactive Power",
+      "Mean after detrend": -7.937396588505428e-14,
+      "Mean after LPF": -2.621259479884155e-06,
+      "Mean after demean": -4.3942036843543614e-18
+    },
+    {
+      "Scenario": "load03",
+      "Gen": "g2",
+      "Signal": "Voltage",
+      "Mean after detrend": -2.977988455250987e-16,
+      "Mean after LPF": 1.384087869020397e-09,
+      "Mean after demean": 5.364018169377883e-22
+    },
+    {
+      "Scenario": "load03",
+      "Gen": "g2",
+      "Signal": "Current",
+      "Mean after detrend": -4.461718793046264e-16,
+      "Mean after LPF": -2.2054810649806645e-09,
+      "Mean after demean": -2.8608096903348703e-21
+    },
+    {
+      "Scenario": "load03",
+      "Gen": "g2",
+      "Signal": "Active Power",
+      "Mean after detrend": -2.290610496580241e-13,
+      "Mean after LPF": -1.1044057345598458e-06,
+      "Mean after demean": -2.9294691229029072e-18
+    },
+    {
+      "Scenario": "load03",
+      "Gen": "g2",
+      "Signal": "Reactive Power",
+      "Mean after detrend": -9.39070622037756e-14,
+      "Mean after LPF": 7.414598540283147e-07,
+      "Mean after demean": 1.4647345614514536e-18
+    },
+    {
+      "Scenario": "load03",
+      "Gen": "g3",
+      "Signal": "Voltage",
+      "Mean after detrend": -6.635705292925538e-16,
+      "Mean after LPF": 1.5412759996783583e-09,
+      "Mean after demean": -2.2350075705741174e-23
+    },
+    {
+      "Scenario": "load03",
+      "Gen": "g3",
+      "Signal": "Current",
+      "Mean after detrend": -4.463549711248078e-16,
+      "Mean after LPF": -2.040605887788644e-09,
+      "Mean after demean": 1.0012833916172047e-20
+    },
+    {
+      "Scenario": "load03",
+      "Gen": "g3",
+      "Signal": "Active Power",
+      "Mean after detrend": -2.0157091140870324e-13,
+      "Mean after LPF": -1.155138124950297e-06,
+      "Mean after demean": -4.3942036843543614e-18
+    },
+    {
+      "Scenario": "load03",
+      "Gen": "g3",
+      "Signal": "Reactive Power",
+      "Mean after detrend": -1.4894592808487541e-13,
+      "Mean after LPF": 1.06395373673869e-06,
+      "Mean after demean": 1.4647345614514536e-18
+    },
+    {
+      "Scenario": "load03",
+      "Gen": "g4",
+      "Signal": "Voltage",
+      "Mean after detrend": -5.793940649641406e-16,
+      "Mean after LPF": 1.3829881460929861e-09,
+      "Mean after demean": -1.4304048451674352e-21
+    },
+    {
+      "Scenario": "load03",
+      "Gen": "g4",
+      "Signal": "Current",
+      "Mean after detrend": -5.809274589581601e-16,
+      "Mean after LPF": 6.32372259789908e-10,
+      "Mean after demean": -8.582429071004612e-21
+    },
+    {
+      "Scenario": "load03",
+      "Gen": "g4",
+      "Signal": "Active Power",
+      "Mean after detrend": -3.796591983282168e-13,
+      "Mean after LPF": 1.1433954186006413e-06,
+      "Mean after demean": 5.8589382458058144e-18
+    },
+    {
+      "Scenario": "load03",
+      "Gen": "g4",
+      "Signal": "Reactive Power",
+      "Mean after detrend": -4.7565790148574505e-14,
+      "Mean after LPF": 1.4421695715308838e-06,
+      "Mean after demean": 4.3942036843543614e-18
+    },
+    {
+      "Scenario": "load03",
+      "Gen": "g5",
+      "Signal": "Voltage",
+      "Mean after detrend": -3.9909439504047575e-16,
+      "Mean after LPF": 1.0049061853496615e-09,
+      "Mean after demean": 0.0
+    },
+    {
+      "Scenario": "load03",
+      "Gen": "g5",
+      "Signal": "Current",
+      "Mean after detrend": -4.3665110465519196e-16,
+      "Mean after LPF": -3.453224752731503e-09,
+      "Mean after demean": 2.8608096903348703e-21
+    },
+    {
+      "Scenario": "load03",
+      "Gen": "g5",
+      "Signal": "Active Power",
+      "Mean after detrend": -3.603247021170576e-13,
+      "Mean after LPF": -1.4015765877545515e-06,
+      "Mean after demean": -4.3942036843543614e-18
+    },
+    {
+      "Scenario": "load03",
+      "Gen": "g5",
+      "Signal": "Reactive Power",
+      "Mean after detrend": -1.323885686022282e-13,
+      "Mean after LPF": -6.312340113324872e-07,
+      "Mean after demean": -1.830918201814317e-19
+    },
+    {
+      "Scenario": "load03",
+      "Gen": "g6",
+      "Signal": "Voltage",
+      "Mean after detrend": -6.992276612728877e-16,
+      "Mean after LPF": 9.123836896999088e-10,
+      "Mean after demean": 0.0
+    },
+    {
+      "Scenario": "load03",
+      "Gen": "g6",
+      "Signal": "Current",
+      "Mean after detrend": -3.1970120451430246e-16,
+      "Mean after LPF": -1.0738924750655355e-09,
+      "Mean after demean": -1.1443238761339481e-20
+    },
+    {
+      "Scenario": "load03",
+      "Gen": "g6",
+      "Signal": "Active Power",
+      "Mean after detrend": -3.4757565249418414e-13,
+      "Mean after LPF": -2.2118734277196902e-07,
+      "Mean after demean": 7.323672807257268e-18
+    },
+    {
+      "Scenario": "load03",
+      "Gen": "g6",
+      "Signal": "Reactive Power",
+      "Mean after detrend": -9.795558853162742e-14,
+      "Mean after LPF": -9.271020316184114e-09,
+      "Mean after demean": 0.0
+    },
+    {
+      "Scenario": "load03",
+      "Gen": "g7",
+      "Signal": "Voltage",
+      "Mean after detrend": -5.308289596610159e-16,
+      "Mean after LPF": 1.0707587663005874e-09,
+      "Mean after demean": 8.94003028229647e-23
+    },
+    {
+      "Scenario": "load03",
+      "Gen": "g7",
+      "Signal": "Current",
+      "Mean after detrend": -1.6400449792751745e-16,
+      "Mean after LPF": -2.1702224993413966e-10,
+      "Mean after demean": -4.291214535502306e-21
+    },
+    {
+      "Scenario": "load03",
+      "Gen": "g7",
+      "Signal": "Active Power",
+      "Mean after detrend": -4.780424893517881e-13,
+      "Mean after LPF": 3.487042051309451e-07,
+      "Mean after demean": 0.0
+    },
+    {
+      "Scenario": "load03",
+      "Gen": "g7",
+      "Signal": "Reactive Power",
+      "Mean after detrend": -4.4967351036559626e-14,
+      "Mean after LPF": -6.722774828382134e-08,
+      "Mean after demean": 0.0
+    },
+    {
+      "Scenario": "load03",
+      "Gen": "g8",
+      "Signal": "Voltage",
+      "Mean after detrend": -6.302478180195333e-16,
+      "Mean after LPF": 8.545925918418785e-10,
+      "Mean after demean": -2.8608096903348703e-21
+    },
+    {
+      "Scenario": "load03",
+      "Gen": "g8",
+      "Signal": "Current",
+      "Mean after detrend": -4.937070931192306e-16,
+      "Mean after LPF": 1.3595456899122477e-09,
+      "Mean after demean": 7.152024225837176e-21
+    },
+    {
+      "Scenario": "load03",
+      "Gen": "g8",
+      "Signal": "Active Power",
+      "Mean after detrend": -1.0389069297462871e-13,
+      "Mean after LPF": 1.4476627733315063e-06,
+      "Mean after demean": 2.9294691229029072e-18
+    },
+    {
+      "Scenario": "load03",
+      "Gen": "g8",
+      "Signal": "Reactive Power",
+      "Mean after detrend": -3.9181649518826384e-16,
+      "Mean after LPF": -2.1802300683102687e-07,
+      "Mean after demean": 5.126570965080088e-18
+    },
+    {
+      "Scenario": "load03",
+      "Gen": "g9",
+      "Signal": "Voltage",
+      "Mean after detrend": -5.764645958412378e-16,
+      "Mean after LPF": 6.829590422066725e-10,
+      "Mean after demean": 8.94003028229647e-23
+    },
+    {
+      "Scenario": "load03",
+      "Gen": "g9",
+      "Signal": "Current",
+      "Mean after detrend": -1.9172002220748168e-16,
+      "Mean after LPF": -3.1299926091021592e-09,
+      "Mean after demean": -4.291214535502306e-21
+    },
+    {
+      "Scenario": "load03",
+      "Gen": "g9",
+      "Signal": "Active Power",
+      "Mean after detrend": -6.260158336878597e-13,
+      "Mean after LPF": -2.627966596342021e-06,
+      "Mean after demean": -2.9294691229029072e-18
+    },
+    {
+      "Scenario": "load03",
+      "Gen": "g9",
+      "Signal": "Reactive Power",
+      "Mean after detrend": -1.0424515873849995e-14,
+      "Mean after LPF": -1.3826512266517404e-06,
+      "Mean after demean": -2.1971018421771807e-18
+    },
+    {
+      "Scenario": "load03",
+      "Gen": "g10",
+      "Signal": "Voltage",
+      "Mean after detrend": -4.009253132422901e-16,
+      "Mean after LPF": 6.924604341115357e-10,
+      "Mean after demean": -8.94003028229647e-23
+    },
+    {
+      "Scenario": "load03",
+      "Gen": "g10",
+      "Signal": "Current",
+      "Mean after detrend": -1.692683877577336e-16,
+      "Mean after LPF": -6.919707083759366e-09,
+      "Mean after demean": -8.582429071004612e-21
+    },
+    {
+      "Scenario": "load03",
+      "Gen": "g10",
+      "Signal": "Active Power",
+      "Mean after detrend": -4.361393630177849e-14,
+      "Mean after LPF": -7.157571821850563e-06,
+      "Mean after demean": 5.8589382458058144e-18
+    },
+    {
+      "Scenario": "load03",
+      "Gen": "g10",
+      "Signal": "Reactive Power",
+      "Mean after detrend": -1.1194673306261171e-13,
+      "Mean after LPF": -1.6054612165154609e-06,
+      "Mean after demean": 2.9294691229029072e-18
+    }
+  ]
+}

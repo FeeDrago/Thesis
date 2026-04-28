@@ -1,0 +1,3 @@
+Method,Selection_Criterion,k_opt,Silhouette
+k-Means,Silhouette,6,0.6083123120038695
+k-Medoids,Silhouette,7,0.586995325345719
