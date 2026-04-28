@@ -1004,6 +1004,7 @@ def run_single_scenario(app, scenario, results_root):
     load_name = scenario.get("load_name")
     dp_percent = float(scenario.get("dp_percent", 2.0))
     dq_percent = float(scenario.get("dq_percent", 0.0))
+    sim_stop_time_s = float(scenario.get("sim_stop_time_s", SIM_STOP_TIME_S))
     event_time_s = float(scenario.get("event_time_s", EVENT_TIME_S))
     custom_name = scenario.get("name")
 
@@ -1014,7 +1015,7 @@ def run_single_scenario(app, scenario, results_root):
         load=load,
         dp_percent=dp_percent,
         dq_percent=dq_percent,
-        sim_stop_time=SIM_STOP_TIME_S,
+        sim_stop_time=sim_stop_time_s,
         custom_name=custom_name,
         event_time_s=event_time_s,
     )
@@ -1043,7 +1044,7 @@ def run_single_scenario(app, scenario, results_root):
         "dp_percent": dp_percent,
         "dq_percent": dq_percent,
         "event_time_s": event_time_s,
-        "sim_stop_time_s": SIM_STOP_TIME_S,
+        "sim_stop_time_s": sim_stop_time_s,
         "sim_step_ms": SIM_STEP_MS,
         "csv_headers": CSV_HEADERS,
         "generator_names_setting": GENERATOR_NAMES,
@@ -1071,7 +1072,7 @@ def run_single_scenario(app, scenario, results_root):
 
         run_load_flow_initial_conditions_and_rms(
             app=app,
-            tstop=SIM_STOP_TIME_S,
+            tstop=sim_stop_time_s,
             step=SIM_STEP_MS,
         )
 
@@ -1102,23 +1103,25 @@ def run_single_scenario(app, scenario, results_root):
 
 def parse_inline_scenario(spec):
     """
-    Parses CLI specs in the form load_name:dp[:dq[:name]].
-    Examples: "Load 29:2", "Load 24:-5:2:my_case".
+    Parses CLI specs in the form load_name:dp[:dq[:duration[:event_time[:name]]]].
+    Examples: "Load 29:2", "Load 24:-5:2:60:0.5:my_case".
     """
     parts = [part.strip() for part in spec.split(":")]
 
-    if len(parts) not in (2, 3, 4) or not parts[0]:
+    if len(parts) not in (2, 3, 4, 5, 6) or not parts[0]:
         raise SystemExit(
-            f"Invalid scenario spec '{spec}'. Use load_name:dp[:dq[:name]], "
-            "for example 'Load 29:2:0'."
+            f"Invalid scenario spec '{spec}'. Use load_name:dp[:dq[:duration[:event_time[:name]]]], "
+            "for example 'Load 29:2:0:60:0.5'."
         )
 
     try:
         scenario = {
-            "name": parts[3] if len(parts) == 4 and parts[3] else None,
+            "name": parts[5] if len(parts) == 6 and parts[5] else None,
             "load_name": parts[0],
             "dp_percent": float(parts[1]),
             "dq_percent": float(parts[2]) if len(parts) >= 3 and parts[2] else 0.0,
+            "sim_stop_time_s": float(parts[3]) if len(parts) >= 4 and parts[3] else SIM_STOP_TIME_S,
+            "event_time_s": float(parts[4]) if len(parts) >= 5 and parts[4] else EVENT_TIME_S,
         }
     except ValueError as e:
         raise SystemExit(f"Invalid numeric value in scenario spec '{spec}': {e}") from e
@@ -1130,8 +1133,16 @@ def parse_case_args(case_args):
     scenarios = []
 
     for values in case_args or []:
+        if len(values) == 1 and ":" in values[0]:
+            scenarios.append(parse_inline_scenario(values[0]))
+            continue
+
         if len(values) not in (2, 3, 4):
-            raise SystemExit("Each --case must be: LOAD_NAME DP_PERCENT [DQ_PERCENT] [NAME]")
+            raise SystemExit(
+                "Each --case must be either a quoted spec "
+                "load_name:dp[:dq[:duration[:event_time[:name]]]] or the legacy form "
+                "LOAD_NAME DP_PERCENT [DQ_PERCENT] [NAME]"
+            )
 
         try:
             scenarios.append(
@@ -1140,6 +1151,8 @@ def parse_case_args(case_args):
                     "load_name": values[0],
                     "dp_percent": float(values[1]),
                     "dq_percent": float(values[2]) if len(values) >= 3 else 0.0,
+                    "sim_stop_time_s": SIM_STOP_TIME_S,
+                    "event_time_s": EVENT_TIME_S,
                 }
             )
         except ValueError as e:
@@ -1217,7 +1230,7 @@ def parse_args():
         "--scenario",
         nargs="+",
         default=None,
-        help="Scenario keys/folder aliases to run, 'all', or inline specs load_name:dp[:dq[:name]].",
+        help="Scenario keys/folder aliases to run, 'all', or inline specs load_name:dp[:dq[:duration[:event_time[:name]]]].",
     )
     parser.add_argument(
         "--case",
@@ -1225,12 +1238,18 @@ def parse_args():
         nargs="+",
         default=[],
         metavar="VALUE",
-        help="Add an ad-hoc scenario: --case LOAD_NAME DP_PERCENT [DQ_PERCENT] [NAME]. Can be repeated.",
+        help="Add an ad-hoc scenario. Use either --case LOAD_NAME DP_PERCENT [DQ_PERCENT] [NAME] or a quoted spec like --case 'Load 24:2:0:60:0.5'. Can be repeated.",
     )
     parser.add_argument(
         "--output-dir",
         default=None,
         help="Results directory relative to IEEE39, or an absolute path. Default: results.",
+    )
+    parser.add_argument(
+        "--duration",
+        type=float,
+        default=SIM_STOP_TIME_S,
+        help=f"Simulation stop time in seconds. Default: {SIM_STOP_TIME_S:g}.",
     )
     parser.add_argument(
         "--event-time",
@@ -1312,7 +1331,8 @@ if __name__ == "__main__":
     start_time = time.time()
     selected_scenarios = [dict(scenario) for scenario in select_scenarios(args.scenario, args.case)]
     for scenario in selected_scenarios:
-        scenario["event_time_s"] = float(args.event_time)
+        scenario.setdefault("sim_stop_time_s", float(args.duration))
+        scenario.setdefault("event_time_s", float(args.event_time))
     run_all_scenarios(selected_scenarios, args.output_dir)
     end_time = time.time()
     print("-"*30, f"Execution Time: {(end_time - start_time)//60} minutes and {(end_time - start_time)%60} seconds", "-"*30)
