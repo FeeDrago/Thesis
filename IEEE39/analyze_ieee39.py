@@ -369,6 +369,52 @@ def _load_json(path):
         return json.load(f)
 
 
+def _format_duration_min_sec(seconds):
+    total_seconds = max(0.0, float(seconds))
+    minutes = int(total_seconds // 60)
+    seconds_part = total_seconds - (minutes * 60)
+    return f"{minutes:02d}:{seconds_part:04.1f}"
+
+
+def _timing_entry(seconds, skipped=False):
+    total_seconds = max(0.0, float(seconds))
+    return {
+        "seconds": round(total_seconds, 6),
+        "min_sec": _format_duration_min_sec(total_seconds),
+        "skipped": bool(skipped),
+    }
+
+
+def _build_analysis_config(
+    name,
+    scenario,
+    data_dir,
+    output_dir,
+    generated_config,
+    generators,
+    auto_order_decimation,
+    time_window,
+    signal_means,
+    timings=None,
+):
+    metadata_scenario = dict(scenario)
+    for key in ("data_dir", "output_dir"):
+        if metadata_scenario.get(key):
+            metadata_scenario[key] = path_for_metadata(_resolve_path(metadata_scenario[key]))
+
+    return {
+        "name": name,
+        **metadata_scenario,
+        "data_scenario_json": path_for_metadata(data_dir / "scenario.json") if generated_config else None,
+        "generators_used": generators,
+        "auto_order_decimation": auto_order_decimation,
+        "time_window_s": time_window,
+        "time_reset_to_zero": scenario.get("time_mask", {}).get("reset_time", True),
+        "signal_means": signal_means,
+        "timings": timings or {},
+    }
+
+
 def _load_scenario_json(data_dir):
     scenario_json = data_dir / "scenario.json"
     if not scenario_json.exists():
@@ -656,6 +702,7 @@ def generate_ieee39_plots(df_results, scenario):
 
 
 def run_matrix_pencil_for_scenario(name, scenario):
+    mp_start = time.perf_counter()
     data_dir, output_dir, generated_config, generators, columns = _scenario_runtime_config(scenario)
     validate_scenario_time_window(name, scenario, generated_config=generated_config, generators=generators)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -669,6 +716,7 @@ def run_matrix_pencil_for_scenario(name, scenario):
 
     results = []
     stats_lines = []
+    signal_timings = {}
     time_window = None
 
     for gen in generators:
@@ -698,12 +746,14 @@ def run_matrix_pencil_for_scenario(name, scenario):
                 continue
 
             print(f"Gen: {gen}, Signal: {signal}", flush=True)
+            signal_start = time.perf_counter()
             signal_col = df[col].to_numpy(dtype=float)[mask].copy()
             valid = np.isfinite(time_col) & np.isfinite(signal_col)
             if np.count_nonzero(valid) < 4:
                 print(f"Not enough finite samples for {gen} {signal}")
                 continue
 
+            preprocess_start = time.perf_counter()
             t = time_col[valid]
             y = signal_col[valid]
             y = detrend(y)
@@ -712,7 +762,11 @@ def run_matrix_pencil_for_scenario(name, scenario):
             mean_after_lpf = float(np.mean(y))
             y = y - np.mean(y)
             mean_after_demean = float(np.mean(y))
+            preprocess_elapsed = time.perf_counter() - preprocess_start
+
+            prepare_start = time.perf_counter()
             prepared_mp = prepare_matrix_pencil(y, t)
+            prepare_elapsed = time.perf_counter() - prepare_start
 
             stats_lines.append({
                 "Scenario": name,
@@ -723,8 +777,14 @@ def run_matrix_pencil_for_scenario(name, scenario):
                 "Mean after demean": mean_after_demean,
             })
 
+            fixed_order_elapsed = 0.0
+            auto_order_search_elapsed = 0.0
+            auto_order_fit_elapsed = 0.0
+            tau_details = {}
+
             for order in fixed_orders:
-                freq, sigma, _, _, _, amplitudes = apply_matrix_pencil_fixed_order_prepared(prepared_mp, order=order)
+                freq, sigma, _, elapsed_time, _, amplitudes = apply_matrix_pencil_fixed_order_prepared(prepared_mp, order=order)
+                fixed_order_elapsed += elapsed_time
                 for f, s, amplitude in zip(freq, sigma, amplitudes):
                     if f > 0:
                         results.append({
@@ -739,8 +799,18 @@ def run_matrix_pencil_for_scenario(name, scenario):
                         })
 
             for tau in taus:
+                tau_search_start = time.perf_counter()
                 order = determine_MP_order(t, y, tau, rate=auto_order_decimation)
-                freq, sigma, _, _, _, amplitudes = apply_matrix_pencil_fixed_order_prepared(prepared_mp, order=order)
+                tau_search_elapsed = time.perf_counter() - tau_search_start
+                auto_order_search_elapsed += tau_search_elapsed
+
+                freq, sigma, _, elapsed_time, _, amplitudes = apply_matrix_pencil_fixed_order_prepared(prepared_mp, order=order)
+                auto_order_fit_elapsed += elapsed_time
+                tau_details[str(tau)] = {
+                    "selected_order": int(order),
+                    "order_search": _timing_entry(tau_search_elapsed),
+                    "final_fit": _timing_entry(elapsed_time),
+                }
                 for f, s, amplitude in zip(freq, sigma, amplitudes):
                     if f > 0:
                         results.append({
@@ -754,25 +824,40 @@ def run_matrix_pencil_for_scenario(name, scenario):
                             "Phase": float(np.angle(amplitude)),
                         })
 
+            signal_elapsed = time.perf_counter() - signal_start
+            signal_timings.setdefault(gen, {})[signal] = {
+                "preprocessing": _timing_entry(preprocess_elapsed),
+                "prepare_matrix_pencil": _timing_entry(prepare_elapsed),
+                "fixed_orders_total": _timing_entry(fixed_order_elapsed),
+                "auto_order_search_total": _timing_entry(auto_order_search_elapsed),
+                "auto_order_final_fit_total": _timing_entry(auto_order_fit_elapsed),
+                "matrix_pencil_total": _timing_entry(prepare_elapsed + fixed_order_elapsed + auto_order_search_elapsed + auto_order_fit_elapsed),
+                "total_signal": _timing_entry(signal_elapsed),
+                "tau_details": tau_details,
+            }
+
     df_results = pd.DataFrame(results)
     results_path = output_dir / "results.csv"
     df_results.to_csv(results_path, index=False)
-    metadata_scenario = dict(scenario)
-    for key in ("data_dir", "output_dir"):
-        if metadata_scenario.get(key):
-            metadata_scenario[key] = path_for_metadata(_resolve_path(metadata_scenario[key]))
-    _save_json(output_dir / "analysis_config.json", {
-        "name": name,
-        **metadata_scenario,
-        "data_scenario_json": path_for_metadata(data_dir / "scenario.json") if generated_config else None,
-        "generators_used": generators,
-        "auto_order_decimation": auto_order_decimation,
-        "time_window_s": time_window,
-        "time_reset_to_zero": scenario.get("time_mask", {}).get("reset_time", True),
-        "signal_means": stats_lines,
-    })
+    mp_elapsed = time.perf_counter() - mp_start
+    analysis_config = _build_analysis_config(
+        name=name,
+        scenario=scenario,
+        data_dir=data_dir,
+        output_dir=output_dir,
+        generated_config=generated_config,
+        generators=generators,
+        auto_order_decimation=auto_order_decimation,
+        time_window=time_window,
+        signal_means=stats_lines,
+        timings={
+            "matrix_pencil": _timing_entry(mp_elapsed),
+            "per_generator_signal": signal_timings,
+        },
+    )
+    _save_json(output_dir / "analysis_config.json", analysis_config)
 
-    return output_dir, results_path, df_results
+    return output_dir, results_path, df_results, analysis_config
 
 
 def run_clustering_for_scenario(output_dir, results_path, df_results, scenario):
@@ -871,7 +956,31 @@ def load_existing_results_for_scenario(name, scenario, args):
     validate_scenario_time_window(name, scenario, generated_config=generated_config, generators=generators)
 
     df_results = pd.read_csv(results_path)
-    return output_dir, results_path, df_results
+    if config is None:
+        time_all = None
+        sample_csv = next((data_dir / f"{gen}.csv" for gen in generators if (data_dir / f"{gen}.csv").exists()), None)
+        if sample_csv is not None:
+            sample_df = _read_numeric_csv(sample_csv)
+            time_all = sample_df.iloc[:, 0].to_numpy(dtype=float)
+        time_window = _time_window_description(time_all, scenario.get("time_mask")) if time_all is not None else None
+        config = _build_analysis_config(
+            name=name,
+            scenario=scenario,
+            data_dir=data_dir,
+            output_dir=output_dir,
+            generated_config=generated_config,
+            generators=generators,
+            auto_order_decimation=int(scenario.get("auto_order_decimation", scenario.get("order_rate", AUTO_ORDER_DECIMATION))),
+            time_window=time_window,
+            signal_means=[],
+            timings={"matrix_pencil": _timing_entry(0.0, skipped=True), "per_generator_signal": {}},
+        )
+    else:
+        config.setdefault("timings", {})
+        config["timings"].setdefault("matrix_pencil", _timing_entry(0.0, skipped=True))
+        config["timings"].setdefault("per_generator_signal", {})
+
+    return output_dir, results_path, df_results, config
 
 
 def list_analysis_folders():
@@ -1025,19 +1134,33 @@ def main():
         scenario_start = time.time()
 
         if args.skip_matrix_pencil:
-            output_dir, results_path, df_results = load_existing_results_for_scenario(name, scenario, args)
+            output_dir, results_path, df_results, analysis_config = load_existing_results_for_scenario(name, scenario, args)
         else:
-            output_dir, results_path, df_results = run_matrix_pencil_for_scenario(name, scenario)
+            output_dir, results_path, df_results, analysis_config = run_matrix_pencil_for_scenario(name, scenario)
 
+        report_start = time.perf_counter()
         generate_ieee39_comprehensive_report(df_results, scenario)
+        report_elapsed = time.perf_counter() - report_start
+        analysis_config.setdefault("timings", {})["comprehensive_report"] = _timing_entry(report_elapsed)
 
+        plotting_elapsed = 0.0
         if not args.skip_plots:
+            plotting_start = time.perf_counter()
             generate_ieee39_plots(df_results, scenario)
+            plotting_elapsed = time.perf_counter() - plotting_start
+        analysis_config["timings"]["plotting"] = _timing_entry(plotting_elapsed, skipped=args.skip_plots)
 
+        clustering_enabled = scenario.get("clustering", {}).get("global", False) or scenario.get("clustering", {}).get("by_control_area", False)
+        clustering_elapsed = 0.0
         if scenario.get("clustering", {}).get("global", False) or scenario.get("clustering", {}).get("by_control_area", False):
+            clustering_start = time.perf_counter()
             run_clustering_for_scenario(output_dir, results_path, df_results, scenario)
+            clustering_elapsed = time.perf_counter() - clustering_start
+        analysis_config["timings"]["clustering"] = _timing_entry(clustering_elapsed, skipped=not clustering_enabled)
 
         scenario_elapsed = time.time() - scenario_start
+        analysis_config["timings"]["scenario_total"] = _timing_entry(scenario_elapsed)
+        _save_json(output_dir / "analysis_config.json", analysis_config)
         print(
             f"Scenario {name} finished in "
             f"{scenario_elapsed // 60:.0f} minutes and {scenario_elapsed % 60:.1f} seconds",
