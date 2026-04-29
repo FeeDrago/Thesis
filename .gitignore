@@ -234,3 +234,6 @@ IEEE39/analysis/**
 !IEEE39/analysis/**/
 !IEEE39/analysis/**/*.csv
 !IEEE39/analysis/**/analysis_config.json
+
+# Preliminary Investigation: keep PDFs/CSVs/JSONs, ignore generated PNGs.
+PreliminaryInvestigation/**/*.png
