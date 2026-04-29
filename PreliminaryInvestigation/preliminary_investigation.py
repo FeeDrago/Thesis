@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from scipy.signal import detrend
 import os
+import json
 from matrix_pencil import apply_matrix_pencil_fixed_order, determine_MP_order, filter_signal
 from mp_plotter import generate_preliminary_report_plots
 import time
@@ -14,6 +15,46 @@ from clustering_analysis import (
     run_kmedoids_modal_analysis,
     run_silhouette_analysis,
 )
+
+
+def _format_duration_min_sec(seconds):
+    total_seconds = max(0.0, float(seconds))
+    minutes = int(total_seconds // 60)
+    seconds_part = total_seconds - (minutes * 60)
+    return f"{minutes:02d}:{seconds_part:04.1f}"
+
+
+def _timing_entry(seconds, skipped=False):
+    total_seconds = max(0.0, float(seconds))
+    return {
+        "seconds": round(total_seconds, 6),
+        "min_sec": _format_duration_min_sec(total_seconds),
+        "skipped": bool(skipped),
+    }
+
+
+def _save_json(path, data):
+    with open(path, "w") as f:
+        json.dump(data, f, indent=2)
+
+
+def _build_analysis_config(generators, columns, fixed_orders, taus, signal_means, timings):
+    return {
+        "name": "preliminary_report",
+        "data_dir": ".",
+        "output_dir": ".",
+        "generators_used": generators,
+        "columns": columns,
+        "fixed_orders": fixed_orders,
+        "taus": taus,
+        "filter": {"fc": 10, "N": 15},
+        "time_mask": {"start_exclusive": 0.2, "reset_time": True},
+        "time_window_s": {"start_s": 0.2, "end_s": None},
+        "time_reset_to_zero": True,
+        "signal_means": signal_means,
+        "timings": timings,
+    }
+
 
 start_time = time.time()
 
@@ -114,23 +155,45 @@ for gen in generators:
                     })
                     
 # Save results to CSV
+matrix_pencil_elapsed = time.time() - start_time
 df_results = pd.DataFrame(results)
 df_results.to_csv(os.path.join(path, "results.csv"), index=False)
 df_stats = pd.DataFrame(stats_lines)
 df_stats.to_csv(os.path.join(path, "signal_means.csv"), index=False)
 
 # Create plots
+plotting_start = time.time()
 generate_preliminary_report_plots(df_results=df_results, output_path=path, csv_path=path, generators=generators, columns=columns)
+plotting_elapsed = time.time() - plotting_start
 # Generate statistics
+report_start = time.time()
 generate_preliminary_report_stats(path)
+report_elapsed = time.time() - report_start
 # Clustering Analysis
 res_path = os.path.join(path, "results.csv")
 out_path = os.path.join(path, "clustering")
+clustering_start = time.time()
 df_for_mad = _load_screened_data(res_path, out_path)
 if df_for_mad is not None:
     _save_reference_mad_outputs(df_for_mad, path)
 run_kmeans_modal_analysis(res_path, out_path)
 run_kmedoids_modal_analysis(res_path, out_path)
 run_silhouette_analysis(res_path, out_path)
+clustering_elapsed = time.time() - clustering_start
 end_time = time.time()
+analysis_config = _build_analysis_config(
+    generators=generators,
+    columns=columns,
+    fixed_orders=fixed_orders,
+    taus=taus,
+    signal_means=stats_lines,
+    timings={
+        "matrix_pencil": _timing_entry(matrix_pencil_elapsed),
+        "plotting": _timing_entry(plotting_elapsed),
+        "comprehensive_report": _timing_entry(report_elapsed),
+        "clustering": _timing_entry(clustering_elapsed),
+        "scenario_total": _timing_entry(end_time - start_time),
+    },
+)
+_save_json(os.path.join(path, "analysis_config.json"), analysis_config)
 print("-"*30, f"Execution Time: {(end_time - start_time)//60} minutes and {(end_time - start_time)%60} seconds", "-"*30)
