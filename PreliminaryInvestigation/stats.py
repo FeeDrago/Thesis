@@ -65,9 +65,11 @@ def generate_preliminary_report_stats(path):
 
             # Time Mask
             y_ref = filter_signal(detrend(raw_df[col].values[mask]), t, fc=10)
+            y_ref = y_ref - np.mean(y_ref)
 
             # No Time Mask
             # y_ref = filter_signal(detrend(raw_df[col].values), t, fc=10)
+            # y_ref = y_ref - np.mean(y_ref)
             
             for meth in method_order:
                 modes = df[(df['Gen_ID'] == gid) & (df['Signal'] == sig_l) & (df['Method'] == meth)]
@@ -237,9 +239,11 @@ def generate_preliminary_report_stats(path):
 
             # Time Mask
             y_ref = filter_signal(detrend(raw_df[col].values[mask]), t, fc=10)
+            y_ref = y_ref - np.mean(y_ref)
             
             # No Time Mask
             # y_ref = filter_signal(detrend(raw_df[col].values), t, fc=10)
+            # y_ref = y_ref - np.mean(y_ref)
 
             best_row = best_m[(best_m['Gen'] == glabel) & (best_m['Signal'] == sig_l)]
             if best_row.empty:
@@ -313,9 +317,11 @@ def generate_preliminary_report_stats(path):
 
             # Time Mask
             y_ref = filter_signal(detrend(raw_df[col].values[mask]), t, fc=10)
+            y_ref = y_ref - np.mean(y_ref)
 
             # No Time Mask
             # y_ref = filter_signal(detrend(raw_df[col].values), t, fc=10)
+            # y_ref = y_ref - np.mean(y_ref)
 
             best_row = best_m[(best_m['Gen'] == glabel) & (best_m['Signal'] == sig_l)]
             if best_row.empty:

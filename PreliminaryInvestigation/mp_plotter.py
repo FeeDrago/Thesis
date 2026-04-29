@@ -145,6 +145,7 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
             
             t = t - t[0]  
             y_ref = filter_signal(detrend(y_proc), t, fc=10)
+            y_ref = y_ref - np.mean(y_ref)
 
 
             fig, axes = plt.subplots(3, 2, figsize=(16, 14), sharex=True)
