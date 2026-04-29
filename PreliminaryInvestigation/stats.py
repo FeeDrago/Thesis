@@ -18,7 +18,7 @@ RECON_TICK_LABEL_SIZE = 30
 RECON_AXIS_LABEL_SIZE = 34
 
 
-def generate_preliminary_report_stats(path):
+def generate_preliminary_report_stats(path, preprocessed_signals=None):
     # Path configuration
     stats_path = os.path.join(path, "stats")
     pdf_path = os.path.join(stats_path, "pdf")
@@ -45,29 +45,34 @@ def generate_preliminary_report_stats(path):
     # Performance analysis
     metrics = []
     for gid, glabel in gen_id_map.items():
-        csv_file = os.path.join(path, f"{gid}.csv")
-        if not os.path.exists(csv_file): continue
-        
-        raw_df = pd.read_csv(csv_file)
-
-        # Time Mask
-        t_f = raw_df.iloc[:, 0].values
-        mask = t_f > 0.2
-        t = t_f[mask].copy() - t_f[mask][0]
-
-        # No Time Mask
-        # t_f = raw_df.iloc[:, 0].values
-        # t = t_f.copy() - t_f[0]
-
-
         for sig_l, col in signals_map.items():
-            if col not in raw_df.columns: continue
+            cached_signal = None
+            if preprocessed_signals is not None:
+                cached_signal = preprocessed_signals.get(gid, {}).get(sig_l)
 
-            # Time Mask
-            y_ref = filter_signal(detrend(raw_df[col].values[mask]), t, fc=10)
+            if cached_signal is not None:
+                t = cached_signal["t"]
+                y_ref = cached_signal["y_matrix_pencil"]
+            else:
+                csv_file = os.path.join(path, f"{gid}.csv")
+                if not os.path.exists(csv_file):
+                    continue
 
-            # No Time Mask
-            # y_ref = filter_signal(detrend(raw_df[col].values), t, fc=10)
+                raw_df = pd.read_csv(csv_file)
+                if col not in raw_df.columns:
+                    continue
+
+                # Time Mask
+                t_f = raw_df.iloc[:, 0].values
+                mask = t_f > 0.2
+                t = t_f[mask].copy() - t_f[mask][0]
+                y_ref = filter_signal(detrend(raw_df[col].values[mask]), t, fc=10)
+                y_ref = y_ref - np.mean(y_ref)
+
+                # No Time Mask
+                # t_f = raw_df.iloc[:, 0].values
+                # t = t_f.copy() - t_f[0]
+                # y_ref = filter_signal(detrend(raw_df[col].values), t, fc=10)
             
             for meth in method_order:
                 modes = df[(df['Gen_ID'] == gid) & (df['Signal'] == sig_l) & (df['Method'] == meth)]

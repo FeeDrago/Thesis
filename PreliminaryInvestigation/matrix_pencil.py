@@ -19,14 +19,10 @@ def prepare_matrix_pencil(y, t):
         raise ValueError('length(Y) should be length(X)')
 
     T = np.diff(x_col[:2, 0])[0]
-    Y = np.zeros((N - L, L + 1), dtype=np.complex128)
-    ind = np.arange(0, N - L)
-    for j in range(L + 1):
-        Y[:, j] = y_col[ind + j, 0]
+    Y = np.lib.stride_tricks.sliding_window_view(y, L + 1).astype(np.complex128, copy=False)
 
     U, s, Vh = np.linalg.svd(Y, full_matrices=False)
     V = Vh.conj().T
-    S = np.diag(s)
 
     return {
         "y": y,
@@ -37,19 +33,19 @@ def prepare_matrix_pencil(y, t):
         "L": L,
         "T": T,
         "U": U,
-        "S": S,
+        "singular_values": s,
         "V": V,
     }
 
 
-def _resolve_model_order(S, order):
+def _resolve_model_order(singular_values, order):
     tol = order
     M_given = np.round(tol) == tol
 
     if M_given:
         return int(tol)
 
-    D = np.diag(S)
+    D = np.asarray(singular_values).reshape(-1)
     M = len(D)
     for k in range(len(D) - 1):
         M = k + 1
@@ -58,26 +54,31 @@ def _resolve_model_order(S, order):
     return M
 
 
-def apply_matrix_pencil_fixed_order_prepared(prepared, order):
+def apply_matrix_pencil_fixed_order_prepared(prepared, order, fit_cache=None):
+    if fit_cache is not None and order in fit_cache:
+        freq, sigma, y_est, _, poles_MP, amplitudes = fit_cache[order]
+        return freq, sigma, y_est, 0.0, poles_MP, amplitudes
+
     start = time.perf_counter()
 
     y_col = prepared["y_col"]
     x_col = prepared["x_col"]
     U = prepared["U"]
-    S = prepared["S"]
+    singular_values = prepared["singular_values"]
     V = prepared["V"]
     L = prepared["L"]
     T = prepared["T"]
 
-    M = _resolve_model_order(S, order)
+    M = _resolve_model_order(singular_values, order)
 
-    SM = S[:, :M]
+    UM = U[:, :M]
+    sM = singular_values[:M]
     VM = V[:, :M]
     V1 = VM[:L, :]
     V2 = VM[1:L + 1, :]
 
-    Y1 = U @ SM @ V1.conj().T
-    Y2 = U @ SM @ V2.conj().T
+    Y1 = (UM * sM) @ V1.conj().T
+    Y2 = (UM * sM) @ V2.conj().T
 
     A = np.linalg.pinv(Y1) @ Y2
     z = np.linalg.eigvals(A)
@@ -94,7 +95,10 @@ def apply_matrix_pencil_fixed_order_prepared(prepared, order):
     freq = np.imag(poles_MP / (2 * np.pi))
     sigma = np.real(poles_MP)
 
-    return freq, sigma, y_est, elapsed_time, poles_MP, a.reshape(-1)
+    result = (freq, sigma, y_est, elapsed_time, poles_MP, a.reshape(-1))
+    if fit_cache is not None:
+        fit_cache[order] = result
+    return result
 
 def filter_signal(noisy, t, fc, N=15):
     """
@@ -121,13 +125,13 @@ def _prepare_decimated_signal(t, y, rate):
     return t, y
 
 
-def _compute_rsq_curve(prepared, y_reference, max_order):
+def _compute_rsq_curve(prepared, y_reference, max_order, fit_cache=None):
     y_reference_arr = np.asarray(y_reference)
     ss_tot = np.sum((y_reference_arr - np.mean(y_reference_arr)) ** 2)
     rsq_curve = []
 
     for order in range(1, max_order + 1):
-        _, _, y_est, _, _, _ = apply_matrix_pencil_fixed_order_prepared(prepared, order)
+        _, _, y_est, _, _, _ = apply_matrix_pencil_fixed_order_prepared(prepared, order, fit_cache=fit_cache)
         y_est_arr = np.asarray(y_est)
         ss_res = np.sum((y_reference_arr - y_est_arr) ** 2)
         rsq_curve.append((order, (1 - ss_res / ss_tot) * 100))
@@ -145,12 +149,12 @@ def _select_order_from_rsq_curve(rsq_curve, tau):
     return max(1, rsq_curve[-1][0]) if rsq_curve else 1
 
 
-def determine_MP_orders(t, y, taus, rate=1, max_order=50, return_details=False):
+def determine_MP_orders(t, y, taus, rate=1, max_order=50, return_details=False, fit_cache=None):
     start = time.perf_counter()
 
     t_decimated, y_decimated = _prepare_decimated_signal(t, y, rate)
     prepared = prepare_matrix_pencil(y_decimated, t_decimated)
-    rsq_curve = _compute_rsq_curve(prepared, y_decimated, max_order)
+    rsq_curve = _compute_rsq_curve(prepared, y_decimated, max_order, fit_cache=fit_cache)
 
     tau_values = list(taus)
     orders = {tau: _select_order_from_rsq_curve(rsq_curve, tau) for tau in tau_values}

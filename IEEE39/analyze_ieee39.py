@@ -416,6 +416,49 @@ def _build_analysis_config(
     }
 
 
+def _run_clustering_pipeline(results_path, output_path, reference_modes=None):
+    from clustering_analysis import (
+        _load_screened_data,
+        _save_reference_mad_outputs,
+        run_kmeans_modal_analysis,
+        run_kmedoids_modal_analysis,
+        run_silhouette_analysis,
+    )
+
+    pipeline_start = time.perf_counter()
+
+    screen_start = time.perf_counter()
+    df_for_mad = _load_screened_data(str(results_path), str(output_path))
+    screen_elapsed = time.perf_counter() - screen_start
+
+    reference_elapsed = 0.0
+    if df_for_mad is not None:
+        reference_start = time.perf_counter()
+        _save_reference_mad_outputs(df_for_mad, str(output_path), reference_modes=reference_modes)
+        reference_elapsed = time.perf_counter() - reference_start
+
+    kmeans_start = time.perf_counter()
+    run_kmeans_modal_analysis(str(results_path), str(output_path))
+    kmeans_elapsed = time.perf_counter() - kmeans_start
+
+    kmedoids_start = time.perf_counter()
+    run_kmedoids_modal_analysis(str(results_path), str(output_path))
+    kmedoids_elapsed = time.perf_counter() - kmedoids_start
+
+    silhouette_start = time.perf_counter()
+    run_silhouette_analysis(str(results_path), str(output_path))
+    silhouette_elapsed = time.perf_counter() - silhouette_start
+
+    return {
+        "screen_and_load": _timing_entry(screen_elapsed),
+        "reference_mad": _timing_entry(reference_elapsed, skipped=df_for_mad is None),
+        "kmeans": _timing_entry(kmeans_elapsed),
+        "kmedoids": _timing_entry(kmedoids_elapsed),
+        "silhouette": _timing_entry(silhouette_elapsed),
+        "total": _timing_entry(time.perf_counter() - pipeline_start),
+    }
+
+
 def _load_scenario_json(data_dir):
     scenario_json = data_dir / "scenario.json"
     if not scenario_json.exists():
@@ -779,13 +822,18 @@ def run_matrix_pencil_for_scenario(name, scenario):
             })
 
             fixed_order_elapsed = 0.0
+            mp_fit_cache = {}
+            fixed_order_details = {}
             auto_order_search_elapsed = 0.0
             auto_order_fit_elapsed = 0.0
             tau_details = {}
 
             for order in fixed_orders:
-                freq, sigma, _, elapsed_time, _, amplitudes = apply_matrix_pencil_fixed_order_prepared(prepared_mp, order=order)
+                freq, sigma, _, elapsed_time, _, amplitudes = apply_matrix_pencil_fixed_order_prepared(prepared_mp, order=order, fit_cache=mp_fit_cache)
                 fixed_order_elapsed += elapsed_time
+                fixed_order_details[str(order)] = {
+                    "final_fit": _timing_entry(elapsed_time),
+                }
                 for f, s, amplitude in zip(freq, sigma, amplitudes):
                     if f > 0:
                         results.append({
@@ -811,7 +859,7 @@ def run_matrix_pencil_for_scenario(name, scenario):
             for tau in taus:
                 order = tau_order_map[tau]
 
-                freq, sigma, _, elapsed_time, _, amplitudes = apply_matrix_pencil_fixed_order_prepared(prepared_mp, order=order)
+                freq, sigma, _, elapsed_time, _, amplitudes = apply_matrix_pencil_fixed_order_prepared(prepared_mp, order=order, fit_cache=mp_fit_cache)
                 auto_order_fit_elapsed += elapsed_time
                 tau_details[str(tau)] = {
                     "selected_order": int(order),
@@ -836,7 +884,12 @@ def run_matrix_pencil_for_scenario(name, scenario):
                 "preprocessing": _timing_entry(preprocess_elapsed),
                 "prepare_matrix_pencil": _timing_entry(prepare_elapsed),
                 "fixed_orders_total": _timing_entry(fixed_order_elapsed),
+                "fixed_order_details": fixed_order_details,
                 "auto_order_search_total": _timing_entry(auto_order_search_elapsed),
+                "auto_order_search": {
+                    "timing": _timing_entry(auto_order_details["elapsed_time"]),
+                    "orders_tested": int(auto_order_details["orders_tested"]),
+                },
                 "auto_order_final_fit_total": _timing_entry(auto_order_fit_elapsed),
                 "matrix_pencil_total": _timing_entry(prepare_elapsed + fixed_order_elapsed + auto_order_search_elapsed + auto_order_fit_elapsed),
                 "total_signal": _timing_entry(signal_elapsed),
@@ -868,48 +921,42 @@ def run_matrix_pencil_for_scenario(name, scenario):
 
 
 def run_clustering_for_scenario(output_dir, results_path, df_results, scenario):
-    from clustering_analysis import (
-        _load_screened_data,
-        _save_reference_mad_outputs,
-        run_kmeans_modal_analysis,
-        run_kmedoids_modal_analysis,
-        run_silhouette_analysis,
-    )
-
     clustering_config = scenario.get("clustering", {})
     if df_results.empty:
         print(f"No Matrix Pencil results for {output_dir}; skipping clustering.")
-        return
+        return {}
+
+    timings = {}
 
     if clustering_config.get("global", True):
         global_out = output_dir / "clustering" / "global"
-        df_for_mad = _load_screened_data(str(results_path), str(global_out))
-        if df_for_mad is not None:
-            _save_reference_mad_outputs(df_for_mad, str(global_out), reference_modes=IEEE39_REFERENCE_MODES)
-        run_kmeans_modal_analysis(str(results_path), str(global_out))
-        run_kmedoids_modal_analysis(str(results_path), str(global_out))
-        run_silhouette_analysis(str(results_path), str(global_out))
+        timings["global"] = _run_clustering_pipeline(results_path, global_out, reference_modes=IEEE39_REFERENCE_MODES)
 
     if clustering_config.get("by_control_area", True):
         area_root = output_dir / "clustering" / "by_control_area"
+        area_timings = {}
         for area_name, gens in CONTROL_AREAS.items():
             area_out = area_root / area_name
             area_out.mkdir(parents=True, exist_ok=True)
             area_df = df_results[df_results["Gen"].isin(gens)].copy()
             if area_df.empty:
                 print(f"No data for {area_name}; skipping.")
+                area_timings[area_name] = {"total": _timing_entry(0.0, skipped=True)}
                 continue
 
             area_results_path = area_out / "results.csv"
             area_df.to_csv(area_results_path, index=False)
             _save_json(area_out / "control_area.json", {"name": area_name, "generators": gens})
 
-            df_for_mad = _load_screened_data(str(area_results_path), str(area_out))
-            if df_for_mad is not None:
-                _save_reference_mad_outputs(df_for_mad, str(area_out), reference_modes=IEEE39_REFERENCE_MODES)
-            run_kmeans_modal_analysis(str(area_results_path), str(area_out))
-            run_kmedoids_modal_analysis(str(area_results_path), str(area_out))
-            run_silhouette_analysis(str(area_results_path), str(area_out))
+            area_timings[area_name] = _run_clustering_pipeline(
+                area_results_path,
+                area_out,
+                reference_modes=IEEE39_REFERENCE_MODES,
+            )
+
+        timings["by_control_area"] = area_timings
+
+    return timings
 
 
 def apply_existing_analysis_config(scenario, results_path, args):
@@ -1159,11 +1206,13 @@ def main():
 
         clustering_enabled = scenario.get("clustering", {}).get("global", False) or scenario.get("clustering", {}).get("by_control_area", False)
         clustering_elapsed = 0.0
+        clustering_details = {}
         if scenario.get("clustering", {}).get("global", False) or scenario.get("clustering", {}).get("by_control_area", False):
             clustering_start = time.perf_counter()
-            run_clustering_for_scenario(output_dir, results_path, df_results, scenario)
+            clustering_details = run_clustering_for_scenario(output_dir, results_path, df_results, scenario)
             clustering_elapsed = time.perf_counter() - clustering_start
         analysis_config["timings"]["clustering"] = _timing_entry(clustering_elapsed, skipped=not clustering_enabled)
+        analysis_config["timings"]["clustering_details"] = clustering_details
 
         scenario_elapsed = time.time() - scenario_start
         analysis_config["timings"]["scenario_total"] = _timing_entry(scenario_elapsed)

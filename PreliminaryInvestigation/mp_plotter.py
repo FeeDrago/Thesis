@@ -13,7 +13,7 @@ RECON_X_LIMS = (0, 50)
 RECON_TICK_LABEL_SIZE = 30
 RECON_AXIS_LABEL_SIZE = 34
 
-def generate_preliminary_report_plots(df_results, output_path, csv_path, generators, columns):
+def generate_preliminary_report_plots(df_results, output_path, csv_path, generators, columns, preprocessed_signals=None):
     colors = SIGNAL_COLORS.copy()
     
     plots_path = os.path.join(output_path, "plots")
@@ -126,25 +126,34 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
     inv_columns = {v: k for k, v in columns.items()}
 
     for gen in generators:
-        csv_file = os.path.join(csv_path, f"{gen}.csv")
-        if not os.path.exists(csv_file): continue
-        raw_df = pd.read_csv(csv_file)
-
         for signal_label in columns.values():
-            t_raw = raw_df.iloc[:, 0].values
-            y_raw = raw_df[inv_columns[signal_label]].values
-            
-            # Time Mask
-            mask = t_raw > 0.2
-            t = t_raw[mask].copy()
-            y_proc = y_raw[mask].copy()
+            cached_signal = None
+            if preprocessed_signals is not None:
+                cached_signal = preprocessed_signals.get(gen, {}).get(signal_label)
 
-            # No Time Mask
-            # t = t_raw.copy()
-            # y_proc = y_raw.copy()
-            
-            t = t - t[0]  
-            y_ref = filter_signal(detrend(y_proc), t, fc=10)
+            if cached_signal is not None:
+                t = cached_signal["t"]
+                y_ref = cached_signal["y_matrix_pencil"]
+            else:
+                csv_file = os.path.join(csv_path, f"{gen}.csv")
+                if not os.path.exists(csv_file):
+                    continue
+                raw_df = pd.read_csv(csv_file)
+                t_raw = raw_df.iloc[:, 0].values
+                y_raw = raw_df[inv_columns[signal_label]].values
+
+                # Time Mask
+                mask = t_raw > 0.2
+                t = t_raw[mask].copy()
+                y_proc = y_raw[mask].copy()
+
+                # No Time Mask
+                # t = t_raw.copy()
+                # y_proc = y_raw.copy()
+
+                t = t - t[0]
+                y_ref = filter_signal(detrend(y_proc), t, fc=10)
+                y_ref = y_ref - np.mean(y_ref)
 
 
             fig, axes = plt.subplots(3, 2, figsize=(16, 14), sharex=True)
