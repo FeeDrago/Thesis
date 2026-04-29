@@ -35,8 +35,6 @@ REP_SIZE = 260
 REP_GRID_SIZE = 140
 
 PDF_METADATA = {
-    "Creator": "matplotlib",
-    "Producer": "matplotlib",
     "CreationDate": None,
     "ModDate": None,
 }
