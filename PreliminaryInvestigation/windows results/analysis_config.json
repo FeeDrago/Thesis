@@ -1,0 +1,1770 @@
+{
+  "name": "preliminary_report",
+  "data_dir": ".",
+  "output_dir": ".",
+  "generators_used": [
+    "g1",
+    "g2",
+    "g3",
+    "g4"
+  ],
+  "columns": {
+    "s:ut in p.u.": "Voltage",
+    "s:cur1 in p.u.": "Current",
+    "s:P1 in MW": "Active Power",
+    "s:Q1 in Mvar": "Reactive Power"
+  },
+  "fixed_orders": [
+    2,
+    4,
+    6
+  ],
+  "taus": [
+    1,
+    0.1,
+    0.01
+  ],
+  "filter": {
+    "fc": 10,
+    "N": 15
+  },
+  "time_mask": {
+    "start_exclusive": 0.2,
+    "reset_time": true
+  },
+  "time_window_s": {
+    "start_s": 0.2,
+    "end_s": null
+  },
+  "time_reset_to_zero": true,
+  "signal_means": [
+    {
+      "Generator": "g1",
+      "Signal": "Voltage",
+      "Mean after detrend": 1.8249569637713918e-16,
+      "Mean after LPF": 5.968510552146487e-08,
+      "Mean after demean": 1.2540169705856437e-20
+    },
+    {
+      "Generator": "g1",
+      "Signal": "Current",
+      "Mean after detrend": 2.1022897835773547e-16,
+      "Mean after LPF": -1.402150445957869e-07,
+      "Mean after demean": -8.360113137237625e-21
+    },
+    {
+      "Generator": "g1",
+      "Signal": "Active Power",
+      "Mean after detrend": 6.316696385054448e-14,
+      "Mean after LPF": -5.7380654254006396e-05,
+      "Mean after demean": 8.917454013053465e-19
+    },
+    {
+      "Generator": "g1",
+      "Signal": "Reactive Power",
+      "Mean after detrend": -1.925028632705878e-14,
+      "Mean after LPF": -0.00012102118652525879,
+      "Mean after demean": 8.560755852531328e-18
+    },
+    {
+      "Generator": "g2",
+      "Signal": "Voltage",
+      "Mean after detrend": 8.658847846674916e-17,
+      "Mean after LPF": 6.468642983026558e-08,
+      "Mean after demean": 2.5080339411712874e-20
+    },
+    {
+      "Generator": "g2",
+      "Signal": "Current",
+      "Mean after detrend": -5.566720667648626e-17,
+      "Mean after LPF": -1.5876722211880057e-07,
+      "Mean after demean": -2.786704379079208e-20
+    },
+    {
+      "Generator": "g2",
+      "Signal": "Active Power",
+      "Mean after detrend": 6.487911502105076e-14,
+      "Mean after LPF": -2.736732101854183e-05,
+      "Mean after demean": -1.4446275501146614e-17
+    },
+    {
+      "Generator": "g2",
+      "Signal": "Reactive Power",
+      "Mean after detrend": -8.047110501379448e-16,
+      "Mean after LPF": -0.00021435538492846923,
+      "Mean after demean": -2.853585284177109e-17
+    },
+    {
+      "Generator": "g3",
+      "Signal": "Voltage",
+      "Mean after detrend": -8.137176786911288e-17,
+      "Mean after LPF": 2.3516070418403306e-08,
+      "Mean after demean": -5.2250707107735156e-21
+    },
+    {
+      "Generator": "g3",
+      "Signal": "Current",
+      "Mean after detrend": 2.436248436366207e-16,
+      "Mean after LPF": 3.0770624160746314e-07,
+      "Mean after demean": -6.409420071882179e-20
+    },
+    {
+      "Generator": "g3",
+      "Signal": "Active Power",
+      "Mean after detrend": 1.5591989992743724e-13,
+      "Mean after LPF": 0.0003115921789333368,
+      "Mean after demean": -5.707170568354218e-17
+    },
+    {
+      "Generator": "g3",
+      "Signal": "Reactive Power",
+      "Mean after detrend": 1.008000465782722e-13,
+      "Mean after LPF": -1.6487832127029589e-06,
+      "Mean after demean": -1.4267926420885547e-18
+    },
+    {
+      "Generator": "g4",
+      "Signal": "Voltage",
+      "Mean after detrend": 5.958196898821673e-16,
+      "Mean after LPF": 5.428648086118791e-08,
+      "Mean after demean": -6.96676094769802e-21
+    },
+    {
+      "Generator": "g4",
+      "Signal": "Current",
+      "Mean after detrend": 4.081964574475224e-17,
+      "Mean after LPF": 2.4059990063805227e-07,
+      "Mean after demean": 1.672022627447525e-20
+    },
+    {
+      "Generator": "g4",
+      "Signal": "Active Power",
+      "Mean after detrend": 4.759551967184684e-13,
+      "Mean after LPF": 0.00025471085440876575,
+      "Mean after demean": 5.1364535115187967e-17
+    },
+    {
+      "Generator": "g4",
+      "Signal": "Reactive Power",
+      "Mean after detrend": 4.49154323729477e-14,
+      "Mean after LPF": 4.435102222356622e-05,
+      "Mean after demean": 2.140188963132832e-18
+    }
+  ],
+  "timings": {
+    "matrix_pencil": {
+      "seconds": 56.422079,
+      "min_sec": "00:56.4",
+      "skipped": false
+    },
+    "per_generator_signal": {
+      "g1": {
+        "Voltage": {
+          "preprocessing": {
+            "seconds": 0.001411,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "prepare_matrix_pencil": {
+            "seconds": 3.254899,
+            "min_sec": "00:03.3",
+            "skipped": false
+          },
+          "fixed_orders_total": {
+            "seconds": 0.006086,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "fixed_order_details": {
+            "2": {
+              "final_fit": {
+                "seconds": 0.001434,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "4": {
+              "final_fit": {
+                "seconds": 0.001826,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "6": {
+              "final_fit": {
+                "seconds": 0.002825,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            }
+          },
+          "auto_order_search_total": {
+            "seconds": 0.253794,
+            "min_sec": "00:00.3",
+            "skipped": false
+          },
+          "auto_order_search": {
+            "timing": {
+              "seconds": 0.253787,
+              "min_sec": "00:00.3",
+              "skipped": false
+            },
+            "orders_tested": 50
+          },
+          "auto_order_final_fit_total": {
+            "seconds": 0.003738,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "matrix_pencil_total": {
+            "seconds": 3.518516,
+            "min_sec": "00:03.5",
+            "skipped": false
+          },
+          "total_signal": {
+            "seconds": 3.520227,
+            "min_sec": "00:03.5",
+            "skipped": false
+          },
+          "tau_details": {
+            "1": {
+              "selected_order": 2,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.0,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "0.1": {
+              "selected_order": 3,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.001334,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "0.01": {
+              "selected_order": 5,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.002404,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            }
+          }
+        },
+        "Current": {
+          "preprocessing": {
+            "seconds": 0.00078,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "prepare_matrix_pencil": {
+            "seconds": 3.339172,
+            "min_sec": "00:03.3",
+            "skipped": false
+          },
+          "fixed_orders_total": {
+            "seconds": 0.006502,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "fixed_order_details": {
+            "2": {
+              "final_fit": {
+                "seconds": 0.001251,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "4": {
+              "final_fit": {
+                "seconds": 0.001899,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "6": {
+              "final_fit": {
+                "seconds": 0.003352,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            }
+          },
+          "auto_order_search_total": {
+            "seconds": 0.249869,
+            "min_sec": "00:00.2",
+            "skipped": false
+          },
+          "auto_order_search": {
+            "timing": {
+              "seconds": 0.249863,
+              "min_sec": "00:00.2",
+              "skipped": false
+            },
+            "orders_tested": 50
+          },
+          "auto_order_final_fit_total": {
+            "seconds": 0.005826,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "matrix_pencil_total": {
+            "seconds": 3.601369,
+            "min_sec": "00:03.6",
+            "skipped": false
+          },
+          "total_signal": {
+            "seconds": 3.602472,
+            "min_sec": "00:03.6",
+            "skipped": false
+          },
+          "tau_details": {
+            "1": {
+              "selected_order": 4,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.0,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "0.1": {
+              "selected_order": 5,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.002478,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "0.01": {
+              "selected_order": 7,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.003348,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            }
+          }
+        },
+        "Active Power": {
+          "preprocessing": {
+            "seconds": 0.000739,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "prepare_matrix_pencil": {
+            "seconds": 3.233553,
+            "min_sec": "00:03.2",
+            "skipped": false
+          },
+          "fixed_orders_total": {
+            "seconds": 0.005977,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "fixed_order_details": {
+            "2": {
+              "final_fit": {
+                "seconds": 0.001258,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "4": {
+              "final_fit": {
+                "seconds": 0.001985,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "6": {
+              "final_fit": {
+                "seconds": 0.002734,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            }
+          },
+          "auto_order_search_total": {
+            "seconds": 0.256078,
+            "min_sec": "00:00.3",
+            "skipped": false
+          },
+          "auto_order_search": {
+            "timing": {
+              "seconds": 0.256073,
+              "min_sec": "00:00.3",
+              "skipped": false
+            },
+            "orders_tested": 50
+          },
+          "auto_order_final_fit_total": {
+            "seconds": 0.002406,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "matrix_pencil_total": {
+            "seconds": 3.498015,
+            "min_sec": "00:03.5",
+            "skipped": false
+          },
+          "total_signal": {
+            "seconds": 3.499044,
+            "min_sec": "00:03.5",
+            "skipped": false
+          },
+          "tau_details": {
+            "1": {
+              "selected_order": 4,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.0,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "0.1": {
+              "selected_order": 5,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.002406,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "0.01": {
+              "selected_order": 5,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.0,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            }
+          }
+        },
+        "Reactive Power": {
+          "preprocessing": {
+            "seconds": 0.000862,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "prepare_matrix_pencil": {
+            "seconds": 3.239364,
+            "min_sec": "00:03.2",
+            "skipped": false
+          },
+          "fixed_orders_total": {
+            "seconds": 0.005979,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "fixed_order_details": {
+            "2": {
+              "final_fit": {
+                "seconds": 0.001265,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "4": {
+              "final_fit": {
+                "seconds": 0.001871,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "6": {
+              "final_fit": {
+                "seconds": 0.002844,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            }
+          },
+          "auto_order_search_total": {
+            "seconds": 0.255519,
+            "min_sec": "00:00.3",
+            "skipped": false
+          },
+          "auto_order_search": {
+            "timing": {
+              "seconds": 0.255514,
+              "min_sec": "00:00.3",
+              "skipped": false
+            },
+            "orders_tested": 50
+          },
+          "auto_order_final_fit_total": {
+            "seconds": 0.0,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "matrix_pencil_total": {
+            "seconds": 3.500863,
+            "min_sec": "00:03.5",
+            "skipped": false
+          },
+          "total_signal": {
+            "seconds": 3.501992,
+            "min_sec": "00:03.5",
+            "skipped": false
+          },
+          "tau_details": {
+            "1": {
+              "selected_order": 2,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.0,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "0.1": {
+              "selected_order": 4,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.0,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "0.01": {
+              "selected_order": 6,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.0,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            }
+          }
+        }
+      },
+      "g2": {
+        "Voltage": {
+          "preprocessing": {
+            "seconds": 0.00094,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "prepare_matrix_pencil": {
+            "seconds": 3.256249,
+            "min_sec": "00:03.3",
+            "skipped": false
+          },
+          "fixed_orders_total": {
+            "seconds": 0.006021,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "fixed_order_details": {
+            "2": {
+              "final_fit": {
+                "seconds": 0.001337,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "4": {
+              "final_fit": {
+                "seconds": 0.002167,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "6": {
+              "final_fit": {
+                "seconds": 0.002518,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            }
+          },
+          "auto_order_search_total": {
+            "seconds": 0.25573,
+            "min_sec": "00:00.3",
+            "skipped": false
+          },
+          "auto_order_search": {
+            "timing": {
+              "seconds": 0.255724,
+              "min_sec": "00:00.3",
+              "skipped": false
+            },
+            "orders_tested": 50
+          },
+          "auto_order_final_fit_total": {
+            "seconds": 0.002024,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "matrix_pencil_total": {
+            "seconds": 3.520025,
+            "min_sec": "00:03.5",
+            "skipped": false
+          },
+          "total_signal": {
+            "seconds": 3.521205,
+            "min_sec": "00:03.5",
+            "skipped": false
+          },
+          "tau_details": {
+            "1": {
+              "selected_order": 2,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.0,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "0.1": {
+              "selected_order": 5,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.002024,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "0.01": {
+              "selected_order": 5,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.0,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            }
+          }
+        },
+        "Current": {
+          "preprocessing": {
+            "seconds": 0.000722,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "prepare_matrix_pencil": {
+            "seconds": 3.284647,
+            "min_sec": "00:03.3",
+            "skipped": false
+          },
+          "fixed_orders_total": {
+            "seconds": 0.006182,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "fixed_order_details": {
+            "2": {
+              "final_fit": {
+                "seconds": 0.001325,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "4": {
+              "final_fit": {
+                "seconds": 0.002017,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "6": {
+              "final_fit": {
+                "seconds": 0.00284,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            }
+          },
+          "auto_order_search_total": {
+            "seconds": 0.251059,
+            "min_sec": "00:00.3",
+            "skipped": false
+          },
+          "auto_order_search": {
+            "timing": {
+              "seconds": 0.251054,
+              "min_sec": "00:00.3",
+              "skipped": false
+            },
+            "orders_tested": 50
+          },
+          "auto_order_final_fit_total": {
+            "seconds": 0.0,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "matrix_pencil_total": {
+            "seconds": 3.541887,
+            "min_sec": "00:03.5",
+            "skipped": false
+          },
+          "total_signal": {
+            "seconds": 3.542874,
+            "min_sec": "00:03.5",
+            "skipped": false
+          },
+          "tau_details": {
+            "1": {
+              "selected_order": 2,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.0,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "0.1": {
+              "selected_order": 2,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.0,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "0.01": {
+              "selected_order": 6,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.0,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            }
+          }
+        },
+        "Active Power": {
+          "preprocessing": {
+            "seconds": 0.001015,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "prepare_matrix_pencil": {
+            "seconds": 3.245374,
+            "min_sec": "00:03.2",
+            "skipped": false
+          },
+          "fixed_orders_total": {
+            "seconds": 0.00597,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "fixed_order_details": {
+            "2": {
+              "final_fit": {
+                "seconds": 0.00132,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "4": {
+              "final_fit": {
+                "seconds": 0.001901,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "6": {
+              "final_fit": {
+                "seconds": 0.002749,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            }
+          },
+          "auto_order_search_total": {
+            "seconds": 0.252181,
+            "min_sec": "00:00.3",
+            "skipped": false
+          },
+          "auto_order_search": {
+            "timing": {
+              "seconds": 0.252176,
+              "min_sec": "00:00.3",
+              "skipped": false
+            },
+            "orders_tested": 50
+          },
+          "auto_order_final_fit_total": {
+            "seconds": 0.002152,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "matrix_pencil_total": {
+            "seconds": 3.505677,
+            "min_sec": "00:03.5",
+            "skipped": false
+          },
+          "total_signal": {
+            "seconds": 3.507,
+            "min_sec": "00:03.5",
+            "skipped": false
+          },
+          "tau_details": {
+            "1": {
+              "selected_order": 4,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.0,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "0.1": {
+              "selected_order": 5,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.002152,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "0.01": {
+              "selected_order": 6,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.0,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            }
+          }
+        },
+        "Reactive Power": {
+          "preprocessing": {
+            "seconds": 0.000829,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "prepare_matrix_pencil": {
+            "seconds": 3.245076,
+            "min_sec": "00:03.2",
+            "skipped": false
+          },
+          "fixed_orders_total": {
+            "seconds": 0.006366,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "fixed_order_details": {
+            "2": {
+              "final_fit": {
+                "seconds": 0.001314,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "4": {
+              "final_fit": {
+                "seconds": 0.002341,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "6": {
+              "final_fit": {
+                "seconds": 0.002711,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            }
+          },
+          "auto_order_search_total": {
+            "seconds": 0.254042,
+            "min_sec": "00:00.3",
+            "skipped": false
+          },
+          "auto_order_search": {
+            "timing": {
+              "seconds": 0.254036,
+              "min_sec": "00:00.3",
+              "skipped": false
+            },
+            "orders_tested": 50
+          },
+          "auto_order_final_fit_total": {
+            "seconds": 0.001364,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "matrix_pencil_total": {
+            "seconds": 3.506848,
+            "min_sec": "00:03.5",
+            "skipped": false
+          },
+          "total_signal": {
+            "seconds": 3.508007,
+            "min_sec": "00:03.5",
+            "skipped": false
+          },
+          "tau_details": {
+            "1": {
+              "selected_order": 2,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.0,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "0.1": {
+              "selected_order": 3,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.001364,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "0.01": {
+              "selected_order": 4,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.0,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            }
+          }
+        }
+      },
+      "g3": {
+        "Voltage": {
+          "preprocessing": {
+            "seconds": 0.000868,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "prepare_matrix_pencil": {
+            "seconds": 3.272236,
+            "min_sec": "00:03.3",
+            "skipped": false
+          },
+          "fixed_orders_total": {
+            "seconds": 0.006294,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "fixed_order_details": {
+            "2": {
+              "final_fit": {
+                "seconds": 0.001259,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "4": {
+              "final_fit": {
+                "seconds": 0.001968,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "6": {
+              "final_fit": {
+                "seconds": 0.003067,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            }
+          },
+          "auto_order_search_total": {
+            "seconds": 0.25381,
+            "min_sec": "00:00.3",
+            "skipped": false
+          },
+          "auto_order_search": {
+            "timing": {
+              "seconds": 0.253804,
+              "min_sec": "00:00.3",
+              "skipped": false
+            },
+            "orders_tested": 50
+          },
+          "auto_order_final_fit_total": {
+            "seconds": 0.007316,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "matrix_pencil_total": {
+            "seconds": 3.539655,
+            "min_sec": "00:03.5",
+            "skipped": false
+          },
+          "total_signal": {
+            "seconds": 3.540805,
+            "min_sec": "00:03.5",
+            "skipped": false
+          },
+          "tau_details": {
+            "1": {
+              "selected_order": 2,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.0,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "0.1": {
+              "selected_order": 7,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.003143,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "0.01": {
+              "selected_order": 9,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.004173,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            }
+          }
+        },
+        "Current": {
+          "preprocessing": {
+            "seconds": 0.000741,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "prepare_matrix_pencil": {
+            "seconds": 3.278279,
+            "min_sec": "00:03.3",
+            "skipped": false
+          },
+          "fixed_orders_total": {
+            "seconds": 0.006242,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "fixed_order_details": {
+            "2": {
+              "final_fit": {
+                "seconds": 0.001516,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "4": {
+              "final_fit": {
+                "seconds": 0.001711,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "6": {
+              "final_fit": {
+                "seconds": 0.003016,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            }
+          },
+          "auto_order_search_total": {
+            "seconds": 0.25223,
+            "min_sec": "00:00.3",
+            "skipped": false
+          },
+          "auto_order_search": {
+            "timing": {
+              "seconds": 0.252224,
+              "min_sec": "00:00.3",
+              "skipped": false
+            },
+            "orders_tested": 50
+          },
+          "auto_order_final_fit_total": {
+            "seconds": 0.002133,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "matrix_pencil_total": {
+            "seconds": 3.538884,
+            "min_sec": "00:03.5",
+            "skipped": false
+          },
+          "total_signal": {
+            "seconds": 3.539896,
+            "min_sec": "00:03.5",
+            "skipped": false
+          },
+          "tau_details": {
+            "1": {
+              "selected_order": 2,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.0,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "0.1": {
+              "selected_order": 5,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.002133,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "0.01": {
+              "selected_order": 6,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.0,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            }
+          }
+        },
+        "Active Power": {
+          "preprocessing": {
+            "seconds": 0.000846,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "prepare_matrix_pencil": {
+            "seconds": 3.217446,
+            "min_sec": "00:03.2",
+            "skipped": false
+          },
+          "fixed_orders_total": {
+            "seconds": 0.005751,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "fixed_order_details": {
+            "2": {
+              "final_fit": {
+                "seconds": 0.001268,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "4": {
+              "final_fit": {
+                "seconds": 0.001731,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "6": {
+              "final_fit": {
+                "seconds": 0.002752,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            }
+          },
+          "auto_order_search_total": {
+            "seconds": 0.252879,
+            "min_sec": "00:00.3",
+            "skipped": false
+          },
+          "auto_order_search": {
+            "timing": {
+              "seconds": 0.252873,
+              "min_sec": "00:00.3",
+              "skipped": false
+            },
+            "orders_tested": 50
+          },
+          "auto_order_final_fit_total": {
+            "seconds": 0.002636,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "matrix_pencil_total": {
+            "seconds": 3.478712,
+            "min_sec": "00:03.5",
+            "skipped": false
+          },
+          "total_signal": {
+            "seconds": 3.479873,
+            "min_sec": "00:03.5",
+            "skipped": false
+          },
+          "tau_details": {
+            "1": {
+              "selected_order": 2,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.0,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "0.1": {
+              "selected_order": 5,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.002636,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "0.01": {
+              "selected_order": 6,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.0,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            }
+          }
+        },
+        "Reactive Power": {
+          "preprocessing": {
+            "seconds": 0.000997,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "prepare_matrix_pencil": {
+            "seconds": 3.258457,
+            "min_sec": "00:03.3",
+            "skipped": false
+          },
+          "fixed_orders_total": {
+            "seconds": 0.006423,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "fixed_order_details": {
+            "2": {
+              "final_fit": {
+                "seconds": 0.001279,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "4": {
+              "final_fit": {
+                "seconds": 0.00219,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "6": {
+              "final_fit": {
+                "seconds": 0.002954,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            }
+          },
+          "auto_order_search_total": {
+            "seconds": 0.252982,
+            "min_sec": "00:00.3",
+            "skipped": false
+          },
+          "auto_order_search": {
+            "timing": {
+              "seconds": 0.252976,
+              "min_sec": "00:00.3",
+              "skipped": false
+            },
+            "orders_tested": 50
+          },
+          "auto_order_final_fit_total": {
+            "seconds": 0.003214,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "matrix_pencil_total": {
+            "seconds": 3.521076,
+            "min_sec": "00:03.5",
+            "skipped": false
+          },
+          "total_signal": {
+            "seconds": 3.522403,
+            "min_sec": "00:03.5",
+            "skipped": false
+          },
+          "tau_details": {
+            "1": {
+              "selected_order": 4,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.0,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "0.1": {
+              "selected_order": 4,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.0,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "0.01": {
+              "selected_order": 7,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.003214,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            }
+          }
+        }
+      },
+      "g4": {
+        "Voltage": {
+          "preprocessing": {
+            "seconds": 0.000707,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "prepare_matrix_pencil": {
+            "seconds": 3.258904,
+            "min_sec": "00:03.3",
+            "skipped": false
+          },
+          "fixed_orders_total": {
+            "seconds": 0.006105,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "fixed_order_details": {
+            "2": {
+              "final_fit": {
+                "seconds": 0.001298,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "4": {
+              "final_fit": {
+                "seconds": 0.001778,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "6": {
+              "final_fit": {
+                "seconds": 0.003029,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            }
+          },
+          "auto_order_search_total": {
+            "seconds": 0.24442,
+            "min_sec": "00:00.2",
+            "skipped": false
+          },
+          "auto_order_search": {
+            "timing": {
+              "seconds": 0.244412,
+              "min_sec": "00:00.2",
+              "skipped": false
+            },
+            "orders_tested": 50
+          },
+          "auto_order_final_fit_total": {
+            "seconds": 0.002977,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "matrix_pencil_total": {
+            "seconds": 3.512406,
+            "min_sec": "00:03.5",
+            "skipped": false
+          },
+          "total_signal": {
+            "seconds": 3.513332,
+            "min_sec": "00:03.5",
+            "skipped": false
+          },
+          "tau_details": {
+            "1": {
+              "selected_order": 2,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.0,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "0.1": {
+              "selected_order": 7,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.002977,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "0.01": {
+              "selected_order": 7,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.0,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            }
+          }
+        },
+        "Current": {
+          "preprocessing": {
+            "seconds": 0.000845,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "prepare_matrix_pencil": {
+            "seconds": 3.297552,
+            "min_sec": "00:03.3",
+            "skipped": false
+          },
+          "fixed_orders_total": {
+            "seconds": 0.006132,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "fixed_order_details": {
+            "2": {
+              "final_fit": {
+                "seconds": 0.001338,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "4": {
+              "final_fit": {
+                "seconds": 0.001935,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "6": {
+              "final_fit": {
+                "seconds": 0.002859,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            }
+          },
+          "auto_order_search_total": {
+            "seconds": 0.250935,
+            "min_sec": "00:00.3",
+            "skipped": false
+          },
+          "auto_order_search": {
+            "timing": {
+              "seconds": 0.250927,
+              "min_sec": "00:00.3",
+              "skipped": false
+            },
+            "orders_tested": 50
+          },
+          "auto_order_final_fit_total": {
+            "seconds": 0.002315,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "matrix_pencil_total": {
+            "seconds": 3.556935,
+            "min_sec": "00:03.6",
+            "skipped": false
+          },
+          "total_signal": {
+            "seconds": 3.55809,
+            "min_sec": "00:03.6",
+            "skipped": false
+          },
+          "tau_details": {
+            "1": {
+              "selected_order": 2,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.0,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "0.1": {
+              "selected_order": 5,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.002315,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "0.01": {
+              "selected_order": 6,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.0,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            }
+          }
+        },
+        "Active Power": {
+          "preprocessing": {
+            "seconds": 0.000878,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "prepare_matrix_pencil": {
+            "seconds": 3.27717,
+            "min_sec": "00:03.3",
+            "skipped": false
+          },
+          "fixed_orders_total": {
+            "seconds": 0.006308,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "fixed_order_details": {
+            "2": {
+              "final_fit": {
+                "seconds": 0.001272,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "4": {
+              "final_fit": {
+                "seconds": 0.002159,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "6": {
+              "final_fit": {
+                "seconds": 0.002877,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            }
+          },
+          "auto_order_search_total": {
+            "seconds": 0.24783,
+            "min_sec": "00:00.2",
+            "skipped": false
+          },
+          "auto_order_search": {
+            "timing": {
+              "seconds": 0.247824,
+              "min_sec": "00:00.2",
+              "skipped": false
+            },
+            "orders_tested": 50
+          },
+          "auto_order_final_fit_total": {
+            "seconds": 0.005354,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "matrix_pencil_total": {
+            "seconds": 3.536662,
+            "min_sec": "00:03.5",
+            "skipped": false
+          },
+          "total_signal": {
+            "seconds": 3.537851,
+            "min_sec": "00:03.5",
+            "skipped": false
+          },
+          "tau_details": {
+            "1": {
+              "selected_order": 2,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.0,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "0.1": {
+              "selected_order": 5,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.00231,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "0.01": {
+              "selected_order": 7,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.003044,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            }
+          }
+        },
+        "Reactive Power": {
+          "preprocessing": {
+            "seconds": 0.001218,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "prepare_matrix_pencil": {
+            "seconds": 3.258451,
+            "min_sec": "00:03.3",
+            "skipped": false
+          },
+          "fixed_orders_total": {
+            "seconds": 0.005884,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "fixed_order_details": {
+            "2": {
+              "final_fit": {
+                "seconds": 0.001301,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "4": {
+              "final_fit": {
+                "seconds": 0.001875,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "6": {
+              "final_fit": {
+                "seconds": 0.002708,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            }
+          },
+          "auto_order_search_total": {
+            "seconds": 0.246932,
+            "min_sec": "00:00.2",
+            "skipped": false
+          },
+          "auto_order_search": {
+            "timing": {
+              "seconds": 0.246926,
+              "min_sec": "00:00.2",
+              "skipped": false
+            },
+            "orders_tested": 50
+          },
+          "auto_order_final_fit_total": {
+            "seconds": 0.0,
+            "min_sec": "00:00.0",
+            "skipped": false
+          },
+          "matrix_pencil_total": {
+            "seconds": 3.511268,
+            "min_sec": "00:03.5",
+            "skipped": false
+          },
+          "total_signal": {
+            "seconds": 3.512729,
+            "min_sec": "00:03.5",
+            "skipped": false
+          },
+          "tau_details": {
+            "1": {
+              "selected_order": 2,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.0,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "0.1": {
+              "selected_order": 2,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.0,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            },
+            "0.01": {
+              "selected_order": 2,
+              "order_search_shared_across_taus": true,
+              "final_fit": {
+                "seconds": 0.0,
+                "min_sec": "00:00.0",
+                "skipped": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "plotting": {
+      "seconds": 25.292581,
+      "min_sec": "00:25.3",
+      "skipped": false
+    },
+    "comprehensive_report": {
+      "seconds": 10.693115,
+      "min_sec": "00:10.7",
+      "skipped": false
+    },
+    "clustering": {
+      "seconds": 12.630628,
+      "min_sec": "00:12.6",
+      "skipped": false
+    },
+    "clustering_details": {
+      "screen_and_load": {
+        "seconds": 0.003677,
+        "min_sec": "00:00.0",
+        "skipped": false
+      },
+      "reference_mad": {
+        "seconds": 0.012613,
+        "min_sec": "00:00.0",
+        "skipped": false
+      },
+      "kmeans": {
+        "seconds": 5.938868,
+        "min_sec": "00:05.9",
+        "skipped": false
+      },
+      "kmedoids": {
+        "seconds": 4.646159,
+        "min_sec": "00:04.6",
+        "skipped": false
+      },
+      "silhouette": {
+        "seconds": 2.029307,
+        "min_sec": "00:02.0",
+        "skipped": false
+      }
+    },
+    "scenario_total": {
+      "seconds": 105.041938,
+      "min_sec": "01:45.0",
+      "skipped": false
+    }
+  }
+}
