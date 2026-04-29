@@ -1,6 +1,0 @@
-step,count
-initial_rows,126
-after_finite_numeric_filter,126
-removed_non_finite_rows,0
-after_frequency_screening,67
-removed_out_of_range_frequency_rows,59
