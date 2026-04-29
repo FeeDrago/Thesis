@@ -93,6 +93,7 @@ COLUMNS = {
 IEEE39_GENERATORS = [f"g{i}" for i in range(1, 11)]
 AUTO_ORDER_DECIMATION = 10
 DEFAULT_TIME_START_S = 0.2
+MODE_FREQ_EPS_HZ = 1e-6
 RECON_X_LIMS = (0, 50)
 RECON_TICK_LABEL_SIZE = 30
 RECON_AXIS_LABEL_SIZE = 34
@@ -167,6 +168,8 @@ def _resolve_path(path_value):
     path = Path(path_value)
     if path.is_absolute():
         return path
+    if path.parts and path.parts[0] == BASE_DIR.name:
+        return REPO_DIR / path
     return BASE_DIR / path
 
 
@@ -835,7 +838,7 @@ def run_matrix_pencil_for_scenario(name, scenario):
                     "final_fit": _timing_entry(elapsed_time),
                 }
                 for f, s, amplitude in zip(freq, sigma, amplitudes):
-                    if f > 0:
+                    if f > MODE_FREQ_EPS_HZ:
                         results.append({
                             "Scenario": name,
                             "Gen": gen,
@@ -867,7 +870,7 @@ def run_matrix_pencil_for_scenario(name, scenario):
                     "final_fit": _timing_entry(elapsed_time),
                 }
                 for f, s, amplitude in zip(freq, sigma, amplitudes):
-                    if f > 0:
+                    if f > MODE_FREQ_EPS_HZ:
                         results.append({
                             "Scenario": name,
                             "Gen": gen,

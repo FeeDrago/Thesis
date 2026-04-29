@@ -10,6 +10,7 @@ def prepare_matrix_pencil(y, t):
     t = np.asarray(t).reshape(-1)
 
     N = len(y)
+    # L controls the Hankel/window size used to build the pencil.
     L = int(np.ceil(0.5 * (np.ceil(N / 3) + np.floor(N / 2))))
 
     y_col = y.reshape(-1, 1)
@@ -19,6 +20,7 @@ def prepare_matrix_pencil(y, t):
         raise ValueError('length(Y) should be length(X)')
 
     T = np.diff(x_col[:2, 0])[0]
+    # Y is the sampled data matrix whose dominant singular subspace carries the modes.
     Y = np.lib.stride_tricks.sliding_window_view(y, L + 1).astype(np.complex128, copy=False)
 
     U, s, Vh = np.linalg.svd(Y, full_matrices=False)
@@ -71,31 +73,53 @@ def apply_matrix_pencil_fixed_order_prepared(prepared, order, fit_cache=None):
 
     M = _resolve_model_order(singular_values, order)
 
-    UM = U[:, :M]
-    sM = singular_values[:M]
+    # M is the reduced model order, so the pencil must also be solved at size M.
+    max_rank = min(U.shape[1], V.shape[1])
+    if M < 1 or M > max_rank:
+        raise ValueError(f"Model order M must be between 1 and {max_rank}, got {M}")
+    if M > L:
+        raise ValueError(f"Model order M must not exceed pencil parameter L={L}, got {M}")
+
     VM = V[:, :M]
     V1 = VM[:L, :]
     V2 = VM[1:L + 1, :]
 
-    Y1 = (UM * sM) @ V1.conj().T
-    Y2 = (UM * sM) @ V2.conj().T
-
-    A = np.linalg.pinv(Y1) @ Y2
+    # Solve the reduced pencil directly in the M-dimensional signal subspace.
+    # This gives exactly M poles instead of solving a larger L x L problem first.
+    A = np.linalg.pinv(V1) @ V2
     z = np.linalg.eigvals(A)
-    z = z[:M]
 
+    # Guard the log against poles that are numerically too close to zero.
+    eps = np.finfo(float).tiny
+    z = np.where(np.abs(z) < eps, eps + 0j, z)
+
+    # Convert discrete-time poles z into continuous-time poles p using z = exp(pT).
     poles_MP = (1 / T) * np.log(z)
 
+    # Fit the modal amplitudes after the poles are known.
     Z = np.exp(x_col @ poles_MP.reshape(1, -1))
     a, _, _, _ = np.linalg.lstsq(Z, y_col, rcond=None)
-    y_est = np.real((Z @ a).reshape(-1))
+    a = a.reshape(-1)
+
+    # Order the modes by energy so reports stay stable across environments.
+    omega = np.imag(poles_MP)
+    modal_energy = 0.5 * (omega ** 2) * (np.abs(a) ** 2)
+    mode_order = np.argsort(-modal_energy, kind="stable")
+
+    poles_MP = poles_MP[mode_order]
+    a = a[mode_order]
+
+    # Rebuild the estimate with the sorted poles and amplitudes.
+    Z = np.exp(x_col @ poles_MP.reshape(1, -1))
+    y_est = np.real((Z @ a.reshape(-1, 1)).reshape(-1))
 
     elapsed_time = time.perf_counter() - start
 
+    # The imaginary part gives oscillation frequency, the real part gives damping.
     freq = np.imag(poles_MP / (2 * np.pi))
     sigma = np.real(poles_MP)
 
-    result = (freq, sigma, y_est, elapsed_time, poles_MP, a.reshape(-1))
+    result = (freq, sigma, y_est, elapsed_time, poles_MP, a)
     if fit_cache is not None:
         fit_cache[order] = result
     return result

@@ -18,6 +18,9 @@ from clustering_analysis import (
 )
 
 
+MODE_FREQ_EPS_HZ = 1e-6
+
+
 def _format_duration_min_sec(seconds):
     total_seconds = max(0.0, float(seconds))
     minutes = int(total_seconds // 60)
@@ -155,7 +158,7 @@ for gen in generators:
             
             # Append results
             for f, s, a in zip(freq, sigma, a):
-                if f > 0:
+                if f > MODE_FREQ_EPS_HZ:
                     results.append({
                         'Gen': gen,
                         'Signal': signal,
@@ -183,7 +186,7 @@ for gen in generators:
             
             # Append results
             for f, s, a in zip(freq, sigma, a):
-                if f > 0:
+                if f > MODE_FREQ_EPS_HZ:
                     results.append({
                         'Gen': gen,
                         'Signal': signal,
@@ -215,8 +218,6 @@ for gen in generators:
 matrix_pencil_elapsed = time.perf_counter() - start_time
 df_results = pd.DataFrame(results)
 df_results.to_csv(os.path.join(path, "results.csv"), index=False)
-df_stats = pd.DataFrame(stats_lines)
-df_stats.to_csv(os.path.join(path, "signal_means.csv"), index=False)
 
 # Create plots
 plotting_start = time.perf_counter()
