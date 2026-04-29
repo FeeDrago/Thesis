@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from scipy.signal import detrend
 from sklearn.metrics import r2_score, mean_squared_error
 from matrix_pencil import filter_signal
-from plot_style import apply_thesis_style, style_axis, SIGNAL_COLORS
+from plot_style import apply_thesis_style, save_pdf, style_axis, SIGNAL_COLORS
 
 apply_thesis_style()
 
@@ -42,7 +42,7 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
             style_axis(plt.gca())
             
             fname = f"{gen}_{signal.replace(' ', '_')}"
-            plt.savefig(os.path.join(modal_maps_path, "pdf", f"{fname}.pdf"), format='pdf', bbox_inches='tight')
+            save_pdf(plt, os.path.join(modal_maps_path, "pdf", f"{fname}.pdf"))
             plt.savefig(os.path.join(modal_maps_path, "png", f"{fname}.png"), dpi=300, bbox_inches='tight')
             plt.close()
 
@@ -64,7 +64,7 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
         style_axis(plt.gca())
         
         fname = f"{gen}_combined"
-        plt.savefig(os.path.join(modal_maps_path, "pdf", f"{fname}.pdf"), format='pdf', bbox_inches='tight')
+        save_pdf(plt, os.path.join(modal_maps_path, "pdf", f"{fname}.pdf"))
         plt.savefig(os.path.join(modal_maps_path, "png", f"{fname}.png"), dpi=300, bbox_inches='tight')
         plt.close()
 
@@ -92,7 +92,7 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
             
         plt.tight_layout(rect=[0, 0, 1, 0.96])
         fname = f"{gen}_2x2_grid"
-        plt.savefig(os.path.join(modal_maps_path, "pdf", f"{fname}.pdf"), format='pdf', bbox_inches='tight')
+        save_pdf(plt, os.path.join(modal_maps_path, "pdf", f"{fname}.pdf"))
         plt.savefig(os.path.join(modal_maps_path, "png", f"{fname}.png"), dpi=300, bbox_inches='tight')
         plt.close(fig)
 
@@ -117,7 +117,7 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
     plt.tight_layout(rect=[0, 0.08, 1, 0.95])
     
     fname = "All_Generators_Grid"
-    plt.savefig(os.path.join(modal_maps_path, "pdf", f"{fname}.pdf"), format='pdf', bbox_inches='tight')
+    save_pdf(plt, os.path.join(modal_maps_path, "pdf", f"{fname}.pdf"))
     plt.savefig(os.path.join(modal_maps_path, "png", f"{fname}.png"), dpi=300, bbox_inches='tight')
     plt.close()
 
@@ -201,7 +201,7 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
 
             plt.tight_layout(rect=[0, 0.03, 1, 0.95])
             fname = f"{gen}_{signal_label.replace(' ', '_')}_Reconstruction"
-            plt.savefig(os.path.join(recon_path, "pdf", f"{fname}.pdf"), format='pdf', bbox_inches='tight')
+            save_pdf(plt, os.path.join(recon_path, "pdf", f"{fname}.pdf"))
             plt.savefig(os.path.join(recon_path, "png", f"{fname}.png"), dpi=300, bbox_inches='tight')
             plt.close()
 

@@ -8,7 +8,7 @@ from scipy.signal import detrend
 from sklearn.metrics import r2_score, mean_squared_error
 from matrix_pencil import filter_signal
 from matplotlib.ticker import MaxNLocator
-from plot_style import apply_thesis_style, style_axis
+from plot_style import apply_thesis_style, save_pdf, style_axis
 
 
 apply_thesis_style()
@@ -96,7 +96,7 @@ def generate_preliminary_report_stats(path, preprocessed_signals=None):
     plt.title("Pole Density Heatmap", fontweight='bold')
     plt.ylabel("Generator")
     style_axis(plt.gca())
-    plt.savefig(os.path.join(pdf_path, "1_heatmap.pdf"), format='pdf', bbox_inches='tight')
+    save_pdf(plt, os.path.join(pdf_path, "1_heatmap.pdf"))
     plt.savefig(os.path.join(png_path, "1_heatmap.png"), dpi=300, bbox_inches='tight')
     plt.close()
 
@@ -111,7 +111,7 @@ def generate_preliminary_report_stats(path, preprocessed_signals=None):
         ax.yaxis.set_major_locator(MaxNLocator(integer=True))
         style_axis(ax)
         
-    plt.savefig(os.path.join(pdf_path, "2_bar_grid_signal.pdf"), format='pdf', bbox_inches='tight')
+    save_pdf(plt, os.path.join(pdf_path, "2_bar_grid_signal.pdf"))
     plt.savefig(os.path.join(png_path, "2_bar_grid_signal.png"), dpi=300, bbox_inches='tight')
     plt.close()
 
@@ -128,7 +128,7 @@ def generate_preliminary_report_stats(path, preprocessed_signals=None):
         ax.tick_params(axis='x', rotation=30)
         style_axis(ax)
         
-    plt.savefig(os.path.join(pdf_path, "3_bar_grid_method.pdf"), format='pdf', bbox_inches='tight')
+    save_pdf(plt, os.path.join(pdf_path, "3_bar_grid_method.pdf"))
     plt.savefig(os.path.join(png_path, "3_bar_grid_method.png"), dpi=300, bbox_inches='tight')
     plt.close()
 
@@ -145,7 +145,7 @@ def generate_preliminary_report_stats(path, preprocessed_signals=None):
     ax.set_xticklabels(gens_u)
     ax.set_yticks(np.arange(len(sigs_u)) + 0.25)
     ax.set_yticklabels(sigs_u)
-    plt.savefig(os.path.join(pdf_path, "4_3D_overview.pdf"), format='pdf', bbox_inches='tight')
+    save_pdf(plt, os.path.join(pdf_path, "4_3D_overview.pdf"))
     plt.savefig(os.path.join(png_path, "4_3D_overview.png"), dpi=300, bbox_inches='tight')
     plt.close()
 
@@ -169,7 +169,7 @@ def generate_preliminary_report_stats(path, preprocessed_signals=None):
     plt.colorbar().set_label(r'Damping ($\sigma$)')
     plt.title("Modal Frequency/Damping/Energy Map", fontweight='bold')
     style_axis(plt.gca())
-    plt.savefig(os.path.join(pdf_path, "5_bubble_map.pdf"), format='pdf', bbox_inches='tight')
+    save_pdf(plt, os.path.join(pdf_path, "5_bubble_map.pdf"))
     plt.savefig(os.path.join(png_path, "5_bubble_map.png"), dpi=300, bbox_inches='tight')
     plt.close()
 
@@ -181,7 +181,7 @@ def generate_preliminary_report_stats(path, preprocessed_signals=None):
     style_axis(plt.gca())
     if df_m['R2'].min() < 0.5: plt.ylim(0.0, 1.05)
     else: plt.ylim(df_m['R2'].min()*0.98, 1.02)
-    plt.savefig(os.path.join(pdf_path, "6_R2_boxplot.pdf"), format='pdf', bbox_inches='tight')
+    save_pdf(plt, os.path.join(pdf_path, "6_R2_boxplot.pdf"))
     plt.savefig(os.path.join(png_path, "6_R2_boxplot.png"), dpi=300, bbox_inches='tight')
     plt.close()
 
@@ -192,7 +192,7 @@ def generate_preliminary_report_stats(path, preprocessed_signals=None):
     plt.ylabel("$R^2$ Score")
     style_axis(plt.gca())
     plt.legend(bbox_to_anchor=(1.02, 1), loc='upper left')
-    plt.savefig(os.path.join(pdf_path, "7_pareto.pdf"), format='pdf', bbox_inches='tight')
+    save_pdf(plt, os.path.join(pdf_path, "7_pareto.pdf"))
     plt.savefig(os.path.join(png_path, "7_pareto.png"), dpi=300, bbox_inches='tight')
     plt.close()
 
@@ -203,7 +203,7 @@ def generate_preliminary_report_stats(path, preprocessed_signals=None):
     plt.title("Best Method Ranking (Max $R^2$)", fontweight='bold')
     plt.ylabel("Frequency")
     style_axis(plt.gca())
-    plt.savefig(os.path.join(pdf_path, "8_ranking.pdf"), format='pdf', bbox_inches='tight')
+    save_pdf(plt, os.path.join(pdf_path, "8_ranking.pdf"))
     plt.savefig(os.path.join(png_path, "8_ranking.png"), dpi=300, bbox_inches='tight')
     plt.close()
 
@@ -274,7 +274,7 @@ def generate_preliminary_report_stats(path, preprocessed_signals=None):
             ax.set_ylabel(labels_map.get(sig_l, ""), fontsize=RECON_AXIS_LABEL_SIZE)
             if i == 0 and j == 3: ax.legend(loc='upper right')
     fig.subplots_adjust(left=0.07, right=0.98, bottom=0.07, top=0.92, wspace=0.22, hspace=0.42)
-    plt.savefig(os.path.join(pdf_path, "9_best_reconstruction_grid.pdf"), format='pdf', bbox_inches='tight')
+    save_pdf(plt, os.path.join(pdf_path, "9_best_reconstruction_grid.pdf"))
     plt.savefig(os.path.join(png_path, "9_best_reconstruction_grid.png"), dpi=300, bbox_inches='tight')
     plt.close()
 
@@ -345,7 +345,7 @@ def generate_preliminary_report_stats(path, preprocessed_signals=None):
                 ax.legend(loc='upper right')
 
         fig_g.subplots_adjust(left=0.08, right=0.98, bottom=0.08, top=0.90, wspace=0.22, hspace=0.36)
-        plt.savefig(os.path.join(pdf_path, f"10_best_reconstruction_{gid}_2x2.pdf"), format='pdf', bbox_inches='tight')
+        save_pdf(plt, os.path.join(pdf_path, f"10_best_reconstruction_{gid}_2x2.pdf"))
         plt.savefig(os.path.join(png_path, f"10_best_reconstruction_{gid}_2x2.png"), dpi=300, bbox_inches='tight')
         plt.close(fig_g)
 

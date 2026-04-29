@@ -34,6 +34,13 @@ GRID_POINT_SIZE = 60
 REP_SIZE = 260
 REP_GRID_SIZE = 140
 
+PDF_METADATA = {
+    "Creator": "matplotlib",
+    "Producer": "matplotlib",
+    "CreationDate": None,
+    "ModDate": None,
+}
+
 
 def apply_thesis_style():
     sns.set_theme(style="whitegrid", font="serif")
@@ -69,3 +76,7 @@ def style_axis(ax, grid_alpha=GRID_ALPHA_MAIN):
     ax.grid(True, linestyle=":", linewidth=1.2, alpha=grid_alpha)
     for spine in ax.spines.values():
         spine.set_linewidth(1.1)
+
+
+def save_pdf(fig_or_plt, path):
+    fig_or_plt.savefig(path, format="pdf", bbox_inches="tight", metadata=PDF_METADATA)

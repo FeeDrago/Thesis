@@ -10,6 +10,7 @@ from matplotlib.lines import Line2D
 from plot_style import (
     apply_thesis_style,
     style_axis,
+    save_pdf,
     CLUSTER_COLORS,
     ACCENT_RED,
     LINE_BLUE,
@@ -44,7 +45,7 @@ def _apply_axis_style(ax, grid_alpha=GRID_ALPHA_MAIN):
 
 
 def _save_figure(fig, base_output, filename):
-    fig.savefig(os.path.join(base_output, "pdf", f"{filename}.pdf"), format="pdf")
+    save_pdf(fig, os.path.join(base_output, "pdf", f"{filename}.pdf"))
     fig.savefig(os.path.join(base_output, "png", f"{filename}.png"), dpi=300)
 
 
