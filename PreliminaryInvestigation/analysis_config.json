@@ -42,188 +42,172 @@
       "Generator": "g1",
       "Signal": "Voltage",
       "Mean after detrend": 1.8249569637713918e-16,
-      "Mean after LPF": 5.968510552146487e-08,
-      "Mean after demean": 1.2540169705856437e-20
+      "Mean after LPF": 5.968510552146487e-08
     },
     {
       "Generator": "g1",
       "Signal": "Current",
       "Mean after detrend": 2.1022897835773547e-16,
-      "Mean after LPF": -1.402150445957869e-07,
-      "Mean after demean": -8.360113137237625e-21
+      "Mean after LPF": -1.402150445957869e-07
     },
     {
       "Generator": "g1",
       "Signal": "Active Power",
       "Mean after detrend": 6.316696385054448e-14,
-      "Mean after LPF": -5.7380654254006396e-05,
-      "Mean after demean": 8.917454013053465e-19
+      "Mean after LPF": -5.7380654254006396e-05
     },
     {
       "Generator": "g1",
       "Signal": "Reactive Power",
       "Mean after detrend": -1.925028632705878e-14,
-      "Mean after LPF": -0.00012102118652525879,
-      "Mean after demean": 8.560755852531328e-18
+      "Mean after LPF": -0.00012102118652525879
     },
     {
       "Generator": "g2",
       "Signal": "Voltage",
       "Mean after detrend": 8.658847846674916e-17,
-      "Mean after LPF": 6.468642983026558e-08,
-      "Mean after demean": 2.5080339411712874e-20
+      "Mean after LPF": 6.468642983026558e-08
     },
     {
       "Generator": "g2",
       "Signal": "Current",
       "Mean after detrend": -5.566720667648626e-17,
-      "Mean after LPF": -1.5876722211880057e-07,
-      "Mean after demean": -2.786704379079208e-20
+      "Mean after LPF": -1.5876722211880057e-07
     },
     {
       "Generator": "g2",
       "Signal": "Active Power",
       "Mean after detrend": 6.487911502105076e-14,
-      "Mean after LPF": -2.736732101854183e-05,
-      "Mean after demean": -1.4446275501146614e-17
+      "Mean after LPF": -2.736732101854183e-05
     },
     {
       "Generator": "g2",
       "Signal": "Reactive Power",
       "Mean after detrend": -8.047110501379448e-16,
-      "Mean after LPF": -0.00021435538492846923,
-      "Mean after demean": -2.853585284177109e-17
+      "Mean after LPF": -0.00021435538492846923
     },
     {
       "Generator": "g3",
       "Signal": "Voltage",
       "Mean after detrend": -8.137176786911288e-17,
-      "Mean after LPF": 2.3516070418403306e-08,
-      "Mean after demean": -5.2250707107735156e-21
+      "Mean after LPF": 2.3516070418403306e-08
     },
     {
       "Generator": "g3",
       "Signal": "Current",
       "Mean after detrend": 2.436248436366207e-16,
-      "Mean after LPF": 3.0770624160746314e-07,
-      "Mean after demean": -6.409420071882179e-20
+      "Mean after LPF": 3.0770624160746314e-07
     },
     {
       "Generator": "g3",
       "Signal": "Active Power",
       "Mean after detrend": 1.5591989992743724e-13,
-      "Mean after LPF": 0.0003115921789333368,
-      "Mean after demean": -5.707170568354218e-17
+      "Mean after LPF": 0.0003115921789333368
     },
     {
       "Generator": "g3",
       "Signal": "Reactive Power",
       "Mean after detrend": 1.008000465782722e-13,
-      "Mean after LPF": -1.6487832127029589e-06,
-      "Mean after demean": -1.4267926420885547e-18
+      "Mean after LPF": -1.6487832127029589e-06
     },
     {
       "Generator": "g4",
       "Signal": "Voltage",
       "Mean after detrend": 5.958196898821673e-16,
-      "Mean after LPF": 5.428648086118791e-08,
-      "Mean after demean": -6.96676094769802e-21
+      "Mean after LPF": 5.428648086118791e-08
     },
     {
       "Generator": "g4",
       "Signal": "Current",
       "Mean after detrend": 4.081964574475224e-17,
-      "Mean after LPF": 2.4059990063805227e-07,
-      "Mean after demean": 1.672022627447525e-20
+      "Mean after LPF": 2.4059990063805227e-07
     },
     {
       "Generator": "g4",
       "Signal": "Active Power",
       "Mean after detrend": 4.759551967184684e-13,
-      "Mean after LPF": 0.00025471085440876575,
-      "Mean after demean": 5.1364535115187967e-17
+      "Mean after LPF": 0.00025471085440876575
     },
     {
       "Generator": "g4",
       "Signal": "Reactive Power",
       "Mean after detrend": 4.49154323729477e-14,
-      "Mean after LPF": 4.435102222356622e-05,
-      "Mean after demean": 2.140188963132832e-18
+      "Mean after LPF": 4.435102222356622e-05
     }
   ],
   "timings": {
     "matrix_pencil": {
-      "seconds": 56.136048,
-      "min_sec": "00:56.1",
+      "seconds": 57.547931,
+      "min_sec": "00:57.5",
       "skipped": false
     },
     "per_generator_signal": {
       "g1": {
         "Voltage": {
           "preprocessing": {
-            "seconds": 0.001231,
+            "seconds": 0.001331,
             "min_sec": "00:00.0",
             "skipped": false
           },
           "prepare_matrix_pencil": {
-            "seconds": 3.341076,
-            "min_sec": "00:03.3",
+            "seconds": 3.844629,
+            "min_sec": "00:03.8",
             "skipped": false
           },
           "fixed_orders_total": {
-            "seconds": 0.006009,
+            "seconds": 0.006401,
             "min_sec": "00:00.0",
             "skipped": false
           },
           "fixed_order_details": {
             "2": {
               "final_fit": {
-                "seconds": 0.001347,
+                "seconds": 0.001451,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
             },
             "4": {
               "final_fit": {
-                "seconds": 0.001984,
+                "seconds": 0.002283,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
             },
             "6": {
               "final_fit": {
-                "seconds": 0.002678,
+                "seconds": 0.002667,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
             }
           },
           "auto_order_search_total": {
-            "seconds": 0.254013,
+            "seconds": 0.254249,
             "min_sec": "00:00.3",
             "skipped": false
           },
           "auto_order_search": {
             "timing": {
-              "seconds": 0.254007,
+              "seconds": 0.254243,
               "min_sec": "00:00.3",
               "skipped": false
             },
             "orders_tested": 50
           },
           "auto_order_final_fit_total": {
-            "seconds": 0.00361,
+            "seconds": 0.003413,
             "min_sec": "00:00.0",
             "skipped": false
           },
           "matrix_pencil_total": {
-            "seconds": 3.604707,
-            "min_sec": "00:03.6",
+            "seconds": 4.108691,
+            "min_sec": "00:04.1",
             "skipped": false
           },
           "total_signal": {
-            "seconds": 3.606193,
-            "min_sec": "00:03.6",
+            "seconds": 4.110308,
+            "min_sec": "00:04.1",
             "skipped": false
           },
           "tau_details": {
@@ -240,7 +224,7 @@
               "selected_order": 3,
               "order_search_shared_across_taus": true,
               "final_fit": {
-                "seconds": 0.001549,
+                "seconds": 0.001348,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
@@ -249,7 +233,7 @@
               "selected_order": 5,
               "order_search_shared_across_taus": true,
               "final_fit": {
-                "seconds": 0.002061,
+                "seconds": 0.002065,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
@@ -258,68 +242,68 @@
         },
         "Current": {
           "preprocessing": {
-            "seconds": 0.000756,
+            "seconds": 0.000784,
             "min_sec": "00:00.0",
             "skipped": false
           },
           "prepare_matrix_pencil": {
-            "seconds": 3.314462,
+            "seconds": 3.333674,
             "min_sec": "00:03.3",
             "skipped": false
           },
           "fixed_orders_total": {
-            "seconds": 0.006039,
+            "seconds": 0.00589,
             "min_sec": "00:00.0",
             "skipped": false
           },
           "fixed_order_details": {
             "2": {
               "final_fit": {
-                "seconds": 0.001307,
+                "seconds": 0.001355,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
             },
             "4": {
               "final_fit": {
-                "seconds": 0.001851,
+                "seconds": 0.001842,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
             },
             "6": {
               "final_fit": {
-                "seconds": 0.002882,
+                "seconds": 0.002693,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
             }
           },
           "auto_order_search_total": {
-            "seconds": 0.253092,
+            "seconds": 0.253652,
             "min_sec": "00:00.3",
             "skipped": false
           },
           "auto_order_search": {
             "timing": {
-              "seconds": 0.253085,
+              "seconds": 0.253646,
               "min_sec": "00:00.3",
               "skipped": false
             },
             "orders_tested": 50
           },
           "auto_order_final_fit_total": {
-            "seconds": 0.005476,
+            "seconds": 0.005135,
             "min_sec": "00:00.0",
             "skipped": false
           },
           "matrix_pencil_total": {
-            "seconds": 3.579069,
+            "seconds": 3.598351,
             "min_sec": "00:03.6",
             "skipped": false
           },
           "total_signal": {
-            "seconds": 3.58013,
+            "seconds": 3.599439,
             "min_sec": "00:03.6",
             "skipped": false
           },
@@ -337,7 +321,7 @@
               "selected_order": 5,
               "order_search_shared_across_taus": true,
               "final_fit": {
-                "seconds": 0.00239,
+                "seconds": 0.002097,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
@@ -346,7 +330,7 @@
               "selected_order": 7,
               "order_search_shared_across_taus": true,
               "final_fit": {
-                "seconds": 0.003086,
+                "seconds": 0.003038,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
@@ -355,69 +339,69 @@
         },
         "Active Power": {
           "preprocessing": {
-            "seconds": 0.00074,
+            "seconds": 0.000709,
             "min_sec": "00:00.0",
             "skipped": false
           },
           "prepare_matrix_pencil": {
-            "seconds": 3.288467,
+            "seconds": 3.291474,
             "min_sec": "00:03.3",
             "skipped": false
           },
           "fixed_orders_total": {
-            "seconds": 0.006138,
+            "seconds": 0.006348,
             "min_sec": "00:00.0",
             "skipped": false
           },
           "fixed_order_details": {
             "2": {
               "final_fit": {
-                "seconds": 0.001357,
+                "seconds": 0.001319,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
             },
             "4": {
               "final_fit": {
-                "seconds": 0.001987,
+                "seconds": 0.001864,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
             },
             "6": {
               "final_fit": {
-                "seconds": 0.002794,
+                "seconds": 0.003164,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
             }
           },
           "auto_order_search_total": {
-            "seconds": 0.251357,
+            "seconds": 0.252916,
             "min_sec": "00:00.3",
             "skipped": false
           },
           "auto_order_search": {
             "timing": {
-              "seconds": 0.25135,
+              "seconds": 0.252909,
               "min_sec": "00:00.3",
               "skipped": false
             },
             "orders_tested": 50
           },
           "auto_order_final_fit_total": {
-            "seconds": 0.002131,
+            "seconds": 0.00217,
             "min_sec": "00:00.0",
             "skipped": false
           },
           "matrix_pencil_total": {
-            "seconds": 3.548093,
-            "min_sec": "00:03.5",
+            "seconds": 3.552908,
+            "min_sec": "00:03.6",
             "skipped": false
           },
           "total_signal": {
-            "seconds": 3.549115,
-            "min_sec": "00:03.5",
+            "seconds": 3.553919,
+            "min_sec": "00:03.6",
             "skipped": false
           },
           "tau_details": {
@@ -434,7 +418,7 @@
               "selected_order": 5,
               "order_search_shared_across_taus": true,
               "final_fit": {
-                "seconds": 0.002131,
+                "seconds": 0.00217,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
@@ -452,51 +436,51 @@
         },
         "Reactive Power": {
           "preprocessing": {
-            "seconds": 0.000892,
+            "seconds": 0.000738,
             "min_sec": "00:00.0",
             "skipped": false
           },
           "prepare_matrix_pencil": {
-            "seconds": 3.228221,
-            "min_sec": "00:03.2",
+            "seconds": 3.27463,
+            "min_sec": "00:03.3",
             "skipped": false
           },
           "fixed_orders_total": {
-            "seconds": 0.00589,
+            "seconds": 0.00623,
             "min_sec": "00:00.0",
             "skipped": false
           },
           "fixed_order_details": {
             "2": {
               "final_fit": {
-                "seconds": 0.001295,
+                "seconds": 0.001482,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
             },
             "4": {
               "final_fit": {
-                "seconds": 0.00182,
+                "seconds": 0.001918,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
             },
             "6": {
               "final_fit": {
-                "seconds": 0.002774,
+                "seconds": 0.00283,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
             }
           },
           "auto_order_search_total": {
-            "seconds": 0.250775,
+            "seconds": 0.253621,
             "min_sec": "00:00.3",
             "skipped": false
           },
           "auto_order_search": {
             "timing": {
-              "seconds": 0.25077,
+              "seconds": 0.253615,
               "min_sec": "00:00.3",
               "skipped": false
             },
@@ -508,12 +492,12 @@
             "skipped": false
           },
           "matrix_pencil_total": {
-            "seconds": 3.484885,
+            "seconds": 3.534481,
             "min_sec": "00:03.5",
             "skipped": false
           },
           "total_signal": {
-            "seconds": 3.486046,
+            "seconds": 3.535519,
             "min_sec": "00:03.5",
             "skipped": false
           },
@@ -551,17 +535,17 @@
       "g2": {
         "Voltage": {
           "preprocessing": {
-            "seconds": 0.00075,
+            "seconds": 0.000704,
             "min_sec": "00:00.0",
             "skipped": false
           },
           "prepare_matrix_pencil": {
-            "seconds": 3.28528,
+            "seconds": 3.315882,
             "min_sec": "00:03.3",
             "skipped": false
           },
           "fixed_orders_total": {
-            "seconds": 0.00628,
+            "seconds": 0.005746,
             "min_sec": "00:00.0",
             "skipped": false
           },
@@ -575,45 +559,45 @@
             },
             "4": {
               "final_fit": {
-                "seconds": 0.002199,
+                "seconds": 0.001883,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
             },
             "6": {
               "final_fit": {
-                "seconds": 0.002771,
+                "seconds": 0.002553,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
             }
           },
           "auto_order_search_total": {
-            "seconds": 0.255058,
+            "seconds": 0.254545,
             "min_sec": "00:00.3",
             "skipped": false
           },
           "auto_order_search": {
             "timing": {
-              "seconds": 0.255052,
+              "seconds": 0.254539,
               "min_sec": "00:00.3",
               "skipped": false
             },
             "orders_tested": 50
           },
           "auto_order_final_fit_total": {
-            "seconds": 0.002197,
+            "seconds": 0.002071,
             "min_sec": "00:00.0",
             "skipped": false
           },
           "matrix_pencil_total": {
-            "seconds": 3.548815,
-            "min_sec": "00:03.5",
+            "seconds": 3.578243,
+            "min_sec": "00:03.6",
             "skipped": false
           },
           "total_signal": {
-            "seconds": 3.549789,
-            "min_sec": "00:03.5",
+            "seconds": 3.579169,
+            "min_sec": "00:03.6",
             "skipped": false
           },
           "tau_details": {
@@ -630,7 +614,7 @@
               "selected_order": 5,
               "order_search_shared_across_taus": true,
               "final_fit": {
-                "seconds": 0.002197,
+                "seconds": 0.002071,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
@@ -648,51 +632,51 @@
         },
         "Current": {
           "preprocessing": {
-            "seconds": 0.000741,
+            "seconds": 0.000694,
             "min_sec": "00:00.0",
             "skipped": false
           },
           "prepare_matrix_pencil": {
-            "seconds": 3.241015,
-            "min_sec": "00:03.2",
+            "seconds": 3.317693,
+            "min_sec": "00:03.3",
             "skipped": false
           },
           "fixed_orders_total": {
-            "seconds": 0.005776,
+            "seconds": 0.006222,
             "min_sec": "00:00.0",
             "skipped": false
           },
           "fixed_order_details": {
             "2": {
               "final_fit": {
-                "seconds": 0.001313,
+                "seconds": 0.001455,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
             },
             "4": {
               "final_fit": {
-                "seconds": 0.001822,
+                "seconds": 0.002018,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
             },
             "6": {
               "final_fit": {
-                "seconds": 0.002641,
+                "seconds": 0.00275,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
             }
           },
           "auto_order_search_total": {
-            "seconds": 0.253228,
+            "seconds": 0.252275,
             "min_sec": "00:00.3",
             "skipped": false
           },
           "auto_order_search": {
             "timing": {
-              "seconds": 0.253222,
+              "seconds": 0.25227,
               "min_sec": "00:00.3",
               "skipped": false
             },
@@ -704,13 +688,13 @@
             "skipped": false
           },
           "matrix_pencil_total": {
-            "seconds": 3.500019,
-            "min_sec": "00:03.5",
+            "seconds": 3.57619,
+            "min_sec": "00:03.6",
             "skipped": false
           },
           "total_signal": {
-            "seconds": 3.501012,
-            "min_sec": "00:03.5",
+            "seconds": 3.577127,
+            "min_sec": "00:03.6",
             "skipped": false
           },
           "tau_details": {
@@ -745,68 +729,68 @@
         },
         "Active Power": {
           "preprocessing": {
-            "seconds": 0.00073,
+            "seconds": 0.000697,
             "min_sec": "00:00.0",
             "skipped": false
           },
           "prepare_matrix_pencil": {
-            "seconds": 3.222655,
-            "min_sec": "00:03.2",
+            "seconds": 3.268759,
+            "min_sec": "00:03.3",
             "skipped": false
           },
           "fixed_orders_total": {
-            "seconds": 0.005608,
+            "seconds": 0.005891,
             "min_sec": "00:00.0",
             "skipped": false
           },
           "fixed_order_details": {
             "2": {
               "final_fit": {
-                "seconds": 0.001284,
+                "seconds": 0.001318,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
             },
             "4": {
               "final_fit": {
-                "seconds": 0.001809,
+                "seconds": 0.001905,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
             },
             "6": {
               "final_fit": {
-                "seconds": 0.002515,
+                "seconds": 0.002668,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
             }
           },
           "auto_order_search_total": {
-            "seconds": 0.256633,
+            "seconds": 0.25304,
             "min_sec": "00:00.3",
             "skipped": false
           },
           "auto_order_search": {
             "timing": {
-              "seconds": 0.256628,
+              "seconds": 0.253034,
               "min_sec": "00:00.3",
               "skipped": false
             },
             "orders_tested": 50
           },
           "auto_order_final_fit_total": {
-            "seconds": 0.00238,
+            "seconds": 0.002211,
             "min_sec": "00:00.0",
             "skipped": false
           },
           "matrix_pencil_total": {
-            "seconds": 3.487276,
+            "seconds": 3.5299,
             "min_sec": "00:03.5",
             "skipped": false
           },
           "total_signal": {
-            "seconds": 3.488246,
+            "seconds": 3.530871,
             "min_sec": "00:03.5",
             "skipped": false
           },
@@ -824,7 +808,7 @@
               "selected_order": 5,
               "order_search_shared_across_taus": true,
               "final_fit": {
-                "seconds": 0.00238,
+                "seconds": 0.002211,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
@@ -842,69 +826,69 @@
         },
         "Reactive Power": {
           "preprocessing": {
-            "seconds": 0.000865,
+            "seconds": 0.000707,
             "min_sec": "00:00.0",
             "skipped": false
           },
           "prepare_matrix_pencil": {
-            "seconds": 3.185612,
-            "min_sec": "00:03.2",
+            "seconds": 3.300767,
+            "min_sec": "00:03.3",
             "skipped": false
           },
           "fixed_orders_total": {
-            "seconds": 0.006263,
+            "seconds": 0.00599,
             "min_sec": "00:00.0",
             "skipped": false
           },
           "fixed_order_details": {
             "2": {
               "final_fit": {
-                "seconds": 0.001323,
+                "seconds": 0.001308,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
             },
             "4": {
               "final_fit": {
-                "seconds": 0.002201,
+                "seconds": 0.001965,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
             },
             "6": {
               "final_fit": {
-                "seconds": 0.002738,
+                "seconds": 0.002716,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
             }
           },
           "auto_order_search_total": {
-            "seconds": 0.253343,
+            "seconds": 0.251476,
             "min_sec": "00:00.3",
             "skipped": false
           },
           "auto_order_search": {
             "timing": {
-              "seconds": 0.253338,
+              "seconds": 0.25146,
               "min_sec": "00:00.3",
               "skipped": false
             },
             "orders_tested": 50
           },
           "auto_order_final_fit_total": {
-            "seconds": 0.001541,
+            "seconds": 0.001341,
             "min_sec": "00:00.0",
             "skipped": false
           },
           "matrix_pencil_total": {
-            "seconds": 3.446759,
-            "min_sec": "00:03.4",
+            "seconds": 3.559573,
+            "min_sec": "00:03.6",
             "skipped": false
           },
           "total_signal": {
-            "seconds": 3.447909,
-            "min_sec": "00:03.4",
+            "seconds": 3.560531,
+            "min_sec": "00:03.6",
             "skipped": false
           },
           "tau_details": {
@@ -921,7 +905,7 @@
               "selected_order": 3,
               "order_search_shared_across_taus": true,
               "final_fit": {
-                "seconds": 0.001541,
+                "seconds": 0.001341,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
@@ -941,69 +925,69 @@
       "g3": {
         "Voltage": {
           "preprocessing": {
-            "seconds": 0.00081,
+            "seconds": 0.000685,
             "min_sec": "00:00.0",
             "skipped": false
           },
           "prepare_matrix_pencil": {
-            "seconds": 3.261137,
+            "seconds": 3.323514,
             "min_sec": "00:03.3",
             "skipped": false
           },
           "fixed_orders_total": {
-            "seconds": 0.005837,
+            "seconds": 0.005853,
             "min_sec": "00:00.0",
             "skipped": false
           },
           "fixed_order_details": {
             "2": {
               "final_fit": {
-                "seconds": 0.001298,
+                "seconds": 0.001292,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
             },
             "4": {
               "final_fit": {
-                "seconds": 0.001825,
+                "seconds": 0.001772,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
             },
             "6": {
               "final_fit": {
-                "seconds": 0.002714,
+                "seconds": 0.002788,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
             }
           },
           "auto_order_search_total": {
-            "seconds": 0.254171,
+            "seconds": 0.253414,
             "min_sec": "00:00.3",
             "skipped": false
           },
           "auto_order_search": {
             "timing": {
-              "seconds": 0.254165,
+              "seconds": 0.253409,
               "min_sec": "00:00.3",
               "skipped": false
             },
             "orders_tested": 50
           },
           "auto_order_final_fit_total": {
-            "seconds": 0.007194,
+            "seconds": 0.007201,
             "min_sec": "00:00.0",
             "skipped": false
           },
           "matrix_pencil_total": {
-            "seconds": 3.528339,
-            "min_sec": "00:03.5",
+            "seconds": 3.589981,
+            "min_sec": "00:03.6",
             "skipped": false
           },
           "total_signal": {
-            "seconds": 3.529381,
-            "min_sec": "00:03.5",
+            "seconds": 3.59091,
+            "min_sec": "00:03.6",
             "skipped": false
           },
           "tau_details": {
@@ -1020,7 +1004,7 @@
               "selected_order": 7,
               "order_search_shared_across_taus": true,
               "final_fit": {
-                "seconds": 0.003338,
+                "seconds": 0.003144,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
@@ -1029,7 +1013,7 @@
               "selected_order": 9,
               "order_search_shared_across_taus": true,
               "final_fit": {
-                "seconds": 0.003856,
+                "seconds": 0.004057,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
@@ -1038,69 +1022,69 @@
         },
         "Current": {
           "preprocessing": {
-            "seconds": 0.000719,
+            "seconds": 0.000882,
             "min_sec": "00:00.0",
             "skipped": false
           },
           "prepare_matrix_pencil": {
-            "seconds": 3.22081,
-            "min_sec": "00:03.2",
+            "seconds": 3.303664,
+            "min_sec": "00:03.3",
             "skipped": false
           },
           "fixed_orders_total": {
-            "seconds": 0.006344,
+            "seconds": 0.005702,
             "min_sec": "00:00.0",
             "skipped": false
           },
           "fixed_order_details": {
             "2": {
               "final_fit": {
-                "seconds": 0.001298,
+                "seconds": 0.001265,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
             },
             "4": {
               "final_fit": {
-                "seconds": 0.002072,
+                "seconds": 0.001724,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
             },
             "6": {
               "final_fit": {
-                "seconds": 0.002973,
+                "seconds": 0.002713,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
             }
           },
           "auto_order_search_total": {
-            "seconds": 0.25203,
+            "seconds": 0.252339,
             "min_sec": "00:00.3",
             "skipped": false
           },
           "auto_order_search": {
             "timing": {
-              "seconds": 0.252025,
+              "seconds": 0.252332,
               "min_sec": "00:00.3",
               "skipped": false
             },
             "orders_tested": 50
           },
           "auto_order_final_fit_total": {
-            "seconds": 0.002334,
+            "seconds": 0.002395,
             "min_sec": "00:00.0",
             "skipped": false
           },
           "matrix_pencil_total": {
-            "seconds": 3.481518,
-            "min_sec": "00:03.5",
+            "seconds": 3.564099,
+            "min_sec": "00:03.6",
             "skipped": false
           },
           "total_signal": {
-            "seconds": 3.48251,
-            "min_sec": "00:03.5",
+            "seconds": 3.565299,
+            "min_sec": "00:03.6",
             "skipped": false
           },
           "tau_details": {
@@ -1117,7 +1101,7 @@
               "selected_order": 5,
               "order_search_shared_across_taus": true,
               "final_fit": {
-                "seconds": 0.002334,
+                "seconds": 0.002395,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
@@ -1135,69 +1119,69 @@
         },
         "Active Power": {
           "preprocessing": {
-            "seconds": 0.000773,
+            "seconds": 0.00076,
             "min_sec": "00:00.0",
             "skipped": false
           },
           "prepare_matrix_pencil": {
-            "seconds": 3.176821,
-            "min_sec": "00:03.2",
+            "seconds": 3.280262,
+            "min_sec": "00:03.3",
             "skipped": false
           },
           "fixed_orders_total": {
-            "seconds": 0.005676,
+            "seconds": 0.006231,
             "min_sec": "00:00.0",
             "skipped": false
           },
           "fixed_order_details": {
             "2": {
               "final_fit": {
-                "seconds": 0.001249,
+                "seconds": 0.001299,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
             },
             "4": {
               "final_fit": {
-                "seconds": 0.001712,
+                "seconds": 0.002133,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
             },
             "6": {
               "final_fit": {
-                "seconds": 0.002715,
+                "seconds": 0.0028,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
             }
           },
           "auto_order_search_total": {
-            "seconds": 0.25035,
+            "seconds": 0.256057,
             "min_sec": "00:00.3",
             "skipped": false
           },
           "auto_order_search": {
             "timing": {
-              "seconds": 0.250344,
+              "seconds": 0.256051,
               "min_sec": "00:00.3",
               "skipped": false
             },
             "orders_tested": 50
           },
           "auto_order_final_fit_total": {
-            "seconds": 0.002181,
+            "seconds": 0.002385,
             "min_sec": "00:00.0",
             "skipped": false
           },
           "matrix_pencil_total": {
-            "seconds": 3.435027,
-            "min_sec": "00:03.4",
+            "seconds": 3.544934,
+            "min_sec": "00:03.5",
             "skipped": false
           },
           "total_signal": {
-            "seconds": 3.436111,
-            "min_sec": "00:03.4",
+            "seconds": 3.54601,
+            "min_sec": "00:03.5",
             "skipped": false
           },
           "tau_details": {
@@ -1214,7 +1198,7 @@
               "selected_order": 5,
               "order_search_shared_across_taus": true,
               "final_fit": {
-                "seconds": 0.002181,
+                "seconds": 0.002385,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
@@ -1232,17 +1216,17 @@
         },
         "Reactive Power": {
           "preprocessing": {
-            "seconds": 0.000724,
+            "seconds": 0.000848,
             "min_sec": "00:00.0",
             "skipped": false
           },
           "prepare_matrix_pencil": {
-            "seconds": 3.216921,
-            "min_sec": "00:03.2",
+            "seconds": 3.292961,
+            "min_sec": "00:03.3",
             "skipped": false
           },
           "fixed_orders_total": {
-            "seconds": 0.005879,
+            "seconds": 0.005941,
             "min_sec": "00:00.0",
             "skipped": false
           },
@@ -1256,45 +1240,45 @@
             },
             "4": {
               "final_fit": {
-                "seconds": 0.00188,
+                "seconds": 0.001868,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
             },
             "6": {
               "final_fit": {
-                "seconds": 0.002705,
+                "seconds": 0.002778,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
             }
           },
           "auto_order_search_total": {
-            "seconds": 0.249136,
-            "min_sec": "00:00.2",
+            "seconds": 0.25077,
+            "min_sec": "00:00.3",
             "skipped": false
           },
           "auto_order_search": {
             "timing": {
-              "seconds": 0.249131,
-              "min_sec": "00:00.2",
+              "seconds": 0.250763,
+              "min_sec": "00:00.3",
               "skipped": false
             },
             "orders_tested": 50
           },
           "auto_order_final_fit_total": {
-            "seconds": 0.003128,
+            "seconds": 0.003111,
             "min_sec": "00:00.0",
             "skipped": false
           },
           "matrix_pencil_total": {
-            "seconds": 3.475064,
-            "min_sec": "00:03.5",
+            "seconds": 3.552783,
+            "min_sec": "00:03.6",
             "skipped": false
           },
           "total_signal": {
-            "seconds": 3.476048,
-            "min_sec": "00:03.5",
+            "seconds": 3.553914,
+            "min_sec": "00:03.6",
             "skipped": false
           },
           "tau_details": {
@@ -1320,7 +1304,7 @@
               "selected_order": 7,
               "order_search_shared_across_taus": true,
               "final_fit": {
-                "seconds": 0.003128,
+                "seconds": 0.003111,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
@@ -1331,69 +1315,69 @@
       "g4": {
         "Voltage": {
           "preprocessing": {
-            "seconds": 0.000705,
+            "seconds": 0.00096,
             "min_sec": "00:00.0",
             "skipped": false
           },
           "prepare_matrix_pencil": {
-            "seconds": 3.238517,
-            "min_sec": "00:03.2",
+            "seconds": 3.320509,
+            "min_sec": "00:03.3",
             "skipped": false
           },
           "fixed_orders_total": {
-            "seconds": 0.006222,
+            "seconds": 0.006023,
             "min_sec": "00:00.0",
             "skipped": false
           },
           "fixed_order_details": {
             "2": {
               "final_fit": {
-                "seconds": 0.001445,
+                "seconds": 0.001465,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
             },
             "4": {
               "final_fit": {
-                "seconds": 0.002013,
+                "seconds": 0.001847,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
             },
             "6": {
               "final_fit": {
-                "seconds": 0.002763,
+                "seconds": 0.002712,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
             }
           },
           "auto_order_search_total": {
-            "seconds": 0.253381,
+            "seconds": 0.251924,
             "min_sec": "00:00.3",
             "skipped": false
           },
           "auto_order_search": {
             "timing": {
-              "seconds": 0.253374,
+              "seconds": 0.251918,
               "min_sec": "00:00.3",
               "skipped": false
             },
             "orders_tested": 50
           },
           "auto_order_final_fit_total": {
-            "seconds": 0.00313,
+            "seconds": 0.00293,
             "min_sec": "00:00.0",
             "skipped": false
           },
           "matrix_pencil_total": {
-            "seconds": 3.501249,
-            "min_sec": "00:03.5",
+            "seconds": 3.581386,
+            "min_sec": "00:03.6",
             "skipped": false
           },
           "total_signal": {
-            "seconds": 3.502193,
-            "min_sec": "00:03.5",
+            "seconds": 3.582627,
+            "min_sec": "00:03.6",
             "skipped": false
           },
           "tau_details": {
@@ -1410,7 +1394,7 @@
               "selected_order": 7,
               "order_search_shared_across_taus": true,
               "final_fit": {
-                "seconds": 0.00313,
+                "seconds": 0.00293,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
@@ -1428,69 +1412,69 @@
         },
         "Current": {
           "preprocessing": {
-            "seconds": 0.00095,
+            "seconds": 0.000774,
             "min_sec": "00:00.0",
             "skipped": false
           },
           "prepare_matrix_pencil": {
-            "seconds": 3.224442,
-            "min_sec": "00:03.2",
+            "seconds": 3.332515,
+            "min_sec": "00:03.3",
             "skipped": false
           },
           "fixed_orders_total": {
-            "seconds": 0.005848,
+            "seconds": 0.005975,
             "min_sec": "00:00.0",
             "skipped": false
           },
           "fixed_order_details": {
             "2": {
               "final_fit": {
-                "seconds": 0.001324,
+                "seconds": 0.001289,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
             },
             "4": {
               "final_fit": {
-                "seconds": 0.001861,
+                "seconds": 0.001843,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
             },
             "6": {
               "final_fit": {
-                "seconds": 0.002664,
+                "seconds": 0.002843,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
             }
           },
           "auto_order_search_total": {
-            "seconds": 0.252823,
+            "seconds": 0.251809,
             "min_sec": "00:00.3",
             "skipped": false
           },
           "auto_order_search": {
             "timing": {
-              "seconds": 0.252816,
+              "seconds": 0.251803,
               "min_sec": "00:00.3",
               "skipped": false
             },
             "orders_tested": 50
           },
           "auto_order_final_fit_total": {
-            "seconds": 0.002328,
+            "seconds": 0.002462,
             "min_sec": "00:00.0",
             "skipped": false
           },
           "matrix_pencil_total": {
-            "seconds": 3.485441,
-            "min_sec": "00:03.5",
+            "seconds": 3.592761,
+            "min_sec": "00:03.6",
             "skipped": false
           },
           "total_signal": {
-            "seconds": 3.486847,
-            "min_sec": "00:03.5",
+            "seconds": 3.593849,
+            "min_sec": "00:03.6",
             "skipped": false
           },
           "tau_details": {
@@ -1507,7 +1491,7 @@
               "selected_order": 5,
               "order_search_shared_across_taus": true,
               "final_fit": {
-                "seconds": 0.002328,
+                "seconds": 0.002462,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
@@ -1525,24 +1509,24 @@
         },
         "Active Power": {
           "preprocessing": {
-            "seconds": 0.00078,
+            "seconds": 0.000736,
             "min_sec": "00:00.0",
             "skipped": false
           },
           "prepare_matrix_pencil": {
-            "seconds": 3.261144,
+            "seconds": 3.258361,
             "min_sec": "00:03.3",
             "skipped": false
           },
           "fixed_orders_total": {
-            "seconds": 0.005815,
+            "seconds": 0.005868,
             "min_sec": "00:00.0",
             "skipped": false
           },
           "fixed_order_details": {
             "2": {
               "final_fit": {
-                "seconds": 0.001272,
+                "seconds": 0.001304,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
@@ -1556,37 +1540,37 @@
             },
             "6": {
               "final_fit": {
-                "seconds": 0.002741,
+                "seconds": 0.002762,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
             }
           },
           "auto_order_search_total": {
-            "seconds": 0.251544,
+            "seconds": 0.251073,
             "min_sec": "00:00.3",
             "skipped": false
           },
           "auto_order_search": {
             "timing": {
-              "seconds": 0.251539,
+              "seconds": 0.251067,
               "min_sec": "00:00.3",
               "skipped": false
             },
             "orders_tested": 50
           },
           "auto_order_final_fit_total": {
-            "seconds": 0.005398,
+            "seconds": 0.007491,
             "min_sec": "00:00.0",
             "skipped": false
           },
           "matrix_pencil_total": {
-            "seconds": 3.523901,
+            "seconds": 3.522793,
             "min_sec": "00:03.5",
             "skipped": false
           },
           "total_signal": {
-            "seconds": 3.525007,
+            "seconds": 3.523841,
             "min_sec": "00:03.5",
             "skipped": false
           },
@@ -1604,7 +1588,7 @@
               "selected_order": 5,
               "order_search_shared_across_taus": true,
               "final_fit": {
-                "seconds": 0.002267,
+                "seconds": 0.003764,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
@@ -1613,7 +1597,7 @@
               "selected_order": 7,
               "order_search_shared_across_taus": true,
               "final_fit": {
-                "seconds": 0.003131,
+                "seconds": 0.003727,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
@@ -1622,51 +1606,51 @@
         },
         "Reactive Power": {
           "preprocessing": {
-            "seconds": 0.000931,
+            "seconds": 0.000824,
             "min_sec": "00:00.0",
             "skipped": false
           },
           "prepare_matrix_pencil": {
-            "seconds": 3.216056,
-            "min_sec": "00:03.2",
+            "seconds": 3.266696,
+            "min_sec": "00:03.3",
             "skipped": false
           },
           "fixed_orders_total": {
-            "seconds": 0.005876,
+            "seconds": 0.006039,
             "min_sec": "00:00.0",
             "skipped": false
           },
           "fixed_order_details": {
             "2": {
               "final_fit": {
-                "seconds": 0.001296,
+                "seconds": 0.001297,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
             },
             "4": {
               "final_fit": {
-                "seconds": 0.00176,
+                "seconds": 0.00189,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
             },
             "6": {
               "final_fit": {
-                "seconds": 0.00282,
+                "seconds": 0.002852,
                 "min_sec": "00:00.0",
                 "skipped": false
               }
             }
           },
           "auto_order_search_total": {
-            "seconds": 0.252658,
+            "seconds": 0.251682,
             "min_sec": "00:00.3",
             "skipped": false
           },
           "auto_order_search": {
             "timing": {
-              "seconds": 0.252652,
+              "seconds": 0.251677,
               "min_sec": "00:00.3",
               "skipped": false
             },
@@ -1678,12 +1662,12 @@
             "skipped": false
           },
           "matrix_pencil_total": {
-            "seconds": 3.474591,
+            "seconds": 3.524417,
             "min_sec": "00:03.5",
             "skipped": false
           },
           "total_signal": {
-            "seconds": 3.475775,
+            "seconds": 3.525494,
             "min_sec": "00:03.5",
             "skipped": false
           },
@@ -1720,50 +1704,50 @@
       }
     },
     "plotting": {
-      "seconds": 25.215166,
-      "min_sec": "00:25.2",
+      "seconds": 26.379929,
+      "min_sec": "00:26.4",
       "skipped": false
     },
     "comprehensive_report": {
-      "seconds": 10.801156,
+      "seconds": 10.776445,
       "min_sec": "00:10.8",
       "skipped": false
     },
     "clustering": {
-      "seconds": 12.611106,
-      "min_sec": "00:12.6",
+      "seconds": 13.215165,
+      "min_sec": "00:13.2",
       "skipped": false
     },
     "clustering_details": {
       "screen_and_load": {
-        "seconds": 0.003804,
+        "seconds": 0.00386,
         "min_sec": "00:00.0",
         "skipped": false
       },
       "reference_mad": {
-        "seconds": 0.012111,
+        "seconds": 0.0137,
         "min_sec": "00:00.0",
         "skipped": false
       },
       "kmeans": {
-        "seconds": 5.963819,
-        "min_sec": "00:06.0",
+        "seconds": 6.563387,
+        "min_sec": "00:06.6",
         "skipped": false
       },
       "kmedoids": {
-        "seconds": 4.649416,
+        "seconds": 4.642515,
         "min_sec": "00:04.6",
         "skipped": false
       },
       "silhouette": {
-        "seconds": 1.981951,
+        "seconds": 1.991699,
         "min_sec": "00:02.0",
         "skipped": false
       }
     },
     "scenario_total": {
-      "seconds": 104.766354,
-      "min_sec": "01:44.8",
+      "seconds": 107.928705,
+      "min_sec": "01:47.9",
       "skipped": false
     }
   }

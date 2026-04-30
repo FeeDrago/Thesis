@@ -123,8 +123,6 @@ for gen in generators:
         signal_col = filter_signal(signal_col, time_col, fc=10, N=15)
         signal_reference = signal_col.copy()
         mean_after_lpf = np.mean(signal_col)
-        signal_col = signal_col - np.mean(signal_col)
-        mean_after_demean = np.mean(signal_col)
         preprocess_elapsed = time.perf_counter() - preprocess_start
 
         preprocessed_signals.setdefault(gen, {})[signal] = {
@@ -142,7 +140,6 @@ for gen in generators:
             "Signal": signal,
             "Mean after detrend": float(mean_after_detrend),
             "Mean after LPF": float(mean_after_lpf),
-            "Mean after demean": float(mean_after_demean),
         })
 
         # Fixed Orders

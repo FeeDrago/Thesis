@@ -1,0 +1,11 @@
+{
+  "run_label": "wsl_legacy_gt_01",
+  "seed": 0,
+  "cases": [
+    "two_mode_clean",
+    "two_mode_noisy",
+    "three_mode_noisy_close"
+  ],
+  "mode_freq_eps_hz": 1e-06,
+  "implementation": "legacy_professor_style"
+}

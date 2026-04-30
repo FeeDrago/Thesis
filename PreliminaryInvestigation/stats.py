@@ -67,7 +67,6 @@ def generate_preliminary_report_stats(path, preprocessed_signals=None):
                 mask = t_f > 0.2
                 t = t_f[mask].copy() - t_f[mask][0]
                 y_ref = filter_signal(detrend(raw_df[col].values[mask]), t, fc=10)
-                y_ref = y_ref - np.mean(y_ref)
 
                 # No Time Mask
                 # t_f = raw_df.iloc[:, 0].values

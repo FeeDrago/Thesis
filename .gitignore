@@ -229,11 +229,13 @@ IEEE39/results/**
 !IEEE39/results/**/g*.csv
 !IEEE39/results/**/scenario.json
 
-# Analysis: keep CSVs and analysis configs; keep plots and other generated artifacts local.
+# Analysis: keep only the main scenario outputs; keep all other generated artifacts local.
 IEEE39/analysis/**
-!IEEE39/analysis/**/
-!IEEE39/analysis/**/*.csv
-!IEEE39/analysis/**/*.json
+!IEEE39/analysis/*/
+!IEEE39/analysis/*/analysis_config.json
+!IEEE39/analysis/*/results.csv
+!IEEE39/analysis/*/stats/
+!IEEE39/analysis/*/stats/comprehensive_report.csv
 
 # Preliminary Investigation: keep PDFs/CSVs/JSONs, ignore generated PNGs.
 PreliminaryInvestigation/**/*.png

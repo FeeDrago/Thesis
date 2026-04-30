@@ -119,7 +119,6 @@ def _preprocess_signal(t, y, case):
         fc=float(case.get("filter_fc_hz", 10.0)),
         N=int(case.get("filter_order", 15)),
     )
-    y_proc = y_proc - np.mean(y_proc)
     return t_proc, y_proc
 
 

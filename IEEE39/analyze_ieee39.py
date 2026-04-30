@@ -544,7 +544,6 @@ def _preprocess_signal(df, column_name, scenario):
     y = detrend(y)
     filter_config = scenario.get("filter", {"fc": 10, "N": 15})
     y = filter_signal(y, t, fc=float(filter_config.get("fc", 10)), N=int(filter_config.get("N", 15)))
-    y = y - np.mean(y)
 
     return t, y
 
@@ -807,8 +806,6 @@ def run_matrix_pencil_for_scenario(name, scenario):
             mean_after_detrend = float(np.mean(y))
             y = filter_signal(y, t, fc=float(filter_config.get("fc", 10)), N=int(filter_config.get("N", 15)))
             mean_after_lpf = float(np.mean(y))
-            y = y - np.mean(y)
-            mean_after_demean = float(np.mean(y))
             preprocess_elapsed = time.perf_counter() - preprocess_start
 
             prepare_start = time.perf_counter()
@@ -821,7 +818,6 @@ def run_matrix_pencil_for_scenario(name, scenario):
                 "Signal": signal,
                 "Mean after detrend": mean_after_detrend,
                 "Mean after LPF": mean_after_lpf,
-                "Mean after demean": mean_after_demean,
             })
 
             fixed_order_elapsed = 0.0
