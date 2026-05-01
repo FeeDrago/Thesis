@@ -18,7 +18,7 @@ def build_arg_parser():
     parser.add_argument("--skip-plots", action="store_true", help="Do not generate IEEE39 modal maps and reconstruction plots.")
     parser.add_argument("--data-dir", default=None, help="Data directory relative to IEEE39, or an absolute path. Use with one scenario.")
     parser.add_argument("--output-dir", default=None, help="Output directory relative to IEEE39, or an absolute path. Use with one scenario.")
-    parser.add_argument("--time-start", type=float, default=None, help="Inclusive analysis start time in seconds. Default: 0.2.")
+    parser.add_argument("--time-start", type=float, default=None, help="Inclusive analysis start time in seconds. Default: 0.")
     parser.add_argument("--time-end", type=float, default=None, help="Inclusive analysis end time in seconds. Default: last CSV timestamp.")
     parser.add_argument("--no-reset-time", action="store_true", help="Do not shift the selected time window to start at zero.")
     parser.add_argument("--generators", nargs="+", default=None, help="Optional generator subset, e.g. g1 g2 g3.")
@@ -92,7 +92,7 @@ COLUMNS = {
 
 IEEE39_GENERATORS = [f"g{i}" for i in range(1, 11)]
 AUTO_ORDER_DECIMATION = 10
-DEFAULT_TIME_START_S = 0.2
+DEFAULT_TIME_START_S = 0.0
 MODE_FREQ_EPS_HZ = 1e-6
 RECON_X_LIMS = (0, 50)
 RECON_TICK_LABEL_SIZE = 30
@@ -543,6 +543,7 @@ def _preprocess_signal(df, column_name, scenario):
     y = y[valid]
     y = detrend(y)
     filter_config = scenario.get("filter", {"fc": 10, "N": 15})
+    # Keep preprocessing identical for identification and reconstruction: detrend + LPF only.
     y = filter_signal(y, t, fc=float(filter_config.get("fc", 10)), N=int(filter_config.get("N", 15)))
 
     return t, y
@@ -804,6 +805,7 @@ def run_matrix_pencil_for_scenario(name, scenario):
             y = signal_col[valid]
             y = detrend(y)
             mean_after_detrend = float(np.mean(y))
+            # Keep the filtered signal as-is; do not apply mean subtraction after LPF.
             y = filter_signal(y, t, fc=float(filter_config.get("fc", 10)), N=int(filter_config.get("N", 15)))
             mean_after_lpf = float(np.mean(y))
             preprocess_elapsed = time.perf_counter() - preprocess_start
