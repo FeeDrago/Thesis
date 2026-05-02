@@ -11,15 +11,20 @@ def build_arg_parser():
     parser.add_argument("--scenario", nargs="+", default=["all"], help="Scenario keys, existing results folder names, custom scenario names with --data-dir, or 'all'.")
     parser.add_argument("--list-scenarios", action="store_true", help="Print available scenario keys and exit.")
     parser.add_argument("--list-analysis", action="store_true", help="Print existing IEEE39 analysis folders and exit.")
-    parser.add_argument("--skip-clustering", action="store_true", help="Only run Matrix Pencil extraction.")
+    parser.set_defaults(skip_clustering=True, skip_plots=True)
+    parser.add_argument("--skip-clustering", dest="skip_clustering", action="store_true", help="Skip clustering output (default).")
+    parser.add_argument("--clustering", dest="skip_clustering", action="store_false", help="Enable clustering output.")
     parser.add_argument("--clustering-scope", choices=["both", "global", "areas", "none"], default="areas", help="Choose clustering output scope. Default: areas.")
     parser.add_argument("--skip-matrix-pencil", action="store_true", help="Reuse an existing results.csv instead of recomputing Matrix Pencil poles.")
     parser.add_argument("--analysis-dir", default=None, help="Existing analysis directory to use with --skip-matrix-pencil.")
-    parser.add_argument("--skip-plots", action="store_true", help="Do not generate IEEE39 modal maps and reconstruction plots.")
+    parser.add_argument("--skip-plots", dest="skip_plots", action="store_true", help="Skip IEEE39 modal maps and reconstruction plots (default).")
+    parser.add_argument("--plots", dest="skip_plots", action="store_false", help="Enable IEEE39 modal maps and reconstruction plots.")
     parser.add_argument("--data-dir", default=None, help="Data directory relative to IEEE39, or an absolute path. Use with one scenario.")
     parser.add_argument("--output-dir", default=None, help="Output directory relative to IEEE39, or an absolute path. Use with one scenario.")
     parser.add_argument("--time-start", type=float, default=None, help="Inclusive analysis start time in seconds. Default: 0.")
     parser.add_argument("--time-end", type=float, default=None, help="Inclusive analysis end time in seconds. Default: last CSV timestamp.")
+    parser.add_argument("--time-cross", choices=["global", "per-signal"], default=None, help="Start analysis after the first zero crossing of the detrended and filtered signal. 'global' uses one common start across all selected signals, while 'per-signal' resolves a separate start for each signal. When combined with --time-start, the value is treated as an offset after the detected zero crossing.")
+    parser.add_argument("--time-cross-reference", default=None, help="Optional reference signal for --time-cross global, in the form g2:Current or g2:'Active Power'. If omitted, global mode uses the latest first zero crossing across all selected signals.")
     parser.add_argument("--no-reset-time", action="store_true", help="Do not shift the selected time window to start at zero.")
     parser.add_argument("--generators", nargs="+", default=None, help="Optional generator subset, e.g. g1 g2 g3.")
     parser.add_argument("--signals", nargs="+", default=None, help="Optional signal subset by label or CSV column, e.g. Voltage 'Active Power' or 's:P1 in MW'.")
@@ -37,6 +42,8 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.signal import detrend
+
+from analysis_evaluator import update_analysis_config_with_evaluation
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -190,6 +197,22 @@ def _time_mask_suffix(time_mask):
     return f"{start_part}_to_{end_part}_{reset_part}"
 
 
+def _time_cross_suffix(time_mask, time_cross):
+    time_mask = time_mask or {}
+    time_cross = time_cross or {}
+    end = time_mask.get("end_inclusive", time_mask.get("end"))
+    reset = time_mask.get("reset_time", True)
+    mode = _sanitize_suffix_part(time_cross.get("mode", "global"))
+    offset = _format_time_value(time_cross.get("offset_s", 0.0))
+    reference = time_cross.get("reference")
+    end_part = _format_time_value(end) if end is not None else "end"
+    reset_part = "reset" if reset else "noreset"
+    ref_part = ""
+    if reference:
+        ref_part = f"_ref-{_sanitize_suffix_part(reference.get('generator'))}-{_sanitize_suffix_part(reference.get('signal'))}"
+    return f"tcross-{mode}{ref_part}_off{offset}_to_{end_part}_{reset_part}"
+
+
 def _sanitize_suffix_part(value):
     return str(value).strip().lower().replace(" ", "_").replace(":", "").replace("/", "_")
 
@@ -213,7 +236,11 @@ def _analysis_output_dir(scenario):
     if scenario.get("output_dir_explicit"):
         return output_dir
 
-    base_name = f"{output_dir.name}_{_time_mask_suffix(scenario.get('time_mask'))}"
+    if scenario.get("time_cross"):
+        time_suffix = _time_cross_suffix(scenario.get("time_mask"), scenario.get("time_cross"))
+    else:
+        time_suffix = _time_mask_suffix(scenario.get("time_mask"))
+    base_name = f"{output_dir.name}_{time_suffix}"
     selection_suffix = _selection_suffix(scenario)
     if selection_suffix:
         base_name = f"{base_name}_{selection_suffix}"
@@ -271,6 +298,200 @@ def _time_mask_bound(mask_config, inclusive_key, exclusive_key):
     return None
 
 
+def _scenario_cache(scenario):
+    return scenario.setdefault("_runtime_cache", {})
+
+
+def _time_cross_config(scenario):
+    return scenario.get("time_cross") or None
+
+
+def _signal_cache_key(gen, column_name):
+    return f"{gen}:{column_name}"
+
+
+def _detect_first_zero_cross_time(t, y):
+    t = np.asarray(t, dtype=float)
+    y = np.asarray(y, dtype=float)
+    if t.size < 2 or y.size < 2:
+        return None
+
+    for idx in range(t.size - 1):
+        y0 = float(y[idx])
+        y1 = float(y[idx + 1])
+        t0 = float(t[idx])
+        t1 = float(t[idx + 1])
+
+        if y0 == 0.0:
+            return t0
+        if y1 == 0.0:
+            return t1
+        if y0 * y1 < 0.0:
+            frac = -y0 / (y1 - y0)
+            return t0 + frac * (t1 - t0)
+
+    return None
+
+
+def _prepare_filtered_full_signal(df, column_name, scenario, gen):
+    cache = _scenario_cache(scenario).setdefault("full_filtered_signals", {})
+    cache_key = _signal_cache_key(gen, column_name)
+    if cache_key in cache:
+        return cache[cache_key]
+
+    time_all = df.iloc[:, 0].to_numpy(dtype=float)
+    signal_all = df[column_name].to_numpy(dtype=float)
+    valid = np.isfinite(time_all) & np.isfinite(signal_all)
+    if np.count_nonzero(valid) < 4:
+        raise SystemExit(f"Not enough finite samples for {gen} {column_name} to resolve time-cross.")
+
+    t_full = time_all[valid].copy()
+    y_full = signal_all[valid].copy()
+    y_detrended = detrend(y_full)
+    mean_after_detrend = float(np.mean(y_detrended))
+    filter_config = scenario.get("filter", {"fc": 10, "N": 15})
+    y_filtered = filter_signal(
+        y_detrended,
+        t_full,
+        fc=float(filter_config.get("fc", 10)),
+        N=int(filter_config.get("N", 15)),
+    )
+    prepared = {
+        "t": t_full,
+        "y": y_filtered,
+        "mean_after_detrend": mean_after_detrend,
+        "mean_after_lpf": float(np.mean(y_filtered)),
+    }
+    cache[cache_key] = prepared
+    return prepared
+
+
+def _resolve_time_cross_summary(scenario):
+    time_cross = _time_cross_config(scenario)
+    if time_cross is None:
+        return None
+
+    cache = _scenario_cache(scenario)
+    cached = cache.get("time_cross_summary")
+    if cached is not None:
+        return cached
+
+    data_dir, _, _, generators, columns = _scenario_runtime_config(scenario)
+    offset_s = float(time_cross.get("offset_s", 0.0))
+    end_s = _time_mask_bound(scenario.get("time_mask") or {}, "end_inclusive", "end")
+    reference = time_cross.get("reference")
+
+    signal_entries = []
+    for gen in generators:
+        csv_path = data_dir / f"{gen}.csv"
+        if not csv_path.exists():
+            continue
+        df = _read_numeric_csv(csv_path)
+        for column_name, signal_label in columns.items():
+            if column_name not in df.columns:
+                continue
+            prepared = _prepare_filtered_full_signal(df, column_name, scenario, gen)
+            cross_time_s = _detect_first_zero_cross_time(prepared["t"], prepared["y"])
+            if cross_time_s is None:
+                raise SystemExit(
+                    f"Could not detect first zero crossing for {gen} {signal_label} in scenario '{scenario.get('name', 'analysis')}'."
+                )
+            signal_entries.append({
+                "gen": gen,
+                "column": column_name,
+                "signal": signal_label,
+                "first_zero_cross_s": float(cross_time_s),
+            })
+
+    if not signal_entries:
+        raise SystemExit("Could not resolve time-cross: no generator signals were available.")
+
+    mode = str(time_cross.get("mode", "global"))
+    if mode == "global":
+        if reference:
+            ref_matches = [
+                entry for entry in signal_entries
+                if entry["gen"] == reference.get("generator") and entry["signal"] == reference.get("signal")
+            ]
+            if not ref_matches:
+                raise SystemExit(
+                    f"Could not resolve time-cross reference {reference.get('generator')}:{reference.get('signal')} in the selected data."
+                )
+            common_cross_s = float(ref_matches[0]["first_zero_cross_s"])
+        else:
+            common_cross_s = max(entry["first_zero_cross_s"] for entry in signal_entries)
+        common_start_s = common_cross_s + offset_s
+        for entry in signal_entries:
+            entry["effective_start_s"] = float(common_start_s)
+    else:
+        common_cross_s = None
+        common_start_s = None
+        for entry in signal_entries:
+            entry["effective_start_s"] = float(entry["first_zero_cross_s"] + offset_s)
+
+    per_signal = {}
+    effective_starts = []
+    for entry in signal_entries:
+        effective_start_s = float(entry["effective_start_s"])
+        prepared = _scenario_cache(scenario)["full_filtered_signals"][_signal_cache_key(entry["gen"], entry["column"])]
+        mask = prepared["t"] >= effective_start_s
+        if end_s is not None:
+            mask &= prepared["t"] <= end_s
+        selected_count = int(np.count_nonzero(mask))
+        if selected_count < 4:
+            raise SystemExit(
+                f"Invalid time-cross for {entry['gen']} {entry['signal']}: only {selected_count} samples remain after start={effective_start_s:g}s."
+            )
+        per_signal.setdefault(entry["gen"], {})[entry["signal"]] = {
+            "first_zero_cross_s": float(entry["first_zero_cross_s"]),
+            "effective_start_s": effective_start_s,
+            "selected_samples": selected_count,
+        }
+        effective_starts.append(effective_start_s)
+
+    summary = {
+        "mode": mode,
+        "offset_s": offset_s,
+        "reference": reference,
+        "common_zero_cross_s": None if common_cross_s is None else float(common_cross_s),
+        "common_start_s": None if common_start_s is None else float(common_start_s),
+        "effective_start_range_s": {
+            "min_s": float(min(effective_starts)),
+            "max_s": float(max(effective_starts)),
+        },
+        "per_signal": per_signal,
+    }
+    cache["time_cross_summary"] = summary
+    return summary
+
+
+def _resolved_time_window_description(scenario, generators=None, columns=None):
+    time_cross = _time_cross_config(scenario)
+    end_s = _time_mask_bound(scenario.get("time_mask") or {}, "end_inclusive", "end")
+    if time_cross is None:
+        data_dir = _resolve_path(scenario["data_dir"])
+        for gen in list(generators or scenario.get("generators") or []):
+            csv_path = data_dir / f"{gen}.csv"
+            if not csv_path.exists():
+                continue
+            time_values = _read_numeric_csv(csv_path).iloc[:, 0].to_numpy(dtype=float)
+            return _time_window_description(time_values, scenario.get("time_mask"))
+        return None
+
+    summary = _resolve_time_cross_summary(scenario)
+    if summary["mode"] == "global":
+        start_s = summary["common_start_s"]
+    else:
+        start_s = None
+
+    return {
+        "start_s": start_s,
+        "end_s": end_s,
+        "start_mode": summary["mode"],
+        "offset_from_zero_cross_s": float(summary["offset_s"]),
+    }
+
+
 def _validate_time_mask_config(mask_config, scenario_name):
     mask_config = mask_config or {}
     for key in ["start", "start_inclusive", "end", "end_inclusive"]:
@@ -291,6 +512,12 @@ def _validate_time_mask_config(mask_config, scenario_name):
 
 def validate_scenario_time_window(name, scenario, generated_config=None, generators=None):
     _validate_time_mask_config(scenario.get("time_mask"), name)
+
+    if _time_cross_config(scenario) is not None:
+        summary = _resolve_time_cross_summary(scenario)
+        mode_desc = summary["mode"]
+        print(f"Resolved time-cross mode for '{name}': {mode_desc}", flush=True)
+        return
 
     data_dir = _resolve_path(scenario["data_dir"])
     generators = list(generators or scenario.get("generators") or [])
@@ -398,10 +625,11 @@ def _build_analysis_config(
     generators,
     auto_order_decimation,
     time_window,
+    resolved_time_cross,
     signal_means,
     timings=None,
 ):
-    metadata_scenario = dict(scenario)
+    metadata_scenario = {key: value for key, value in scenario.items() if not str(key).startswith("_")}
     for key in ("data_dir", "output_dir"):
         if metadata_scenario.get(key):
             metadata_scenario[key] = path_for_metadata(_resolve_path(metadata_scenario[key]))
@@ -413,6 +641,7 @@ def _build_analysis_config(
         "generators_used": generators,
         "auto_order_decimation": auto_order_decimation,
         "time_window_s": time_window,
+        "resolved_time_cross": resolved_time_cross,
         "time_reset_to_zero": scenario.get("time_mask", {}).get("reset_time", True),
         "signal_means": signal_means,
         "timings": timings or {},
@@ -522,31 +751,99 @@ def _resolve_generator_subset(generator_values):
     return [str(gen).strip() for gen in generator_values]
 
 
-def _preprocess_signal(df, column_name, scenario):
-    time_all = df.iloc[:, 0].to_numpy(dtype=float)
-    signal_all = df[column_name].to_numpy(dtype=float)
-    mask = _time_mask(time_all, scenario.get("time_mask"))
+def _resolve_time_cross_reference(raw_value, scenario):
+    if raw_value is None:
+        return None
 
+    text = str(raw_value).strip()
+    if ":" not in text:
+        raise SystemExit("--time-cross-reference must be in the form g2:Current")
+
+    generator, signal = text.split(":", 1)
+    generator = generator.strip()
+    signal = signal.strip()
+    if not generator or not signal:
+        raise SystemExit("--time-cross-reference must be in the form g2:Current")
+
+    available_generators = set(scenario.get("generators") or IEEE39_GENERATORS)
+    if generator not in available_generators:
+        available = ", ".join(sorted(available_generators))
+        raise SystemExit(f"Unknown time-cross reference generator '{generator}'. Available generators: {available}")
+
+    resolved_signals = _resolve_signal_subset([signal])
+    column_name, signal_label = next(iter(resolved_signals.items()))
+    return {
+        "generator": generator,
+        "signal": signal_label,
+        "column": column_name,
+    }
+
+
+def _preprocess_signal(df, column_name, scenario, gen, signal_label=None):
+    time_cross = _time_cross_config(scenario)
+    time_mask = scenario.get("time_mask") or {}
+    end_s = _time_mask_bound(time_mask, "end_inclusive", "end")
+
+    if time_cross is None:
+        time_all = df.iloc[:, 0].to_numpy(dtype=float)
+        signal_all = df[column_name].to_numpy(dtype=float)
+        mask = _time_mask(time_all, time_mask)
+
+        if not np.any(mask):
+            return None, None, None
+
+        t_selected = time_all[mask].copy()
+        y_selected = signal_all[mask].copy()
+        valid = np.isfinite(t_selected) & np.isfinite(y_selected)
+        if np.count_nonzero(valid) < 4:
+            return None, None, None
+
+        t_selected = t_selected[valid]
+        y_selected = y_selected[valid]
+        y_selected = detrend(y_selected)
+        filter_config = scenario.get("filter", {"fc": 10, "N": 15})
+        y_selected = filter_signal(
+            y_selected,
+            t_selected,
+            fc=float(filter_config.get("fc", 10)),
+            N=int(filter_config.get("N", 15)),
+        )
+        start_abs_s = float(t_selected[0])
+        end_abs_s = float(t_selected[-1])
+        if time_mask.get("reset_time", True):
+            t_selected = t_selected - t_selected[0]
+        return t_selected, y_selected, {
+            "first_zero_cross_s": None,
+            "effective_start_s": start_abs_s,
+            "effective_end_s": end_abs_s,
+            "selected_samples": int(t_selected.size),
+            "time_cross_mode": None,
+        }
+
+    prepared = _prepare_filtered_full_signal(df, column_name, scenario, gen)
+    summary = _resolve_time_cross_summary(scenario)
+    if signal_label is None:
+        signal_label = scenario.get("columns", COLUMNS).get(column_name, column_name)
+    signal_summary = summary["per_signal"][gen][signal_label]
+    effective_start_s = float(signal_summary["effective_start_s"])
+
+    mask = prepared["t"] >= effective_start_s
+    if end_s is not None:
+        mask &= prepared["t"] <= end_s
     if not np.any(mask):
-        return None, None
+        return None, None, None
 
-    t = time_all[mask].copy()
-    y = signal_all[mask].copy()
-    if scenario.get("time_mask", {}).get("reset_time", True):
-        t = t - t[0]
-
-    valid = np.isfinite(t) & np.isfinite(y)
-    if np.count_nonzero(valid) < 4:
-        return None, None
-
-    t = t[valid]
-    y = y[valid]
-    y = detrend(y)
-    filter_config = scenario.get("filter", {"fc": 10, "N": 15})
-    # Keep preprocessing identical for identification and reconstruction: detrend + LPF only.
-    y = filter_signal(y, t, fc=float(filter_config.get("fc", 10)), N=int(filter_config.get("N", 15)))
-
-    return t, y
+    t_selected = prepared["t"][mask].copy()
+    y_selected = prepared["y"][mask].copy()
+    if time_mask.get("reset_time", True):
+        t_selected = t_selected - t_selected[0]
+    return t_selected, y_selected, {
+        "first_zero_cross_s": float(signal_summary["first_zero_cross_s"]),
+        "effective_start_s": effective_start_s,
+        "effective_end_s": float(prepared["t"][mask][-1]),
+        "selected_samples": int(np.count_nonzero(mask)),
+        "time_cross_mode": summary["mode"],
+    }
 
 
 def _r2_score(y_true, y_pred):
@@ -598,7 +895,7 @@ def generate_ieee39_comprehensive_report(df_results, scenario):
             if source_col not in df.columns:
                 continue
 
-            t, y_ref = _preprocess_signal(df, source_col, scenario)
+            t, y_ref, _ = _preprocess_signal(df, source_col, scenario, gen, signal)
             if t is None or y_ref is None:
                 continue
 
@@ -701,7 +998,7 @@ def generate_ieee39_plots(df_results, scenario):
             if source_col not in df.columns:
                 continue
 
-            t, y_ref = _preprocess_signal(df, source_col, scenario)
+            t, y_ref, _ = _preprocess_signal(df, source_col, scenario, gen, signal)
             if t is None or y_ref is None:
                 continue
 
@@ -759,12 +1056,10 @@ def run_matrix_pencil_for_scenario(name, scenario):
     auto_order_decimation = int(
         scenario.get("auto_order_decimation", scenario.get("order_rate", AUTO_ORDER_DECIMATION))
     )
-    filter_config = scenario.get("filter", {"fc": 10, "N": 15})
-
     results = []
     stats_lines = []
     signal_timings = {}
-    time_window = None
+    time_window = _resolved_time_window_description(scenario, generators=generators, columns=columns)
 
     for gen in generators:
         csv_path = data_dir / f"{gen}.csv"
@@ -774,18 +1069,6 @@ def run_matrix_pencil_for_scenario(name, scenario):
 
         print(f"Generator: {gen}", flush=True)
         df = _read_numeric_csv(csv_path)
-        time_all = df.iloc[:, 0].to_numpy(dtype=float)
-        if time_window is None:
-            time_window = _time_window_description(time_all, scenario.get("time_mask"))
-        mask = _time_mask(time_all, scenario.get("time_mask"))
-
-        if not np.any(mask):
-            print(f"No samples left after time mask for {gen}")
-            continue
-
-        time_col = time_all[mask].copy()
-        if scenario.get("time_mask", {}).get("reset_time", True):
-            time_col = time_col - time_col[0]
 
         for col, signal in columns.items():
             if col not in df.columns:
@@ -794,20 +1077,15 @@ def run_matrix_pencil_for_scenario(name, scenario):
 
             print(f"Gen: {gen}, Signal: {signal}", flush=True)
             signal_start = time.perf_counter()
-            signal_col = df[col].to_numpy(dtype=float)[mask].copy()
-            valid = np.isfinite(time_col) & np.isfinite(signal_col)
-            if np.count_nonzero(valid) < 4:
-                print(f"Not enough finite samples for {gen} {signal}")
+            preprocess_start = time.perf_counter()
+            t, y, preprocess_meta = _preprocess_signal(df, col, scenario, gen, signal)
+            if t is None or y is None or preprocess_meta is None:
+                print(f"Not enough samples for {gen} {signal} after preprocessing window selection")
                 continue
 
-            preprocess_start = time.perf_counter()
-            t = time_col[valid]
-            y = signal_col[valid]
-            y = detrend(y)
-            mean_after_detrend = float(np.mean(y))
-            # Keep the filtered signal as-is; do not apply mean subtraction after LPF.
-            y = filter_signal(y, t, fc=float(filter_config.get("fc", 10)), N=int(filter_config.get("N", 15)))
-            mean_after_lpf = float(np.mean(y))
+            full_prepared = _prepare_filtered_full_signal(df, col, scenario, gen) if _time_cross_config(scenario) else None
+            mean_after_detrend = float(full_prepared["mean_after_detrend"]) if full_prepared is not None else float("nan")
+            mean_after_lpf = float(full_prepared["mean_after_lpf"]) if full_prepared is not None else float(np.mean(y))
             preprocess_elapsed = time.perf_counter() - preprocess_start
 
             prepare_start = time.perf_counter()
@@ -820,6 +1098,9 @@ def run_matrix_pencil_for_scenario(name, scenario):
                 "Signal": signal,
                 "Mean after detrend": mean_after_detrend,
                 "Mean after LPF": mean_after_lpf,
+                "Effective start [s]": float(preprocess_meta["effective_start_s"]),
+                "First zero cross [s]": preprocess_meta["first_zero_cross_s"],
+                "Time-cross mode": preprocess_meta["time_cross_mode"],
             })
 
             fixed_order_elapsed = 0.0
@@ -910,6 +1191,7 @@ def run_matrix_pencil_for_scenario(name, scenario):
         generators=generators,
         auto_order_decimation=auto_order_decimation,
         time_window=time_window,
+        resolved_time_cross=_resolve_time_cross_summary(scenario),
         signal_means=stats_lines,
         timings={
             "matrix_pencil": _timing_entry(mp_elapsed),
@@ -970,8 +1252,10 @@ def apply_existing_analysis_config(scenario, results_path, args):
     if not args.data_dir and config.get("data_dir"):
         scenario["data_dir"] = config["data_dir"]
 
-    if args.time_start is None and args.time_end is None and not args.no_reset_time and config.get("time_mask"):
+    if args.time_start is None and args.time_end is None and args.time_cross is None and not args.no_reset_time and config.get("time_mask"):
         scenario["time_mask"] = config["time_mask"]
+        if "time_cross" in config:
+            scenario["time_cross"] = config.get("time_cross")
 
     for key in ["filter", "columns", "fixed_orders", "taus", "auto_order_decimation", "generator_subset", "signal_subset"]:
         if key in config:
@@ -1012,12 +1296,7 @@ def load_existing_results_for_scenario(name, scenario, args):
 
     df_results = pd.read_csv(results_path)
     if config is None:
-        time_all = None
-        sample_csv = next((data_dir / f"{gen}.csv" for gen in generators if (data_dir / f"{gen}.csv").exists()), None)
-        if sample_csv is not None:
-            sample_df = _read_numeric_csv(sample_csv)
-            time_all = sample_df.iloc[:, 0].to_numpy(dtype=float)
-        time_window = _time_window_description(time_all, scenario.get("time_mask")) if time_all is not None else None
+        time_window = _resolved_time_window_description(scenario, generators=generators, columns=scenario.get("columns", COLUMNS))
         config = _build_analysis_config(
             name=name,
             scenario=scenario,
@@ -1027,6 +1306,7 @@ def load_existing_results_for_scenario(name, scenario, args):
             generators=generators,
             auto_order_decimation=int(scenario.get("auto_order_decimation", scenario.get("order_rate", AUTO_ORDER_DECIMATION))),
             time_window=time_window,
+            resolved_time_cross=_resolve_time_cross_summary(scenario),
             signal_means=[],
             timings={"matrix_pencil": _timing_entry(0.0, skipped=True), "per_generator_signal": {}},
         )
@@ -1055,25 +1335,76 @@ def list_analysis_folders():
             config = _load_json(config_path)
             time_mask = config.get("time_mask", {})
             time_window = config.get("time_window_s", {})
+            time_cross = config.get("time_cross") or {}
+            resolved_time_cross = config.get("resolved_time_cross") or {}
             reset = time_mask.get("reset_time", config.get("time_reset_to_zero"))
             start = time_mask.get("start_inclusive", time_window.get("start_s"))
             end = time_mask.get("end_inclusive", time_window.get("end_s", "end"))
+            if time_cross and resolved_time_cross.get("mode") == "global":
+                start = resolved_time_cross.get("common_start_s", start)
+            elif time_cross and resolved_time_cross.get("mode") == "per-signal":
+                start_range = resolved_time_cross.get("effective_start_range_s", {})
+                start = f"per-signal[{start_range.get('min_s')}, {start_range.get('max_s')}]"
             details.append(f"time_start={start}")
             details.append(f"time_end={end}")
             details.append(f"reset={reset}")
+            if time_cross:
+                details.append(f"time_cross={time_cross.get('mode')}")
+                details.append(f"offset={time_cross.get('offset_s', 0.0)}")
+                reference = time_cross.get("reference") or {}
+                if reference:
+                    details.append(f"reference={reference.get('generator')}:{reference.get('signal')}")
 
         suffix = f" ({', '.join(details)})" if details else ""
         print(f"{folder.name}{suffix}")
 
 
 def _scenario_from_results_folder(folder_name):
+    results_root = _resolve_path("results")
     data_dir = _resolve_path(f"results/{folder_name}")
+
     if not data_dir.exists():
-        return None
+        requested = str(folder_name).strip().lower()
+        matched_dirs = []
+        if results_root.exists():
+            for candidate in sorted(path for path in results_root.iterdir() if path.is_dir()):
+                candidate_aliases = {candidate.name.lower()}
+                scenario_json = candidate / "scenario.json"
+                if scenario_json.exists():
+                    try:
+                        config = _load_json(scenario_json)
+                    except Exception:
+                        config = None
+                    if config:
+                        load_name = str(config.get("load_name", "")).strip()
+                        if load_name:
+                            candidate_aliases.add(load_name.replace(" ", "").lower())
+                        dp = config.get("dp_percent")
+                        dq = config.get("dq_percent", 0.0)
+                        if load_name and dp is not None:
+                            candidate_aliases.add(f"{load_name.replace(' ', '').lower()}_p{float(dp):g}_q{float(dq):g}")
+                if requested in candidate_aliases:
+                    matched_dirs.append(candidate)
+
+        if not matched_dirs:
+            return None
+
+        default_alias = f"{requested}_p2_q0"
+        default_like = [path for path in matched_dirs if path.name.lower() == default_alias or path.name.lower().startswith(f"{default_alias}_")]
+        if len(default_like) == 1:
+            data_dir = default_like[0]
+        elif len(matched_dirs) == 1:
+            data_dir = matched_dirs[0]
+        else:
+            matches = ", ".join(path.name for path in matched_dirs)
+            raise SystemExit(
+                f"Ambiguous scenario alias '{folder_name}'. Multiple IEEE39/results folders match this load alias: {matches}. "
+                "Use the exact results folder name with --scenario."
+            )
 
     return {
-        "data_dir": f"results/{folder_name}",
-        "output_dir": f"analysis/{folder_name}",
+        "data_dir": path_for_metadata(data_dir),
+        "output_dir": f"analysis/{data_dir.name}",
         "time_mask": {"start_inclusive": DEFAULT_TIME_START_S, "reset_time": True},
         "generators": IEEE39_GENERATORS,
         "columns": COLUMNS,
@@ -1150,9 +1481,23 @@ def apply_cli_overrides(selected, args):
             scenario["columns"] = signal_subset
 
         time_mask = dict(scenario.get("time_mask", {}))
-        if args.time_start is not None:
+        if args.time_cross is None:
+            if args.time_start is not None:
+                time_mask.pop("start", None)
+                time_mask["start_inclusive"] = args.time_start
+            scenario.pop("time_cross", None)
+        else:
             time_mask.pop("start", None)
-            time_mask["start_inclusive"] = args.time_start
+            time_mask.pop("start_inclusive", None)
+            reference = _resolve_time_cross_reference(args.time_cross_reference, scenario)
+            if args.time_cross == "per-signal" and reference is not None:
+                raise SystemExit("--time-cross-reference can only be used with --time-cross global")
+            scenario["time_cross"] = {
+                "mode": args.time_cross,
+                "offset_s": float(args.time_start if args.time_start is not None else DEFAULT_TIME_START_S),
+                "signal_source": "detrended_filtered",
+                "reference": reference,
+            }
         if args.time_end is not None:
             time_mask.pop("end", None)
             time_mask["end_inclusive"] = args.time_end
@@ -1218,6 +1563,11 @@ def main():
         scenario_elapsed = time.time() - scenario_start
         analysis_config["timings"]["scenario_total"] = _timing_entry(scenario_elapsed)
         _save_json(output_dir / "analysis_config.json", analysis_config)
+
+        evaluation_payload = update_analysis_config_with_evaluation(output_dir)
+        analysis_config["evaluation"] = evaluation_payload
+        _save_json(output_dir / "analysis_config.json", analysis_config)
+
         print(
             f"Scenario {name} finished in "
             f"{scenario_elapsed // 60:.0f} minutes and {scenario_elapsed % 60:.1f} seconds",
