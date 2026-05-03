@@ -229,13 +229,14 @@ IEEE39/results/**
 !IEEE39/results/**/g*.csv
 !IEEE39/results/**/scenario.json
 
-# Analysis: keep only the main scenario outputs; keep all other generated artifacts local.
-IEEE39/analysis/**
-!IEEE39/analysis/*/
-!IEEE39/analysis/*/analysis_config.json
-!IEEE39/analysis/*/results.csv
-!IEEE39/analysis/*/stats/
-!IEEE39/analysis/*/stats/comprehensive_report.csv
+# Analysis outputs are generated artifacts and stay local.
+IEEE39/analysis/
 
 # Preliminary Investigation: keep PDFs/CSVs/JSONs, ignore generated PNGs.
 PreliminaryInvestigation/**/*.png
+PreliminaryInvestigation/windows results/
+PreliminaryInvestigation/wsl results/
+PreliminaryInvestigation/validation/validation_outputs/
+PreliminaryInvestigation/validation/validation_outputs_legacy/
+
+PreliminaryInvestigation/summary_modes_report.txt
