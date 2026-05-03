@@ -24,9 +24,9 @@
 
 **Επιλογή Σεναρίων:** Τα διαθέσιμα σενάρια εμφανίζονται με την εντολή `python IEEE39/generate_data.py --list-scenarios`. Η εκτέλεση γίνεται με `--scenario`, για παράδειγμα `python IEEE39/generate_data.py --scenario load29`, `python IEEE39/generate_data.py --scenario load03 load24`, ή `python IEEE39/generate_data.py --scenario all`.
 
-**Προσαρμοσμένα Σενάρια:** Μπορεί να δοθεί σενάριο απευθείας από το command line με μορφή `load_name:dp[:dq[:duration[:event_time[:name]]]]`, για παράδειγμα `python IEEE39/generate_data.py --scenario "Load 29:2:0"` ή `python IEEE39/generate_data.py --scenario "Load 24:2:0:60:0.5"`. Εναλλακτικά μπορεί να χρησιμοποιηθεί το `--case`, είτε στην παλιά μορφή `python IEEE39/generate_data.py --case "Load 24" 2 0`, είτε ως quoted spec, για παράδειγμα `python IEEE39/generate_data.py --case "Load 24:2:0:60:0.5"`.
+**Προσαρμοσμένα Σενάρια:** Μπορεί να δοθεί σενάριο απευθείας από το command line με μορφή `load_name:dp[:dq[:duration[:event_time[:name]]]]`, για παράδειγμα `python IEEE39/generate_data.py --scenario "Load 29:2:0"` ή `python IEEE39/generate_data.py --scenario "Load 24:2:0:60:0.5"`. Εναλλακτικά μπορεί να χρησιμοποιηθεί το `--case`, είτε στην μορφή `python IEEE39/generate_data.py --case "Load 24" 2 0`, είτε ως quoted spec, για παράδειγμα `python IEEE39/generate_data.py --case "Load 24:2:0:60:0.5"`.
 
-**Χρόνος Προσομοίωσης και Load Event:** Από προεπιλογή η προσομοίωση τρέχει μέχρι `50s` και το load event τοποθετείται στο `t=0`, αλλά μπορούν να αλλάξουν από command line με `--duration` και `--event-time`. Για παράδειγμα, `python IEEE39/generate_data.py --scenario load03 --duration 60 --event-time 0.5` δημιουργεί τα δεδομένα με stop time `60s` και event στο `0.5s`. Τα quoted inline specs ή `--case` specs μπορούν επίσης να ορίσουν δικό τους duration και event time, π.χ. `python IEEE39/generate_data.py --case "Load 24:2:0:60:0.5"`. Όταν το event time είναι διαφορετικό από το default, προστίθεται suffix τύπου `_evt0.5s` στο όνομα του scenario folder, ώστε να ξεχωρίζουν τα runs.
+**Χρόνος Προσομοίωσης και Load Event:** Από προεπιλογή η προσομοίωση τρέχει μέχρι `50s` και το load event τοποθετείται στο `t=0`, αλλά μπορούν να αλλάξουν από command line με `--duration` και `--event-time`. Για παράδειγμα, `python IEEE39/generate_data.py --scenario load03 --duration 60 --event-time 0.5` δημιουργεί τα δεδομένα με stop time `60s` και event στο `0.5s`. Όταν το event time είναι διαφορετικό από το default, προστίθεται suffix τύπου `_evt0.5s` στο όνομα του scenario folder, ώστε να ξεχωρίζουν τα runs.
 
 **Φάκελος Αποτελεσμάτων:** Από προεπιλογή τα αποτελέσματα γράφονται στο `IEEE39/results`. Αν χρειαστεί διαφορετικός φάκελος, μπορεί να δοθεί `--output-dir`, για παράδειγμα `python IEEE39/generate_data.py --scenario load29 --output-dir results_test`. Στο `generate_data.py`, κάθε relative path δίνεται ως relative προς τον φάκελο `IEEE39`, ενώ μπορεί να δοθεί και absolute path.
 
@@ -42,22 +42,18 @@
 
 **Στατιστικά & Διαγράμματα:** Το `comprehensive_report.csv` παράγεται πάντα στο `IEEE39/analysis/<scenario>/stats/comprehensive_report.csv`, ακόμη και όταν χρησιμοποιείται `--skip-matrix-pencil` με ήδη υπάρχον `results.csv`. Τα modal maps και τα reconstructions του IEEE39 δημιουργούνται μόνο όταν ενεργοποιείται το `--plots`. Για το `load29`, με fixed default window, τα modal maps θα βρίσκονται στο `IEEE39/analysis/Load29_Pplus2_50s_0_to_end_reset/plots/modal_maps` και τα reconstruction grids στο `IEEE39/analysis/Load29_Pplus2_50s_0_to_end_reset/plots/reconstruction_grids`. Αν χρησιμοποιούνται subsets με `--generators` ή `--signals`, το `comprehensive_report.csv` περιέχει μόνο το subset που ζητήθηκε.
 
-**Αυτόματη Αξιολόγηση Analysis Runs:** Κάθε φορά που ολοκληρώνεται το `IEEE39/analyze_ieee39.py`, ενημερώνεται αυτόματα το `analysis_config.json` του αντίστοιχου analysis folder με ένα πεδίο `evaluation`. Εκεί αποθηκεύονται:
+**Αυτόματη Αξιολόγηση Analysis Runs:** Κάθε φορά που ολοκληρώνεται το `IEEE39/analyze_ieee39.py`, προστίθεται στο `analysis_config.json` του αντίστοιχου analysis folder ένα πεδίο `evaluation`. Εκεί αποθηκεύονται:
 
 - συνοπτικά reconstruction metrics (`mean_R2`, `best_mean_R2`, `negative_R2_count` κλπ.)
 - modal identification metrics σε σχέση με τα γνωστά literature modes του IEEE39
 - οι καλύτερες mode matches για κάθε literature mode
 - το καλύτερο reconstruction ανά generator/signal
 - ένα μικρό subset με τα χειρότερα best-case reconstructions για γρήγορη επισκόπηση
-
-Με αυτόν τον τρόπο κάθε analysis folder παραμένει self-contained, χωρίς να χρειάζεται να δημιουργούνται πολλά extra output files ανά run.
-
-**Τι περιέχει το evaluation:** Το `evaluation` section του `analysis_config.json` γράφει δύο ειδών πληροφορία:
-
-- reconstruction summary: `mean_R2`, `best_mean_R2`, `negative_R2_count`, `best_*_R2`
 - modal identification summary: πόσα literature modes βρέθηκαν στα `loose`, `mid` και `strong` thresholds, ποια ήταν αυτά τα modes, και ποιο identified mode ήταν το πιο κοντινό σε κάθε reference mode της βιβλιογραφίας
 
 Άρα, για κάθε μεμονωμένο analysis folder, η βασική πηγή αλήθειας είναι πλέον το ίδιο το `analysis_config.json`.
+
+Αν θέλετε σύγκριση πολλών runs μαζί, το πιο γρήγορο αρχείο είναι το `run_summary.csv` που γράφει το `summarize_analysis_runs.py`, όπου υπάρχουν ήδη συγκεντρωμένα τα counts και τα recovered modes για κάθε run.
 
 **Standalone Evaluation for Existing Folders:** Αν θέλετε να ενημερώσετε το `analysis_config.json` παλιότερων analysis folders χωρίς να ξανατρέξετε Matrix Pencil, μπορείτε να χρησιμοποιήσετε το `python IEEE39/evaluate_analysis_folder.py --analysis-dir <folder> [<folder> ...]`. Το `--analysis-dir` δέχεται ένα ή περισσότερα analysis folder paths και, όταν δοθεί relative path, θεωρείται relative προς τον φάκελο `IEEE39`. Για παράδειγμα, `python IEEE39/evaluate_analysis_folder.py --analysis-dir analysis/Load03_Pplus2_50s_0.4_to_end_reset` θα ξαναϋπολογίσει την αξιολόγηση και θα τη γράψει μέσα στο `analysis_config.json` αυτού του folder. Το script δεν δημιουργεί ξεχωριστά output files. Ενημερώνει μόνο το πεδίο `evaluation` μέσα στο υπάρχον `analysis_config.json`.
 
@@ -66,9 +62,7 @@
 - `run_summary.csv`: ένα row ανά analysis run με reconstruction και modal-identification metrics
 - `summary.json`: compact περιγραφή του τι φίλτρα εφαρμόστηκαν, πόσα runs βρέθηκαν και ποιο run βγήκε πρώτο σε modal και reconstruction ranking
 
-Το aggregate summary script δεν αλλάζει κανένα `analysis_config.json`. Γράφει μόνο τα δικά του συγκεντρωτικά outputs στον φάκελο που δώσατε στο `--output-dir`.
-
-**Νικητές στο aggregate summary:** Το `summary.json` του aggregate script γράφει πλέον ξεχωριστά:
+**Νικητές στο aggregate summary:** Το `summary.json` του script γράφει πλέον ξεχωριστά:
 
 - `top_modal_run`
 - `top_reconstruction_run`
@@ -91,25 +85,14 @@
 
 `python IEEE39/summarize_analysis_runs.py --load load03 --dp-percent 2 --dq-percent 0 --event-time 0 --duration 50 --modal-weight 5 --reconstruction-weight 1 --output-dir analysis/summary_load03_modalheavy`
 
-Σε αυτή την περίπτωση, το `run_summary.csv` θα περιέχει και τα πεδία:
-
-- `modal_rank`
-- `reconstruction_rank`
-- `unweighted_overall_score`
-- `modal_weight`
-- `reconstruction_weight`
-- `weighted_overall_score`
-
-ώστε να φαίνεται ξεκάθαρα πώς προέκυψε τόσο η unweighted όσο και η weighted τελική κατάταξη.
-
 **Χρόνος Σημάτων:** Από προεπιλογή η ανάλυση διατηρεί όλα τα samples από `0s` και μετά μέχρι την τελευταία χρονική μέτρηση του CSV. Μετά μετατοπίζει τον χρόνο του επιλεγμένου παραθύρου ώστε το πρώτο κρατημένο sample να γίνει `t=0`.
 
 **Fixed Time Mask:** Αν χρειάζεται σταθερό παράθυρο, δίνεται `--time-start` ή/και `--time-end`. Όταν δεν χρησιμοποιείται `--time-cross`, το `--time-start` σημαίνει απόλυτο χρόνο έναρξης πάνω στον αρχικό άξονα του CSV. Για παράδειγμα, `python IEEE39/analyze_ieee39.py --scenario load29 --time-start 0.4 --time-end 20` κρατά μόνο τις γραμμές από `0.4s` έως `20s`. Αν πρέπει να διατηρηθούν οι αρχικοί χρόνοι του CSV χωρίς μετατόπιση, δίνεται `--no-reset-time`.
 
-**Time Cross:** Εναλλακτικά, μπορεί να δοθεί `--time-cross global` ή `--time-cross per-signal`. Και στις δύο περιπτώσεις η ανίχνευση του πρώτου zero crossing γίνεται πάντα πάνω στο ίδιο σήμα που θα αναλυθεί, αφού πρώτα γίνει `detrend` και μετά `low-pass filtering`. Με το `global`, αν δεν δοθεί reference signal, υπολογίζεται ο πρώτος zero crossing για κάθε επιλεγμένο generator/signal και τελικά χρησιμοποιείται ένας κοινός χρόνος έναρξης για όλο το run, ίσος με το μέγιστο από αυτά τα first-cross times. Αν δοθεί `--time-cross-reference`, τότε το global mode χρησιμοποιεί αποκλειστικά τον zero crossing του συγκεκριμένου reference signal και τον εφαρμόζει ως κοινό start σε όλο το run. Με το `per-signal`, κάθε generator/signal κρατά τον δικό του πρώτο zero crossing και αναλύεται με διαφορετικό effective start.
+**Time Cross:** Εναλλακτικά, μπορεί να δοθεί `--time-cross global` ή `--time-cross per-signal`. Και στις δύο περιπτώσεις η ανίχνευση του πρώτου zero crossing γίνεται πάντα πάνω στο ίδιο σήμα που θα αναλυθεί, αφού πρώτα γίνει `detrend` και μετά `low-pass filtering`. Με το `global`, αν δεν δοθεί reference signal, υπολογίζεται ο πρώτος zero crossing για κάθε επιλεγμένο generator/signal και τελικά χρησιμοποιείται ένας κοινός χρόνος έναρξης για όλο το run, ίσος με το μέγιστο από αυτούς τους χρόνους. Αν δοθεί `--time-cross-reference`, τότε το global mode χρησιμοποιεί αποκλειστικά τον zero crossing του συγκεκριμένου reference signal και τον εφαρμόζει ως κοινό start σε όλο το run. Με το `per-signal`, κάθε generator/signal κρατά τον δικό του πρώτο zero crossing και αναλύεται με διαφορετικό χρόνο έναρξης.
 
-**Time Cross Reference:** Το `--time-cross-reference` χρησιμοποιείται μόνο με `--time-cross global` και δέχεται μορφή όπως `g2:Current`, `g3:Voltage` ή `g2:s:cur1 in p.u.`. Με αυτόν τον τρόπο μπορείτε να δοκιμάσετε global κοινό start που προέρχεται από ένα modal-informative reference signal, αντί να αφήσετε το script να πάρει το πιο αργό first-cross από όλα τα επιλεγμένα signals.
+**Time Cross Reference:** Το `--time-cross-reference` χρησιμοποιείται μόνο με `--time-cross global` και δέχεται μορφή όπως `g2:Current`, `g3:Voltage` ή `g2:s:cur1 in p.u.`. Με αυτόν τον τρόπο μπορείτε να δοκιμάσετε global κοινό start που προέρχεται από ένα modal-relevant reference signal, αντί να αφήσετε το script να πάρει τον πιο αργό πρώτο μηδενισμό από όλα τα επιλεγμένα signals.
 
-**Time Start with Time Cross:** Όταν χρησιμοποιείται `--time-cross`, το `--time-start` δεν είναι απόλυτος χρόνος έναρξης, αλλά offset μετά τον ανιχνευμένο zero crossing. Για παράδειγμα, `python IEEE39/analyze_ieee39.py --scenario load03 --time-cross global` ξεκινά ακριβώς από τον κοινό πρώτο zero crossing, ενώ `python IEEE39/analyze_ieee39.py --scenario load03 --time-cross global --time-cross-reference g2:Current --time-start 0.2` ξεκινά `0.2s` μετά από τον zero crossing του `g2:Current` και χρησιμοποιεί αυτόν τον κοινό shifted χρόνο σε όλα τα signals. Αντίστοιχα, `python IEEE39/analyze_ieee39.py --scenario load03 --time-cross per-signal --time-start 0.1` ξεκινά κάθε signal `0.1s` μετά από τον δικό του πρώτο zero crossing.
+**Time Start with Time Cross:** Όταν χρησιμοποιείται `--time-cross`, το `--time-start` δεν είναι απόλυτος χρόνος έναρξης, αλλά offset μετά τον ανιχνευμένο zero crossing. Για παράδειγμα, `python IEEE39/analyze_ieee39.py --scenario load03 --time-cross global` ξεκινά ακριβώς από τον μέγιστο χρόνο zero crossing, ενώ `python IEEE39/analyze_ieee39.py --scenario load03 --time-cross global --time-cross-reference g2:Current --time-start 0.2` ξεκινά `0.2s` μετά από τον zero crossing του `g2:Current` και χρησιμοποιεί αυτόν τον κοινό μετατοπισμένο χρόνο σε όλα τα signals. Αντίστοιχα, `python IEEE39/analyze_ieee39.py --scenario load03 --time-cross per-signal --time-start 0.1` ξεκινά κάθε signal `0.1s` μετά από τον δικό του πρώτο zero crossing.
 
-**Time Cross Metadata:** Όταν χρησιμοποιείται `--time-cross`, το `analysis_config.json` αποθηκεύει τόσο το ζητούμενο mode (`global` ή `per-signal`) όσο και το resolved αποτέλεσμα: common zero-cross time για το global mode, resolved effective starts ανά signal, και το offset που εφαρμόστηκε από το `--time-start`.
+
