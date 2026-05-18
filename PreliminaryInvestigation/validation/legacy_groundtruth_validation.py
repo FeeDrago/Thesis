@@ -1,5 +1,4 @@
 import argparse
-import json
 from pathlib import Path
 
 import numpy as np
@@ -9,12 +8,9 @@ from groundtruth_validation import (
     DEFAULT_CASES,
     MODE_FREQ_EPS_HZ,
     _build_cases,
-    _generate_signal,
     _match_truth_to_estimates,
-    _method_specs,
-    _preprocess_signal,
     _select_oscillatory_modes,
-    _write_csv,
+    run_validation_suite,
 )
 from legacy_matrix_pencil_reference import apply_matrix_pencil_fixed_order, determine_MP_order
 
@@ -136,24 +132,6 @@ def main():
     run_dir.mkdir(parents=True, exist_ok=True)
 
     rng = np.random.default_rng(args.seed)
-    metric_rows = []
-    matched_rows = []
-    raw_mode_rows = []
-
-    for case in cases:
-        t, _, y_noisy, truth_modes = _generate_signal(case, rng)
-        t_proc, y_proc = _preprocess_signal(t, y_noisy, case)
-
-        for spec in _method_specs(case):
-            metric_row, method_matches, oscillatory_modes = _evaluate_method(case["name"], t_proc, y_proc, truth_modes, spec)
-            metric_rows.append(metric_row)
-
-            for row in method_matches:
-                matched_rows.append({"Case": case["name"], "Method": spec["method"], **row})
-
-            for row in oscillatory_modes:
-                raw_mode_rows.append({"Case": case["name"], "Method": spec["method"], **row})
-
     config = {
         "run_label": args.run_label,
         "seed": args.seed,
@@ -161,61 +139,7 @@ def main():
         "mode_freq_eps_hz": MODE_FREQ_EPS_HZ,
         "implementation": "legacy_professor_style",
     }
-    (run_dir / "run_config.json").write_text(json.dumps(config, indent=2), encoding="utf-8")
-
-    _write_csv(
-        run_dir / "case_metrics.csv",
-        metric_rows,
-        [
-            "Case",
-            "Method",
-            "Requested_Order",
-            "Selected_Order",
-            "Auto_Tau",
-            "Estimated_Mode_Count",
-            "Truth_Mode_Count",
-            "R2",
-            "RMSE",
-            "Mean_Freq_Error_Hz",
-            "Max_Freq_Error_Hz",
-            "Mean_Damping_Error",
-            "Max_Damping_Error",
-            "Mean_2D_Error",
-            "Max_2D_Error",
-            "Matched_All_Truth_Modes",
-            "Status",
-        ],
-    )
-    _write_csv(
-        run_dir / "matched_modes.csv",
-        matched_rows,
-        [
-            "Case",
-            "Method",
-            "truth_mode",
-            "truth_frequency_hz",
-            "truth_damping",
-            "estimated_mode_rank",
-            "estimated_frequency_hz",
-            "estimated_damping",
-            "frequency_error_hz",
-            "damping_error",
-            "distance_2d",
-        ],
-    )
-    _write_csv(
-        run_dir / "raw_modes.csv",
-        raw_mode_rows,
-        [
-            "Case",
-            "Method",
-            "mode_rank",
-            "frequency_hz",
-            "damping",
-            "amplitude",
-            "phase_rad",
-        ],
-    )
+    run_validation_suite(run_dir, cases, rng, _evaluate_method, config)
 
     print(f"Legacy validation run saved to: {run_dir}")
 

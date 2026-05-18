@@ -68,9 +68,53 @@ DEFAULT_CASES = [
             {"amplitude": 1.1, "sigma_abs": 0.64, "frequency_hz": 1.12, "phase_rad": 0.9},
         ],
         "fixed_orders": [3, 4, 6],
-        "taus": [1.0, 0.1],
+        "taus": [1.0, 0.1, 0.01],
         "auto_max_order": 6,
     },
+]
+
+CASE_METRIC_FIELDNAMES = [
+    "Case",
+    "Method",
+    "Requested_Order",
+    "Selected_Order",
+    "Auto_Tau",
+    "Estimated_Mode_Count",
+    "Truth_Mode_Count",
+    "R2",
+    "RMSE",
+    "Mean_Freq_Error_Hz",
+    "Max_Freq_Error_Hz",
+    "Mean_Damping_Error",
+    "Max_Damping_Error",
+    "Mean_2D_Error",
+    "Max_2D_Error",
+    "Matched_All_Truth_Modes",
+    "Status",
+]
+
+MATCHED_MODE_FIELDNAMES = [
+    "Case",
+    "Method",
+    "truth_mode",
+    "truth_frequency_hz",
+    "truth_damping",
+    "estimated_mode_rank",
+    "estimated_frequency_hz",
+    "estimated_damping",
+    "frequency_error_hz",
+    "damping_error",
+    "distance_2d",
+]
+
+RAW_MODE_FIELDNAMES = [
+    "Case",
+    "Method",
+    "mode_rank",
+    "frequency_hz",
+    "damping",
+    "amplitude",
+    "phase_rad",
 ]
 
 
@@ -306,6 +350,59 @@ def _build_cases(selected_case_names):
     return [all_cases[name] for name in selected_case_names]
 
 
+def _build_run_summary(metric_rows):
+    pass_rows = [row for row in metric_rows if row["Matched_All_Truth_Modes"]]
+    summary = {
+        "total_methods": len(metric_rows),
+        "methods_with_full_truth_match": len(pass_rows),
+        "best_methods_by_case": {},
+    }
+    for case in {row["Case"] for row in metric_rows}:
+        case_rows = [row for row in pass_rows if row["Case"] == case]
+        if not case_rows:
+            continue
+        best_row = min(case_rows, key=lambda row: (row["Mean_2D_Error"], -row["R2"]))
+        summary["best_methods_by_case"][case] = {
+            "method": best_row["Method"],
+            "selected_order": best_row["Selected_Order"],
+            "mean_freq_error_hz": best_row["Mean_Freq_Error_Hz"],
+            "max_freq_error_hz": best_row["Max_Freq_Error_Hz"],
+            "mean_damping_error": best_row["Mean_Damping_Error"],
+            "max_damping_error": best_row["Max_Damping_Error"],
+            "r2": best_row["R2"],
+            "rmse": best_row["RMSE"],
+        }
+    return summary
+
+
+def run_validation_suite(run_dir, cases, rng, evaluate_method, run_config):
+    metric_rows = []
+    matched_rows = []
+    raw_mode_rows = []
+
+    for case in cases:
+        t, _, y_noisy, truth_modes = _generate_signal(case, rng)
+        t_proc, y_proc = _preprocess_signal(t, y_noisy, case)
+
+        for spec in _method_specs(case):
+            metric_row, method_matches, oscillatory_modes = evaluate_method(case["name"], t_proc, y_proc, truth_modes, spec)
+            metric_rows.append(metric_row)
+
+            for row in method_matches:
+                matched_rows.append({"Case": case["name"], "Method": spec["method"], **row})
+
+            for row in oscillatory_modes:
+                raw_mode_rows.append({"Case": case["name"], "Method": spec["method"], **row})
+
+    (run_dir / "run_config.json").write_text(json.dumps(run_config, indent=2), encoding="utf-8")
+    _write_csv(run_dir / "case_metrics.csv", metric_rows, CASE_METRIC_FIELDNAMES)
+    _write_csv(run_dir / "matched_modes.csv", matched_rows, MATCHED_MODE_FIELDNAMES)
+    _write_csv(run_dir / "raw_modes.csv", raw_mode_rows, RAW_MODE_FIELDNAMES)
+    summary = _build_run_summary(metric_rows)
+    (run_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    return summary
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Run synthetic ground-truth Matrix Pencil validation.")
     parser.add_argument("--run-label", required=True, help="Unique label for this run, e.g. windows_run_01 or wsl_run_01")
@@ -328,108 +425,13 @@ def main():
 
     rng = np.random.default_rng(args.seed)
 
-    metric_rows = []
-    matched_rows = []
-    raw_mode_rows = []
-
-    for case in cases:
-        t, _, y_noisy, truth_modes = _generate_signal(case, rng)
-        t_proc, y_proc = _preprocess_signal(t, y_noisy, case)
-
-        for spec in _method_specs(case):
-            metric_row, method_matches, oscillatory_modes = _evaluate_method(case["name"], t_proc, y_proc, truth_modes, spec)
-            metric_rows.append(metric_row)
-
-            for row in method_matches:
-                matched_rows.append({"Case": case["name"], "Method": spec["method"], **row})
-
-            for row in oscillatory_modes:
-                raw_mode_rows.append({"Case": case["name"], "Method": spec["method"], **row})
-
     config = {
         "run_label": args.run_label,
         "seed": args.seed,
         "cases": [case["name"] for case in cases],
         "mode_freq_eps_hz": MODE_FREQ_EPS_HZ,
     }
-    (run_dir / "run_config.json").write_text(json.dumps(config, indent=2), encoding="utf-8")
-
-    _write_csv(
-        run_dir / "case_metrics.csv",
-        metric_rows,
-        [
-            "Case",
-            "Method",
-            "Requested_Order",
-            "Selected_Order",
-            "Auto_Tau",
-            "Estimated_Mode_Count",
-            "Truth_Mode_Count",
-            "R2",
-            "RMSE",
-            "Mean_Freq_Error_Hz",
-            "Max_Freq_Error_Hz",
-            "Mean_Damping_Error",
-            "Max_Damping_Error",
-            "Mean_2D_Error",
-            "Max_2D_Error",
-            "Matched_All_Truth_Modes",
-            "Status",
-        ],
-    )
-    _write_csv(
-        run_dir / "matched_modes.csv",
-        matched_rows,
-        [
-            "Case",
-            "Method",
-            "truth_mode",
-            "truth_frequency_hz",
-            "truth_damping",
-            "estimated_mode_rank",
-            "estimated_frequency_hz",
-            "estimated_damping",
-            "frequency_error_hz",
-            "damping_error",
-            "distance_2d",
-        ],
-    )
-    _write_csv(
-        run_dir / "raw_modes.csv",
-        raw_mode_rows,
-        [
-            "Case",
-            "Method",
-            "mode_rank",
-            "frequency_hz",
-            "damping",
-            "amplitude",
-            "phase_rad",
-        ],
-    )
-
-    pass_rows = [row for row in metric_rows if row["Matched_All_Truth_Modes"]]
-    summary = {
-        "total_methods": len(metric_rows),
-        "methods_with_full_truth_match": len(pass_rows),
-        "best_methods_by_case": {},
-    }
-    for case in {row["Case"] for row in metric_rows}:
-        case_rows = [row for row in pass_rows if row["Case"] == case]
-        if not case_rows:
-            continue
-        best_row = min(case_rows, key=lambda row: (row["Mean_2D_Error"], -row["R2"]))
-        summary["best_methods_by_case"][case] = {
-            "method": best_row["Method"],
-            "selected_order": best_row["Selected_Order"],
-            "mean_freq_error_hz": best_row["Mean_Freq_Error_Hz"],
-            "max_freq_error_hz": best_row["Max_Freq_Error_Hz"],
-            "mean_damping_error": best_row["Mean_Damping_Error"],
-            "max_damping_error": best_row["Max_Damping_Error"],
-            "r2": best_row["R2"],
-            "rmse": best_row["RMSE"],
-        }
-    (run_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    run_validation_suite(run_dir, cases, rng, _evaluate_method, config)
 
     print(f"Validation run saved to: {run_dir}")
     print("Files:")
