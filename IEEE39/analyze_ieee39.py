@@ -4,23 +4,65 @@ import json
 import sys
 import time
 from pathlib import Path
+from textwrap import dedent
 
 
 def build_arg_parser():
-    parser = argparse.ArgumentParser(description="Run IEEE39 Matrix Pencil and clustering analysis.")
-    parser.add_argument("--scenario", nargs="+", default=["all"], help="Scenario keys, existing results folder names, custom scenario names with --data-dir, or 'all'.")
-    parser.add_argument("--list-scenarios", action="store_true", help="Print available scenario keys and exit.")
+    parser = argparse.ArgumentParser(
+        description=(
+            "Run IEEE39 Matrix Pencil analysis on generated CSV results.\n\n"
+            "The main selector is --scenario, which can point either to a preset alias, an existing results folder,\n"
+            "or a custom label when used together with --data-dir."
+        ),
+        epilog=dedent(
+            """
+            Scenario input forms:
+              1. Preset alias: load29
+              2. Multiple preset aliases: load03 load24
+              3. All presets: all
+              4. Existing results folder name: Load29_Pplus2_50s
+              5. Custom label with explicit data path: --scenario load20_custom --data-dir results/Load20_Pplus2_50s
+
+            Examples:
+              python IEEE39/analyze_ieee39.py --scenario load29
+              python IEEE39/analyze_ieee39.py --scenario load03 load24
+              python IEEE39/analyze_ieee39.py --scenario all
+              python IEEE39/analyze_ieee39.py --scenario Load29_Pplus2_50s
+              python IEEE39/analyze_ieee39.py --scenario load20_custom --data-dir results/Load20_Pplus2_50s --output-dir analysis/Load20_Pplus2_50s
+              python IEEE39/analyze_ieee39.py --scenario load29 --time-cross global --time-cross-reference g2:Current --plots
+              python IEEE39/analyze_ieee39.py --scenario Load29_Pplus2_50s --skip-matrix-pencil --analysis-dir analysis/Load29_Pplus2_50s_0_to_end_reset
+
+            Notes:
+              - --scenario is required for actual analysis runs; the script no longer defaults silently to 'all'.
+              - If --data-dir is used, --scenario becomes just a label for the run.
+              - Without --output-dir, the analysis folder name is extended automatically with the selected time-window mode.
+              - --scenario load29 runs a fresh Matrix Pencil analysis on IEEE39/results/Load29_Pplus2_50s and writes to a derived folder under IEEE39/analysis.
+              - --skip-matrix-pencil requires --analysis-dir and reuses that folder's existing results.csv; it still regenerates reports, optional plots, and optional clustering.
+            """
+        ),
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
+    parser.add_argument(
+        "--scenario",
+        nargs="+",
+        default=None,
+        help=(
+            "Scenario selector. Accepts preset aliases like 'load29', exact IEEE39/results folder names like\n"
+            "'Load29_Pplus2_50s', custom labels used with --data-dir, or 'all'. Required unless using --list-scenarios or --list-analysis."
+        ),
+    )
+    parser.add_argument("--list-scenarios", action="store_true", help="Print the available preset scenario aliases and exit.")
     parser.add_argument("--list-analysis", action="store_true", help="Print existing IEEE39 analysis folders and exit.")
     parser.set_defaults(skip_clustering=True, skip_plots=True)
     parser.add_argument("--skip-clustering", dest="skip_clustering", action="store_true", help="Skip clustering output (default).")
     parser.add_argument("--clustering", dest="skip_clustering", action="store_false", help="Enable clustering output.")
     parser.add_argument("--clustering-scope", choices=["both", "global", "areas", "none"], default="areas", help="Choose clustering output scope. Default: areas.")
     parser.add_argument("--skip-matrix-pencil", action="store_true", help="Reuse an existing results.csv instead of recomputing Matrix Pencil poles.")
-    parser.add_argument("--analysis-dir", default=None, help="Existing analysis directory to use with --skip-matrix-pencil.")
+    parser.add_argument("--analysis-dir", default=None, help="Existing analysis directory to reuse with --skip-matrix-pencil. Relative paths are resolved from IEEE39.")
     parser.add_argument("--skip-plots", dest="skip_plots", action="store_true", help="Skip IEEE39 modal maps and reconstruction plots (default).")
     parser.add_argument("--plots", dest="skip_plots", action="store_false", help="Enable IEEE39 modal maps and reconstruction plots.")
-    parser.add_argument("--data-dir", default=None, help="Data directory relative to IEEE39, or an absolute path. Use with one scenario.")
-    parser.add_argument("--output-dir", default=None, help="Output directory relative to IEEE39, or an absolute path. Use with one scenario.")
+    parser.add_argument("--data-dir", default=None, help="Explicit input data directory relative to IEEE39, or an absolute path. Use with exactly one --scenario.")
+    parser.add_argument("--output-dir", default=None, help="Explicit output directory relative to IEEE39, or an absolute path. Use with exactly one --scenario.")
     parser.add_argument("--time-start", type=float, default=None, help="Inclusive analysis start time in seconds. Default: 0.")
     parser.add_argument("--time-end", type=float, default=None, help="Inclusive analysis end time in seconds. Default: last CSV timestamp.")
     parser.add_argument("--time-cross", choices=["global", "per-signal"], default=None, help="Start analysis after the first zero crossing of the detrended and filtered signal. 'global' uses one common start across all selected signals, while 'per-signal' resolves a separate start for each signal. When combined with --time-start, the value is treated as an offset after the detected zero crossing.")
@@ -35,8 +77,26 @@ def parse_args():
     return build_arg_parser().parse_args()
 
 
+def early_validate_cli_args(args):
+    if args.list_scenarios or args.list_analysis:
+        return
+
+    if not args.scenario:
+        raise SystemExit(
+            "Missing required --scenario. Examples: '--scenario load29', '--scenario all', or '--scenario Load29_Pplus2_50s'."
+        )
+
+    if args.skip_matrix_pencil and not args.analysis_dir:
+        raise SystemExit(
+            "--skip-matrix-pencil requires --analysis-dir so the script knows which existing analysis folder and results.csv to reuse. "
+            "Example: --scenario Load29_Pplus2_50s --skip-matrix-pencil --analysis-dir analysis/Load29_Pplus2_50s_0_to_end_reset"
+        )
+
+
 if any(arg in ("-h", "--help") for arg in sys.argv[1:]):
     parse_args()
+
+early_validate_cli_args(parse_args())
 
 import numpy as np
 import pandas as pd
@@ -1417,7 +1477,7 @@ def _scenario_from_results_folder(folder_name):
 
 
 def select_scenarios(names, allow_custom=False):
-    if not names or names == ["all"]:
+    if names == ["all"]:
         return {name: dict(scenario) for name, scenario in DEFAULT_SCENARIOS.items()}
 
     selected = {}
