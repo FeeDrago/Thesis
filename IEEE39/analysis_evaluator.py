@@ -7,15 +7,15 @@ import pandas as pd
 SCRIPT_DIR = Path(__file__).resolve().parent
 
 REFERENCE_MODES = {
-    "Mode 1": {"Frequency": 0.6062, "Damping": -0.0800},
-    "Mode 2": {"Frequency": 0.9497, "Damping": -0.1065},
-    "Mode 3": {"Frequency": 1.0312, "Damping": -0.2558},
-    "Mode 4": {"Frequency": 1.1211, "Damping": -0.3373},
-    "Mode 5": {"Frequency": 1.3155, "Damping": -0.4033},
-    "Mode 6": {"Frequency": 1.2851, "Damping": -0.3458},
-    "Mode 7": {"Frequency": 1.4953, "Damping": -0.7033},
-    "Mode 8": {"Frequency": 1.5202, "Damping": -0.6010},
-    "Mode 9": {"Frequency": 1.5468, "Damping": -0.6376},
+    "Mode 1": {"Frequency": 0.6062, "Damping": -0.0800, "relevant_generators": ["g1", "g8", "g9", "g10"]},
+    "Mode 2": {"Frequency": 0.9497, "Damping": -0.1065, "relevant_generators": ["g1", "g4", "g5", "g6", "g7", "g8", "g9"]},
+    "Mode 3": {"Frequency": 1.0312, "Damping": -0.2558, "relevant_generators": ["g2", "g3", "g4", "g5"]},
+    "Mode 4": {"Frequency": 1.1211, "Damping": -0.3373, "relevant_generators": ["g2", "g3", "g6", "g7"]},
+    "Mode 5": {"Frequency": 1.3155, "Damping": -0.4033, "relevant_generators": ["g2", "g3"]},
+    "Mode 6": {"Frequency": 1.2851, "Damping": -0.3458, "relevant_generators": ["g1", "g8", "g9"]},
+    "Mode 7": {"Frequency": 1.4953, "Damping": -0.7033, "relevant_generators": ["g4", "g5"]},
+    "Mode 8": {"Frequency": 1.5202, "Damping": -0.6010, "relevant_generators": ["g4", "g5", "g6", "g7"]},
+    "Mode 9": {"Frequency": 1.5468, "Damping": -0.6376, "relevant_generators": ["g1", "g8"]},
 }
 
 MATCH_LEVELS = {
@@ -86,12 +86,18 @@ def mode_match_rows(results_df):
     for mode_name, ref in REFERENCE_MODES.items():
         freq_ref = float(ref["Frequency"])
         damping_ref = float(ref["Damping"])
+        relevant_generators = list(ref.get("relevant_generators", []))
 
-        if filtered.empty:
+        tmp = filtered.copy()
+        if relevant_generators:
+            tmp = tmp[tmp["Gen"].isin(relevant_generators)].copy()
+
+        if tmp.empty:
             row = {
                 "mode": mode_name,
                 "reference_frequency_hz": freq_ref,
                 "reference_damping": damping_ref,
+                "relevant_generators": relevant_generators,
                 "best_gen": None,
                 "best_signal": None,
                 "best_method": None,
@@ -106,7 +112,6 @@ def mode_match_rows(results_df):
             rows.append(row)
             continue
 
-        tmp = filtered.copy()
         tmp["abs_frequency_error_hz"] = (tmp["Frequency"] - freq_ref).abs()
         tmp["abs_damping_error"] = (tmp["Damping"] - damping_ref).abs()
         tmp["distance_2d"] = (tmp["abs_frequency_error_hz"] ** 2 + tmp["abs_damping_error"] ** 2) ** 0.5
@@ -116,6 +121,7 @@ def mode_match_rows(results_df):
             "mode": mode_name,
             "reference_frequency_hz": freq_ref,
             "reference_damping": damping_ref,
+            "relevant_generators": relevant_generators,
             "best_gen": best["Gen"],
             "best_signal": best["Signal"],
             "best_method": best["Method"],

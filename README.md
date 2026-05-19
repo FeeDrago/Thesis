@@ -10,7 +10,7 @@
 **Κώδικας & Αποτελέσματα:** Περιλαμβάνονται τα αρχεία Python της ανάλυσης, καθώς και τα διαγράμματα (plots) που έχουν παραχθεί. Τα διαγράμματα είναι ήδη αποθηκευμένα, ώστε να έχετε άμεση εικόνα των αποτελεσμάτων χωρίς να χρειαστεί να εκτελέσετε τα scripts.
 
 ## Φάκελος: IEEE39
-Εδώ βρίσκεται το υλικό για την παραγωγή και την ανάλυση δεδομένων του συστήματος IEEE 39-bus.
+Εδώ βρίσκεται το υλικό για την παραγωγή και την ανάλυση δεδομένων του συστήματος IEEE 39.
 
 **Παραγωγή Δεδομένων:** Το αρχείο `IEEE39/generate_data.py` εκτελεί σενάρια στο PowerFactory και αποθηκεύει τα αποτελέσματα στον φάκελο `IEEE39/results`. Κάθε σενάριο γράφεται σε ξεχωριστό υποφάκελο και περιέχει τα αρχεία `g1.csv`, `g2.csv`, κλπ., μαζί με ένα αρχείο `scenario.json` που περιλαμβάνει το configuration και την κατάσταση εκτέλεσης του σεναρίου.
 
@@ -51,6 +51,15 @@
 - ένα μικρό subset με τα χειρότερα best-case reconstructions για γρήγορη επισκόπηση
 - modal identification summary: πόσα literature modes βρέθηκαν στα `loose`, `mid` και `strong` thresholds, ποια ήταν αυτά τα modes, και ποιο identified mode ήταν το πιο κοντινό σε κάθε reference mode της βιβλιογραφίας
 
+Επιπλέον, στο root του ίδιου `analysis_config.json` αποθηκεύονται πλέον και diagnostics για το raw Matrix Pencil output coverage, όπως:
+
+- `oscillatory_frequency_threshold_hz`
+- `result_coverage`
+- `missing_results`
+- `result_filter_diagnostics`
+
+Έτσι φαίνεται ρητά ποια `(generator, signal, method)` combinations δεν έδωσαν τελικά oscillatory poles στο `results.csv`, καθώς και αν αυτό οφείλεται π.χ. σε `missing_csv`, `missing_signal_column`, `not_enough_samples_after_preprocessing` ή `all_poles_below_frequency_threshold`.
+
 Άρα, για κάθε μεμονωμένο analysis folder, η βασική πηγή αλήθειας είναι πλέον το ίδιο το `analysis_config.json`.
 
 Αν θέλετε σύγκριση πολλών runs μαζί, το πιο γρήγορο αρχείο είναι το `run_summary.csv` που γράφει το `summarize_analysis_runs.py`, όπου υπάρχουν ήδη συγκεντρωμένα τα counts και τα recovered modes για κάθε run.
@@ -77,6 +86,18 @@
 - `top_weighted_run`
 
 Ο `top_unweighted_run` προκύπτει από απλό άθροισμα `modal_rank + reconstruction_rank`, δηλαδή χωρίς extra βάρη. Ο `top_weighted_run` προκύπτει από το `weighted_overall_score`, όπου μπορείτε να δώσετε μεγαλύτερη σημασία στο modal identification ή στο reconstruction.
+
+Το `modal_rank` προκύπτει με modal-first λογική: πρώτα ταξινομούνται τα runs με βάση τα `modal_mid_modes`, μετά τα `modal_strong_modes`, μετά τα `modal_loose_modes`, και σε ισοβαθμίες χρησιμοποιούνται ως tie-breakers τα `best_mean_R2`, `mean_R2` και `negative_R2_count`. Τα `modal_loose/mid/strong_modes` δεν μετρούν μόνο το πόσο κοντά είναι ένα identified mode σε συχνότητα και απόσβεση, αλλά ελέγχουν και αν εμφανίζεται σε γεννήτριες που συμφωνούν με τη βιβλιογραφία για το συγκεκριμένο literature mode. Το `reconstruction_rank` προκύπτει από τα `best_mean_R2`, `best_min_R2`, `mean_R2` και `negative_R2_count`. Το `best_mean_R2` είναι ο μέσος όρος του καλύτερου `R2` ανά `(generator, signal)`, δηλαδή για κάθε generator/signal κρατιέται πρώτα η μέθοδος με το μεγαλύτερο `R2` και μετά υπολογίζεται ο μέσος όρος αυτών των best-case reconstructions. Το clustering δεν συμμετέχει σε αυτό το ranking. Χρησιμοποιείται μόνο ως ξεχωριστό exploratory/post-processing output.
+
+Τα thresholds για το modal identification είναι τα εξής:
+
+| Level | Tolerance στη συχνότητα | Tolerance στην απόσβεση |
+| :---: | :---: | :---: |
+| `loose` | `0.08 Hz` | `0.15` |
+| `mid` | `0.05 Hz` | `0.10` |
+| `strong` | `0.03 Hz` | `0.05` |
+
+Άρα το `mid` είναι το βασικό πρακτικό threshold του ranking, το `strong` είναι πιο αυστηρό, ενώ το `loose` είναι πιο permissive.
 
 **Βάρη στο aggregate ranking:** Στο `summarize_analysis_runs.py` μπορείτε να δώσετε μεγαλύτερο βάρος στο modal identification με:
 

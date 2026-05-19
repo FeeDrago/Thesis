@@ -180,15 +180,15 @@ CONTROL_AREAS = {
 }
 
 IEEE39_REFERENCE_MODES = {
-    "Mode 1": {"Frequency": 0.6062, "Damping": -0.0800, "Damping_Factor": 0.0210, "Generator_Involvement": "1-9 vs. 10", "DRGA_Peak_Value": 17.8},
-    "Mode 2": {"Frequency": 0.9497, "Damping": -0.1065, "Damping_Factor": 0.0178, "Generator_Involvement": "1,8 and 9 vs. 4,5,6 and 7", "DRGA_Peak_Value": 4.3},
-    "Mode 3": {"Frequency": 1.0312, "Damping": -0.2558, "Damping_Factor": 0.0395, "Generator_Involvement": "2 and 3 vs. 4 and 5", "DRGA_Peak_Value": 2.3},
-    "Mode 4": {"Frequency": 1.1211, "Damping": -0.3373, "Damping_Factor": 0.0478, "Generator_Involvement": "2 and 3 vs. 6 and 7", "DRGA_Peak_Value": 0.8},
-    "Mode 5": {"Frequency": 1.3155, "Damping": -0.4033, "Damping_Factor": 0.0487, "Generator_Involvement": "2 vs. 3", "DRGA_Peak_Value": 2.6},
-    "Mode 6": {"Frequency": 1.2851, "Damping": -0.3458, "Damping_Factor": 0.0428, "Generator_Involvement": "1 vs. 8 and 9", "DRGA_Peak_Value": 3.0},
-    "Mode 7": {"Frequency": 1.4953, "Damping": -0.7033, "Damping_Factor": 0.0747, "Generator_Involvement": "4 vs. 5", "DRGA_Peak_Value": None},
-    "Mode 8": {"Frequency": 1.5202, "Damping": -0.6010, "Damping_Factor": 0.0628, "Generator_Involvement": "5 and 7 vs. 4 and 6", "DRGA_Peak_Value": None},
-    "Mode 9": {"Frequency": 1.5468, "Damping": -0.6376, "Damping_Factor": 0.0655, "Generator_Involvement": "1 vs. 8", "DRGA_Peak_Value": None},
+    "Mode 1": {"Frequency": 0.6062, "Damping": -0.0800, "Damping_Factor": 0.0210, "Generator_Involvement": "1-9 vs. 10", "relevant_generators": ["g1", "g8", "g9", "g10"], "DRGA_Peak_Value": 17.8},
+    "Mode 2": {"Frequency": 0.9497, "Damping": -0.1065, "Damping_Factor": 0.0178, "Generator_Involvement": "1,8 and 9 vs. 4,5,6 and 7", "relevant_generators": ["g1", "g4", "g5", "g6", "g7", "g8", "g9"], "DRGA_Peak_Value": 4.3},
+    "Mode 3": {"Frequency": 1.0312, "Damping": -0.2558, "Damping_Factor": 0.0395, "Generator_Involvement": "2 and 3 vs. 4 and 5", "relevant_generators": ["g2", "g3", "g4", "g5"], "DRGA_Peak_Value": 2.3},
+    "Mode 4": {"Frequency": 1.1211, "Damping": -0.3373, "Damping_Factor": 0.0478, "Generator_Involvement": "2 and 3 vs. 6 and 7", "relevant_generators": ["g2", "g3", "g6", "g7"], "DRGA_Peak_Value": 0.8},
+    "Mode 5": {"Frequency": 1.3155, "Damping": -0.4033, "Damping_Factor": 0.0487, "Generator_Involvement": "2 vs. 3", "relevant_generators": ["g2", "g3"], "DRGA_Peak_Value": 2.6},
+    "Mode 6": {"Frequency": 1.2851, "Damping": -0.3458, "Damping_Factor": 0.0428, "Generator_Involvement": "1 vs. 8 and 9", "relevant_generators": ["g1", "g8", "g9"], "DRGA_Peak_Value": 3.0},
+    "Mode 7": {"Frequency": 1.4953, "Damping": -0.7033, "Damping_Factor": 0.0747, "Generator_Involvement": "4 vs. 5", "relevant_generators": ["g4", "g5"], "DRGA_Peak_Value": None},
+    "Mode 8": {"Frequency": 1.5202, "Damping": -0.6010, "Damping_Factor": 0.0628, "Generator_Involvement": "5 and 7 vs. 4 and 6", "relevant_generators": ["g4", "g5", "g6", "g7"], "DRGA_Peak_Value": None},
+    "Mode 9": {"Frequency": 1.5468, "Damping": -0.6376, "Damping_Factor": 0.0655, "Generator_Involvement": "1 vs. 8", "relevant_generators": ["g1", "g8"], "DRGA_Peak_Value": None},
 }
 
 DEFAULT_SCENARIOS = {
@@ -930,6 +930,136 @@ def _reconstruct_signal(t, modes):
     return y_est
 
 
+def _result_diagnostic_methods(scenario):
+    fixed_orders = [f"Order {int(order)}" for order in scenario.get("fixed_orders", [])]
+    taus = [f"Tau {tau}" for tau in scenario.get("taus", [])]
+    return fixed_orders + taus
+
+
+def _collect_result_diagnostics(data_dir, scenario, generators, columns, df_results):
+    missing_results = []
+    methods = _result_diagnostic_methods(scenario)
+    fixed_orders = [int(order) for order in scenario.get("fixed_orders", [])]
+    taus_raw = list(scenario.get("taus", []))
+    taus = [float(tau) for tau in taus_raw]
+    auto_order_decimation = int(scenario.get("auto_order_decimation", scenario.get("order_rate", AUTO_ORDER_DECIMATION)))
+    expected = [(gen, signal, method) for gen in generators for signal in columns.values() for method in methods]
+    actual_set = {
+        (str(row.Gen), str(row.Signal), str(row.Method))
+        for row in df_results[["Gen", "Signal", "Method"]].drop_duplicates().itertuples(index=False)
+    } if not df_results.empty else set()
+    missing_combinations = [combo for combo in expected if combo not in actual_set]
+    signal_cache = {}
+    details = []
+
+    label_to_column = {label: col for col, label in columns.items()}
+
+    for gen, signal, method in missing_combinations:
+        cache_key = (gen, signal)
+        if cache_key not in signal_cache:
+            csv_path = data_dir / f"{gen}.csv"
+            if not csv_path.exists():
+                signal_cache[cache_key] = {"status": "missing_csv"}
+            else:
+                df = _read_numeric_csv(csv_path)
+                source_col = label_to_column[signal]
+                if source_col not in df.columns:
+                    signal_cache[cache_key] = {"status": "missing_signal_column"}
+                else:
+                    t, y, preprocess_meta = _preprocess_signal(df, source_col, scenario, gen, signal)
+                    if t is None or y is None or preprocess_meta is None:
+                        signal_cache[cache_key] = {"status": "not_enough_samples_after_preprocessing"}
+                    else:
+                        prepared_mp = prepare_matrix_pencil(y, t)
+                        tau_order_map = determine_MP_orders(t, y, taus, rate=auto_order_decimation) if taus else {}
+                        signal_cache[cache_key] = {
+                            "status": "ok",
+                            "selected_samples": int(preprocess_meta.get("selected_samples", len(t))),
+                            "prepared_mp": prepared_mp,
+                            "mp_fit_cache": {},
+                            "tau_order_map": tau_order_map,
+                        }
+
+        state = signal_cache[cache_key]
+        if state["status"] != "ok":
+            reason = state["status"]
+            details.append({
+                "gen": gen,
+                "signal": signal,
+                "method": method,
+                "preprocess_status": state["status"],
+                "selected_samples": 0,
+                "total_raw_poles": 0,
+                "kept_poles": 0,
+                "filtered_non_oscillatory_poles": 0,
+                "missing_result_reason": reason,
+            })
+            missing_results.append({
+                "gen": gen,
+                "signal": signal,
+                "method": method,
+                "missing_result_reason": reason,
+            })
+            continue
+
+        if method.startswith("Order "):
+            order = int(method.split(" ", 1)[1])
+        else:
+            tau_text = method.split(" ", 1)[1]
+            order = state["tau_order_map"][float(tau_text)]
+
+        freq, _, _, _, _, _ = apply_matrix_pencil_fixed_order_prepared(
+            state["prepared_mp"],
+            order=order,
+            fit_cache=state["mp_fit_cache"],
+        )
+        total_raw_poles = int(len(freq))
+        kept_poles = int(sum(1 for f in freq if f > MODE_FREQ_EPS_HZ))
+        filtered_non_oscillatory_poles = total_raw_poles - kept_poles
+        reason = "all_poles_below_frequency_threshold"
+        details.append({
+            "gen": gen,
+            "signal": signal,
+            "method": method,
+            "preprocess_status": "ok",
+            "selected_samples": int(state["selected_samples"]),
+            "total_raw_poles": total_raw_poles,
+            "kept_poles": kept_poles,
+            "filtered_non_oscillatory_poles": filtered_non_oscillatory_poles,
+            "missing_result_reason": reason,
+        })
+        missing_results.append({
+            "gen": gen,
+            "signal": signal,
+            "method": method,
+            "missing_result_reason": reason,
+        })
+
+    actual_rows = len(actual_set)
+    reason_counts = {}
+    for item in missing_results:
+        reason = item["missing_result_reason"]
+        reason_counts[reason] = reason_counts.get(reason, 0) + 1
+    return {
+        "result_coverage": {
+            "expected_case_method_rows": int(len(expected)),
+            "actual_case_method_rows": int(actual_rows),
+            "missing_case_method_rows": int(len(missing_results)),
+        },
+        "missing_results": missing_results,
+        "result_filter_diagnostics": {
+            "missing_by_reason": reason_counts,
+            "missing_case_method_details": details,
+        },
+    }
+
+
+def _attach_result_diagnostics(analysis_config, data_dir, scenario, generators, columns, df_results):
+    analysis_config["oscillatory_frequency_threshold_hz"] = MODE_FREQ_EPS_HZ
+    diagnostics = _collect_result_diagnostics(data_dir, scenario, generators, columns, df_results)
+    analysis_config.update(diagnostics)
+
+
 def generate_ieee39_comprehensive_report(df_results, scenario):
     data_dir, output_dir, _, generators, columns = _scenario_runtime_config(scenario)
     stats_dir = output_dir / "stats"
@@ -1258,6 +1388,7 @@ def run_matrix_pencil_for_scenario(name, scenario):
             "per_generator_signal": signal_timings,
         },
     )
+    _attach_result_diagnostics(analysis_config, data_dir, scenario, generators, columns, df_results)
     _save_json(output_dir / "analysis_config.json", analysis_config)
 
     return output_dir, results_path, df_results, analysis_config
@@ -1374,6 +1505,8 @@ def load_existing_results_for_scenario(name, scenario, args):
         config.setdefault("timings", {})
         config["timings"].setdefault("matrix_pencil", _timing_entry(0.0, skipped=True))
         config["timings"].setdefault("per_generator_signal", {})
+
+    _attach_result_diagnostics(config, data_dir, scenario, generators, scenario.get("columns", COLUMNS), df_results)
 
     return output_dir, results_path, df_results, config
 
