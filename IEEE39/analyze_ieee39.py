@@ -12,7 +12,7 @@ def build_arg_parser():
         description=(
             "Run IEEE39 Matrix Pencil analysis on generated CSV results.\n\n"
             "The main selector is --scenario, which can point either to a preset alias, an existing results folder,\n"
-            "or a custom label when used together with --data-dir."
+            "or a custom run label when used together with --data-dir."
         ),
         epilog=dedent(
             """
@@ -38,6 +38,7 @@ def build_arg_parser():
               - Without --output-dir, the analysis folder name is extended automatically with the selected time-window mode.
               - --scenario load29 runs a fresh Matrix Pencil analysis on IEEE39/results/Load29_Pplus2_50s and writes to a derived folder under IEEE39/analysis.
               - --skip-matrix-pencil requires --analysis-dir and reuses that folder's existing results.csv; it still regenerates reports, optional plots, and optional clustering.
+              - Clustering is off by default. When enabled with --clustering, the default scope is by control area.
             """
         ),
         formatter_class=argparse.RawTextHelpFormatter,
@@ -55,7 +56,7 @@ def build_arg_parser():
     parser.add_argument("--list-analysis", action="store_true", help="Print existing IEEE39 analysis folders and exit.")
     parser.set_defaults(skip_clustering=True, skip_plots=True)
     parser.add_argument("--skip-clustering", dest="skip_clustering", action="store_true", help="Skip clustering output (default).")
-    parser.add_argument("--clustering", dest="skip_clustering", action="store_false", help="Enable clustering output.")
+    parser.add_argument("--clustering", dest="skip_clustering", action="store_false", help="Enable clustering output. Default scope: by control area.")
     parser.add_argument("--clustering-scope", choices=["both", "global", "areas", "none"], default="areas", help="Choose clustering output scope. Default: areas.")
     parser.add_argument("--skip-matrix-pencil", action="store_true", help="Reuse an existing results.csv instead of recomputing Matrix Pencil poles.")
     parser.add_argument("--analysis-dir", default=None, help="Existing analysis directory to reuse with --skip-matrix-pencil. Relative paths are resolved from IEEE39.")
@@ -191,43 +192,57 @@ IEEE39_REFERENCE_MODES = {
     "Mode 9": {"Frequency": 1.5468, "Damping": -0.6376, "Damping_Factor": 0.0655, "Generator_Involvement": "1 vs. 8", "relevant_generators": ["g1", "g8"], "DRGA_Peak_Value": None},
 }
 
-DEFAULT_SCENARIOS = {
+DEFAULT_SCENARIO_PATHS = {
     "load29": {
         "data_dir": "results/Load29_Pplus2_50s",
         "output_dir": "analysis/Load29_Pplus2_50s",
-        "time_mask": {"start_inclusive": DEFAULT_TIME_START_S, "reset_time": True},
-        "generators": IEEE39_GENERATORS,
-        "columns": COLUMNS,
-        "fixed_orders": [2, 4, 6],
-        "taus": [1, 0.1, 0.01],
-        "auto_order_decimation": AUTO_ORDER_DECIMATION,
-        "filter": {"fc": 10, "N": 15},
-        "clustering": {"global": False, "by_control_area": True},
     },
     "load03": {
         "data_dir": "results/Load03_Pplus2_50s",
         "output_dir": "analysis/Load03_Pplus2_50s",
-        "time_mask": {"start_inclusive": DEFAULT_TIME_START_S, "reset_time": True},
-        "generators": IEEE39_GENERATORS,
-        "columns": COLUMNS,
-        "fixed_orders": [2, 4, 6],
-        "taus": [1, 0.1, 0.01],
-        "auto_order_decimation": AUTO_ORDER_DECIMATION,
-        "filter": {"fc": 10, "N": 15},
-        "clustering": {"global": False, "by_control_area": True},
     },
     "load24": {
         "data_dir": "results/Load24_Pplus2_50s",
         "output_dir": "analysis/Load24_Pplus2_50s",
+    },
+}
+
+
+def _default_clustering_config(enabled=False, scope="areas"):
+    if not enabled or scope == "none":
+        return {"global": False, "by_control_area": False}
+    if scope == "global":
+        return {"global": True, "by_control_area": False}
+    if scope == "both":
+        return {"global": True, "by_control_area": True}
+    return {"global": False, "by_control_area": True}
+
+
+def _base_scenario_defaults():
+    return {
         "time_mask": {"start_inclusive": DEFAULT_TIME_START_S, "reset_time": True},
-        "generators": IEEE39_GENERATORS,
-        "columns": COLUMNS,
+        "generators": list(IEEE39_GENERATORS),
+        "columns": dict(COLUMNS),
         "fixed_orders": [2, 4, 6],
         "taus": [1, 0.1, 0.01],
         "auto_order_decimation": AUTO_ORDER_DECIMATION,
         "filter": {"fc": 10, "N": 15},
-        "clustering": {"global": False, "by_control_area": True},
-    },
+        "clustering": _default_clustering_config(enabled=False),
+    }
+
+
+def _scenario_defaults_for_paths(data_dir, output_dir):
+    scenario = _base_scenario_defaults()
+    scenario.update({
+        "data_dir": data_dir,
+        "output_dir": output_dir,
+    })
+    return scenario
+
+
+DEFAULT_SCENARIOS = {
+    name: _scenario_defaults_for_paths(scenario["data_dir"], scenario["output_dir"])
+    for name, scenario in DEFAULT_SCENARIO_PATHS.items()
 }
 
 
@@ -1595,18 +1610,10 @@ def _scenario_from_results_folder(folder_name):
                 "Use the exact results folder name with --scenario."
             )
 
-    return {
-        "data_dir": path_for_metadata(data_dir),
-        "output_dir": f"analysis/{data_dir.name}",
-        "time_mask": {"start_inclusive": DEFAULT_TIME_START_S, "reset_time": True},
-        "generators": IEEE39_GENERATORS,
-        "columns": COLUMNS,
-        "fixed_orders": [2, 4, 6],
-        "taus": [1, 0.1, 0.01],
-        "auto_order_decimation": AUTO_ORDER_DECIMATION,
-        "filter": {"fc": 10, "N": 15},
-        "clustering": {"global": True, "by_control_area": True},
-    }
+    return _scenario_defaults_for_paths(
+        data_dir=path_for_metadata(data_dir),
+        output_dir=f"analysis/{data_dir.name}",
+    )
 
 
 def select_scenarios(names, allow_custom=False):
@@ -1625,18 +1632,10 @@ def select_scenarios(names, allow_custom=False):
             continue
 
         if allow_custom:
-            selected[name] = _scenario_from_results_folder(name) or {
-                "data_dir": f"results/{name}",
-                "output_dir": f"analysis/{name}",
-                "time_mask": {"start_inclusive": DEFAULT_TIME_START_S, "reset_time": True},
-                "generators": IEEE39_GENERATORS,
-                "columns": COLUMNS,
-                "fixed_orders": [2, 4, 6],
-                "taus": [1, 0.1, 0.01],
-                "auto_order_decimation": AUTO_ORDER_DECIMATION,
-                "filter": {"fc": 10, "N": 15},
-                "clustering": {"global": False, "by_control_area": True},
-            }
+            selected[name] = _scenario_from_results_folder(name) or _scenario_defaults_for_paths(
+                data_dir=f"results/{name}",
+                output_dir=f"analysis/{name}",
+            )
             continue
 
         if name not in DEFAULT_SCENARIOS:
@@ -1697,14 +1696,10 @@ def apply_cli_overrides(selected, args):
         time_mask["reset_time"] = not args.no_reset_time
         scenario["time_mask"] = time_mask
 
-        if args.clustering_scope == "none" or args.skip_clustering:
-            scenario["clustering"] = {"global": False, "by_control_area": False}
-        elif args.clustering_scope == "global":
-            scenario["clustering"] = {"global": True, "by_control_area": False}
-        elif args.clustering_scope == "areas":
-            scenario["clustering"] = {"global": False, "by_control_area": True}
-        elif args.clustering_scope == "both":
-            scenario["clustering"] = {"global": True, "by_control_area": True}
+        if args.skip_clustering:
+            scenario["clustering"] = _default_clustering_config(enabled=False)
+        else:
+            scenario["clustering"] = _default_clustering_config(enabled=True, scope=args.clustering_scope)
 
 
 def main():
