@@ -75,6 +75,14 @@ def make_load_alias(load_name):
     return load_name.replace(" ", "").lower()
 
 
+def normalize_load_name(load_name):
+    load_name = str(load_name).strip()
+    match = re.fullmatch(r"load\s*(\d+)", load_name, flags=re.IGNORECASE)
+    if match:
+        return f"Load {int(match.group(1)):02d}"
+    return load_name
+
+
 def event_time_suffix(event_time_s):
     if abs(float(event_time_s) - float(EVENT_TIME_S)) < 1e-12:
         return ""
@@ -369,8 +377,9 @@ def find_load(app, load_name=None, min_load_mw=100.0):
         raise RuntimeError("No load objects found. Check active project/study case/grid.")
 
     if load_name is not None:
+        normalized_load_name = normalize_load_name(load_name)
         for load in loads:
-            if load.loc_name == load_name:
+            if load.loc_name == load_name or normalize_load_name(load.loc_name) == normalized_load_name:
                 return load
 
         available = [load.loc_name for load in loads]
@@ -1121,7 +1130,7 @@ def parse_inline_scenario(spec):
     try:
         scenario = {
             "name": parts[5] if len(parts) == 6 and parts[5] else None,
-            "load_name": parts[0],
+            "load_name": normalize_load_name(parts[0]),
             "dp_percent": float(parts[1]),
             "dq_percent": float(parts[2]) if len(parts) >= 3 and parts[2] else 0.0,
             "sim_stop_time_s": float(parts[3]) if len(parts) >= 4 and parts[3] else SIM_STOP_TIME_S,
@@ -1134,7 +1143,7 @@ def parse_inline_scenario(spec):
 
 
 def parse_defaulted_load_scenario(load_name):
-    load_name = str(load_name).strip()
+    load_name = normalize_load_name(load_name)
     if not load_name:
         raise SystemExit("Empty load name is not allowed.")
 
