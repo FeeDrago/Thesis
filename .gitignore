@@ -232,7 +232,8 @@ IEEE39/analysis/
 # IEEE39 local diagnostics and repro artifacts
 IEEE39/investigations/pf_drift_2026_05_22/
 
-# Preliminary Investigation: keep PDFs/CSVs/JSONs, ignore generated PNGs.
+# Preliminary Investigation: keep source/data inputs, ignore generated PDFs/PNGs.
+PreliminaryInvestigation/**/*.pdf
 PreliminaryInvestigation/**/*.png
 PreliminaryInvestigation/windows results/
 PreliminaryInvestigation/wsl results/
