@@ -8,7 +8,7 @@ from scipy.signal import detrend
 from sklearn.metrics import r2_score, mean_squared_error
 from matrix_pencil import filter_signal
 from matplotlib.ticker import MaxNLocator
-from plot_style import apply_thesis_style, style_axis
+from plot_style import apply_thesis_style, save_pdf, style_axis
 
 
 apply_thesis_style()
@@ -18,7 +18,7 @@ RECON_TICK_LABEL_SIZE = 30
 RECON_AXIS_LABEL_SIZE = 34
 
 
-def generate_preliminary_report_stats(path):
+def generate_preliminary_report_stats(path, preprocessed_signals=None):
     # Path configuration
     stats_path = os.path.join(path, "stats")
     pdf_path = os.path.join(stats_path, "pdf")
@@ -45,31 +45,33 @@ def generate_preliminary_report_stats(path):
     # Performance analysis
     metrics = []
     for gid, glabel in gen_id_map.items():
-        csv_file = os.path.join(path, f"{gid}.csv")
-        if not os.path.exists(csv_file): continue
-        
-        raw_df = pd.read_csv(csv_file)
-
-        # Time Mask
-        t_f = raw_df.iloc[:, 0].values
-        mask = t_f > 0.2
-        t = t_f[mask].copy() - t_f[mask][0]
-
-        # No Time Mask
-        # t_f = raw_df.iloc[:, 0].values
-        # t = t_f.copy() - t_f[0]
-
-
         for sig_l, col in signals_map.items():
-            if col not in raw_df.columns: continue
+            cached_signal = None
+            if preprocessed_signals is not None:
+                cached_signal = preprocessed_signals.get(gid, {}).get(sig_l)
 
-            # Time Mask
-            y_ref = filter_signal(detrend(raw_df[col].values[mask]), t, fc=10)
-            y_ref = y_ref - np.mean(y_ref)
+            if cached_signal is not None:
+                t = cached_signal["t"]
+                y_ref = cached_signal["y_matrix_pencil"]
+            else:
+                csv_file = os.path.join(path, f"{gid}.csv")
+                if not os.path.exists(csv_file):
+                    continue
 
-            # No Time Mask
-            # y_ref = filter_signal(detrend(raw_df[col].values), t, fc=10)
-            # y_ref = y_ref - np.mean(y_ref)
+                raw_df = pd.read_csv(csv_file)
+                if col not in raw_df.columns:
+                    continue
+
+                # Time Mask
+                t_f = raw_df.iloc[:, 0].values
+                mask = t_f > 0.2
+                t = t_f[mask].copy() - t_f[mask][0]
+                y_ref = filter_signal(detrend(raw_df[col].values[mask]), t, fc=10)
+
+                # No Time Mask
+                # t_f = raw_df.iloc[:, 0].values
+                # t = t_f.copy() - t_f[0]
+                # y_ref = filter_signal(detrend(raw_df[col].values), t, fc=10)
             
             for meth in method_order:
                 modes = df[(df['Gen_ID'] == gid) & (df['Signal'] == sig_l) & (df['Method'] == meth)]
@@ -93,7 +95,7 @@ def generate_preliminary_report_stats(path):
     plt.title("Pole Density Heatmap", fontweight='bold')
     plt.ylabel("Generator")
     style_axis(plt.gca())
-    plt.savefig(os.path.join(pdf_path, "1_heatmap.pdf"), format='pdf', bbox_inches='tight')
+    save_pdf(plt, os.path.join(pdf_path, "1_heatmap.pdf"))
     plt.savefig(os.path.join(png_path, "1_heatmap.png"), dpi=300, bbox_inches='tight')
     plt.close()
 
@@ -108,7 +110,7 @@ def generate_preliminary_report_stats(path):
         ax.yaxis.set_major_locator(MaxNLocator(integer=True))
         style_axis(ax)
         
-    plt.savefig(os.path.join(pdf_path, "2_bar_grid_signal.pdf"), format='pdf', bbox_inches='tight')
+    save_pdf(plt, os.path.join(pdf_path, "2_bar_grid_signal.pdf"))
     plt.savefig(os.path.join(png_path, "2_bar_grid_signal.png"), dpi=300, bbox_inches='tight')
     plt.close()
 
@@ -125,7 +127,7 @@ def generate_preliminary_report_stats(path):
         ax.tick_params(axis='x', rotation=30)
         style_axis(ax)
         
-    plt.savefig(os.path.join(pdf_path, "3_bar_grid_method.pdf"), format='pdf', bbox_inches='tight')
+    save_pdf(plt, os.path.join(pdf_path, "3_bar_grid_method.pdf"))
     plt.savefig(os.path.join(png_path, "3_bar_grid_method.png"), dpi=300, bbox_inches='tight')
     plt.close()
 
@@ -142,7 +144,7 @@ def generate_preliminary_report_stats(path):
     ax.set_xticklabels(gens_u)
     ax.set_yticks(np.arange(len(sigs_u)) + 0.25)
     ax.set_yticklabels(sigs_u)
-    plt.savefig(os.path.join(pdf_path, "4_3D_overview.pdf"), format='pdf', bbox_inches='tight')
+    save_pdf(plt, os.path.join(pdf_path, "4_3D_overview.pdf"))
     plt.savefig(os.path.join(png_path, "4_3D_overview.png"), dpi=300, bbox_inches='tight')
     plt.close()
 
@@ -166,7 +168,7 @@ def generate_preliminary_report_stats(path):
     plt.colorbar().set_label(r'Damping ($\sigma$)')
     plt.title("Modal Frequency/Damping/Energy Map", fontweight='bold')
     style_axis(plt.gca())
-    plt.savefig(os.path.join(pdf_path, "5_bubble_map.pdf"), format='pdf', bbox_inches='tight')
+    save_pdf(plt, os.path.join(pdf_path, "5_bubble_map.pdf"))
     plt.savefig(os.path.join(png_path, "5_bubble_map.png"), dpi=300, bbox_inches='tight')
     plt.close()
 
@@ -178,7 +180,7 @@ def generate_preliminary_report_stats(path):
     style_axis(plt.gca())
     if df_m['R2'].min() < 0.5: plt.ylim(0.0, 1.05)
     else: plt.ylim(df_m['R2'].min()*0.98, 1.02)
-    plt.savefig(os.path.join(pdf_path, "6_R2_boxplot.pdf"), format='pdf', bbox_inches='tight')
+    save_pdf(plt, os.path.join(pdf_path, "6_R2_boxplot.pdf"))
     plt.savefig(os.path.join(png_path, "6_R2_boxplot.png"), dpi=300, bbox_inches='tight')
     plt.close()
 
@@ -189,7 +191,7 @@ def generate_preliminary_report_stats(path):
     plt.ylabel("$R^2$ Score")
     style_axis(plt.gca())
     plt.legend(bbox_to_anchor=(1.02, 1), loc='upper left')
-    plt.savefig(os.path.join(pdf_path, "7_pareto.pdf"), format='pdf', bbox_inches='tight')
+    save_pdf(plt, os.path.join(pdf_path, "7_pareto.pdf"))
     plt.savefig(os.path.join(png_path, "7_pareto.png"), dpi=300, bbox_inches='tight')
     plt.close()
 
@@ -200,7 +202,7 @@ def generate_preliminary_report_stats(path):
     plt.title("Best Method Ranking (Max $R^2$)", fontweight='bold')
     plt.ylabel("Frequency")
     style_axis(plt.gca())
-    plt.savefig(os.path.join(pdf_path, "8_ranking.pdf"), format='pdf', bbox_inches='tight')
+    save_pdf(plt, os.path.join(pdf_path, "8_ranking.pdf"))
     plt.savefig(os.path.join(png_path, "8_ranking.png"), dpi=300, bbox_inches='tight')
     plt.close()
 
@@ -273,7 +275,7 @@ def generate_preliminary_report_stats(path):
             ax.set_ylabel(labels_map.get(sig_l, ""), fontsize=RECON_AXIS_LABEL_SIZE)
             if i == 0 and j == 3: ax.legend(loc='upper right')
     fig.subplots_adjust(left=0.07, right=0.98, bottom=0.07, top=0.92, wspace=0.22, hspace=0.42)
-    plt.savefig(os.path.join(pdf_path, "9_best_reconstruction_grid.pdf"), format='pdf', bbox_inches='tight')
+    save_pdf(plt, os.path.join(pdf_path, "9_best_reconstruction_grid.pdf"))
     plt.savefig(os.path.join(png_path, "9_best_reconstruction_grid.png"), dpi=300, bbox_inches='tight')
     plt.close()
 
@@ -346,7 +348,7 @@ def generate_preliminary_report_stats(path):
                 ax.legend(loc='upper right')
 
         fig_g.subplots_adjust(left=0.08, right=0.98, bottom=0.08, top=0.90, wspace=0.22, hspace=0.36)
-        plt.savefig(os.path.join(pdf_path, f"10_best_reconstruction_{gid}_2x2.pdf"), format='pdf', bbox_inches='tight')
+        save_pdf(plt, os.path.join(pdf_path, f"10_best_reconstruction_{gid}_2x2.pdf"))
         plt.savefig(os.path.join(png_path, f"10_best_reconstruction_{gid}_2x2.png"), dpi=300, bbox_inches='tight')
         plt.close(fig_g)
 

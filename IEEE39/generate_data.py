@@ -4,6 +4,7 @@ import csv
 import json
 import re
 import time
+from textwrap import dedent
 
 try:
     import pandas as pd
@@ -72,6 +73,14 @@ def make_scenario_key(load_name, dp_percent, dq_percent):
 
 def make_load_alias(load_name):
     return load_name.replace(" ", "").lower()
+
+
+def normalize_load_name(load_name):
+    load_name = str(load_name).strip()
+    match = re.fullmatch(r"load\s*(\d+)", load_name, flags=re.IGNORECASE)
+    if match:
+        return f"Load {int(match.group(1)):02d}"
+    return load_name
 
 
 def event_time_suffix(event_time_s):
@@ -368,8 +377,9 @@ def find_load(app, load_name=None, min_load_mw=100.0):
         raise RuntimeError("No load objects found. Check active project/study case/grid.")
 
     if load_name is not None:
+        normalized_load_name = normalize_load_name(load_name)
         for load in loads:
-            if load.loc_name == load_name:
+            if load.loc_name == load_name or normalize_load_name(load.loc_name) == normalized_load_name:
                 return load
 
         available = [load.loc_name for load in loads]
@@ -1120,7 +1130,7 @@ def parse_inline_scenario(spec):
     try:
         scenario = {
             "name": parts[5] if len(parts) == 6 and parts[5] else None,
-            "load_name": parts[0],
+            "load_name": normalize_load_name(parts[0]),
             "dp_percent": float(parts[1]),
             "dq_percent": float(parts[2]) if len(parts) >= 3 and parts[2] else 0.0,
             "sim_stop_time_s": float(parts[3]) if len(parts) >= 4 and parts[3] else SIM_STOP_TIME_S,
@@ -1132,44 +1142,26 @@ def parse_inline_scenario(spec):
     return scenario
 
 
-def parse_case_args(case_args):
-    scenarios = []
+def parse_defaulted_load_scenario(load_name):
+    load_name = normalize_load_name(load_name)
+    if not load_name:
+        raise SystemExit("Empty load name is not allowed.")
 
-    for values in case_args or []:
-        if len(values) == 1 and ":" in values[0]:
-            scenarios.append(parse_inline_scenario(values[0]))
-            continue
-
-        if len(values) not in (2, 3, 4):
-            raise SystemExit(
-                "Each --case must be either a quoted spec "
-                "load_name:dp[:dq[:duration[:event_time[:name]]]] or the legacy form "
-                "LOAD_NAME DP_PERCENT [DQ_PERCENT] [NAME]"
-            )
-
-        try:
-            scenarios.append(
-                {
-                    "name": values[3] if len(values) == 4 else None,
-                    "load_name": values[0],
-                    "dp_percent": float(values[1]),
-                    "dq_percent": float(values[2]) if len(values) >= 3 else 0.0,
-                    "sim_stop_time_s": SIM_STOP_TIME_S,
-                    "event_time_s": EVENT_TIME_S,
-                }
-            )
-        except ValueError as e:
-            raise SystemExit(f"Invalid numeric value in --case {' '.join(values)}: {e}") from e
-
-    return scenarios
+    return {
+        "name": None,
+        "load_name": load_name,
+        "dp_percent": 2.0,
+        "dq_percent": 0.0,
+        "sim_stop_time_s": SIM_STOP_TIME_S,
+        "event_time_s": EVENT_TIME_S,
+    }
 
 
-def select_scenarios(names, cli_cases=None):
+def select_scenarios(names):
     selected = []
 
     if not names:
-        if not cli_cases:
-            selected.extend(SCENARIOS)
+        selected.extend(SCENARIOS)
     elif names == ["all"]:
         selected.extend(SCENARIOS)
     elif "all" in names:
@@ -1183,12 +1175,10 @@ def select_scenarios(names, cli_cases=None):
                 continue
 
             if name not in SCENARIOS_BY_NAME:
-                available = ", ".join(SCENARIOS_BY_NAME.keys())
-                raise SystemExit(f"Unknown scenario '{name}'. Available: {available}")
+                selected.append(parse_defaulted_load_scenario(name))
+                continue
 
             selected.append(SCENARIOS_BY_NAME[name])
-
-    selected.extend(parse_case_args(cli_cases))
 
     if not selected:
         raise SystemExit("No scenarios selected.")
@@ -1228,20 +1218,46 @@ def list_scenarios():
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Generate IEEE39 PowerFactory scenario CSV data.")
+    parser = argparse.ArgumentParser(
+        description=(
+            "Generate IEEE39 CSV data from PowerFactory runs.\n\n"
+            "Use --scenario for both preset scenarios and ad-hoc custom loads."
+        ),
+        epilog=dedent(
+            """
+            Scenario input forms:
+              1. Preset key: load29
+              2. Multiple preset keys: load03 load24
+              3. All presets: all
+              4. Bare load name with defaults: "Load 20"
+              5. Inline custom spec: "Load 20:2[:dq[:duration[:event_time[:name]]]]"
+
+            Examples:
+              python IEEE39/generate_data.py --scenario load29
+              python IEEE39/generate_data.py --scenario load03 load24
+              python IEEE39/generate_data.py --scenario "Load 20"
+              python IEEE39/generate_data.py --scenario "Load 20:2"
+              python IEEE39/generate_data.py --scenario "Load 20:2:0:60:0.5"
+              python IEEE39/generate_data.py --scenario "Load 20:2:0:60:0.5:load20_test"
+              python IEEE39/generate_data.py --scenario "Load 20:2" --duration 60 --event-time 0.5
+
+            Notes:
+              - A bare unknown --scenario value like "Load 20" is treated as a custom load with defaults dp=2, dq=0, duration=50, event_time=0.
+              - Inline specs use the format load_name:dp[:dq[:duration[:event_time[:name]]]].
+              - The optional final 'name' field overrides only the scenario run folder name under the results root; it is not the same as --output-dir.
+              - If duration/event_time are given inside the inline spec, they override the global --duration/--event-time defaults.
+            """
+        ),
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
     parser.add_argument(
         "--scenario",
         nargs="+",
         default=None,
-        help="Scenario keys/folder aliases to run, 'all', or inline specs load_name:dp[:dq[:duration[:event_time[:name]]]].",
-    )
-    parser.add_argument(
-        "--case",
-        action="append",
-        nargs="+",
-        default=[],
-        metavar="VALUE",
-        help="Add an ad-hoc scenario. Use either --case LOAD_NAME DP_PERCENT [DQ_PERCENT] [NAME] or a quoted spec like --case 'Load 24:2:0:60:0.5'. Can be repeated.",
+        help=(
+            "Scenario selector. Accepts preset keys like 'load29', multiple keys like 'load03 load24',\n"
+            "'all', bare custom load names like 'Load 20', or inline custom specs like 'Load 20:2:0:60:0.5:load20_test'."
+        ),
     )
     parser.add_argument(
         "--output-dir",
@@ -1255,15 +1271,25 @@ def parse_args():
         "--duration",
         type=float,
         default=SIM_STOP_TIME_S,
-        help=f"Simulation stop time in seconds. Default: {SIM_STOP_TIME_S:g}.",
+        help=(
+            f"Simulation stop time in seconds for presets and for custom scenarios that do not set duration inline. "
+            f"Default: {SIM_STOP_TIME_S:g}."
+        ),
     )
     parser.add_argument(
         "--event-time",
         type=float,
         default=EVENT_TIME_S,
-        help=f"Load event time in seconds. Default: {EVENT_TIME_S:g}.",
+        help=(
+            f"Load event time in seconds for presets and for custom scenarios that do not set event time inline. "
+            f"Default: {EVENT_TIME_S:g}."
+        ),
     )
-    parser.add_argument("--list-scenarios", action="store_true", help="Print available scenario keys and exit.")
+    parser.add_argument(
+        "--list-scenarios",
+        action="store_true",
+        help="Print the available preset scenario keys and aliases, then exit.",
+    )
     return parser.parse_args()
 
 
@@ -1346,7 +1372,7 @@ if __name__ == "__main__":
         raise SystemExit(0)
 
     start_time = time.time()
-    selected_scenarios = [dict(scenario) for scenario in select_scenarios(args.scenario, args.case)]
+    selected_scenarios = [dict(scenario) for scenario in select_scenarios(args.scenario)]
     for scenario in selected_scenarios:
         scenario.setdefault("sim_stop_time_s", float(args.duration))
         scenario.setdefault("event_time_s", float(args.event_time))

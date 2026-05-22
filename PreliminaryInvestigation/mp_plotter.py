@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from scipy.signal import detrend
 from sklearn.metrics import r2_score, mean_squared_error
 from matrix_pencil import filter_signal
-from plot_style import apply_thesis_style, style_axis, SIGNAL_COLORS
+from plot_style import apply_thesis_style, save_pdf, style_axis, SIGNAL_COLORS
 
 apply_thesis_style()
 
@@ -13,7 +13,7 @@ RECON_X_LIMS = (0, 50)
 RECON_TICK_LABEL_SIZE = 30
 RECON_AXIS_LABEL_SIZE = 34
 
-def generate_preliminary_report_plots(df_results, output_path, csv_path, generators, columns):
+def generate_preliminary_report_plots(df_results, output_path, csv_path, generators, columns, preprocessed_signals=None):
     colors = SIGNAL_COLORS.copy()
     
     plots_path = os.path.join(output_path, "plots")
@@ -42,7 +42,7 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
             style_axis(plt.gca())
             
             fname = f"{gen}_{signal.replace(' ', '_')}"
-            plt.savefig(os.path.join(modal_maps_path, "pdf", f"{fname}.pdf"), format='pdf', bbox_inches='tight')
+            save_pdf(plt, os.path.join(modal_maps_path, "pdf", f"{fname}.pdf"))
             plt.savefig(os.path.join(modal_maps_path, "png", f"{fname}.png"), dpi=300, bbox_inches='tight')
             plt.close()
 
@@ -64,7 +64,7 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
         style_axis(plt.gca())
         
         fname = f"{gen}_combined"
-        plt.savefig(os.path.join(modal_maps_path, "pdf", f"{fname}.pdf"), format='pdf', bbox_inches='tight')
+        save_pdf(plt, os.path.join(modal_maps_path, "pdf", f"{fname}.pdf"))
         plt.savefig(os.path.join(modal_maps_path, "png", f"{fname}.png"), dpi=300, bbox_inches='tight')
         plt.close()
 
@@ -92,7 +92,7 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
             
         plt.tight_layout(rect=[0, 0, 1, 0.96])
         fname = f"{gen}_2x2_grid"
-        plt.savefig(os.path.join(modal_maps_path, "pdf", f"{fname}.pdf"), format='pdf', bbox_inches='tight')
+        save_pdf(plt, os.path.join(modal_maps_path, "pdf", f"{fname}.pdf"))
         plt.savefig(os.path.join(modal_maps_path, "png", f"{fname}.png"), dpi=300, bbox_inches='tight')
         plt.close(fig)
 
@@ -117,7 +117,7 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
     plt.tight_layout(rect=[0, 0.08, 1, 0.95])
     
     fname = "All_Generators_Grid"
-    plt.savefig(os.path.join(modal_maps_path, "pdf", f"{fname}.pdf"), format='pdf', bbox_inches='tight')
+    save_pdf(plt, os.path.join(modal_maps_path, "pdf", f"{fname}.pdf"))
     plt.savefig(os.path.join(modal_maps_path, "png", f"{fname}.png"), dpi=300, bbox_inches='tight')
     plt.close()
 
@@ -126,26 +126,33 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
     inv_columns = {v: k for k, v in columns.items()}
 
     for gen in generators:
-        csv_file = os.path.join(csv_path, f"{gen}.csv")
-        if not os.path.exists(csv_file): continue
-        raw_df = pd.read_csv(csv_file)
-
         for signal_label in columns.values():
-            t_raw = raw_df.iloc[:, 0].values
-            y_raw = raw_df[inv_columns[signal_label]].values
-            
-            # Time Mask
-            mask = t_raw > 0.2
-            t = t_raw[mask].copy()
-            y_proc = y_raw[mask].copy()
+            cached_signal = None
+            if preprocessed_signals is not None:
+                cached_signal = preprocessed_signals.get(gen, {}).get(signal_label)
 
-            # No Time Mask
-            # t = t_raw.copy()
-            # y_proc = y_raw.copy()
-            
-            t = t - t[0]  
-            y_ref = filter_signal(detrend(y_proc), t, fc=10)
-            y_ref = y_ref - np.mean(y_ref)
+            if cached_signal is not None:
+                t = cached_signal["t"]
+                y_ref = cached_signal["y_matrix_pencil"]
+            else:
+                csv_file = os.path.join(csv_path, f"{gen}.csv")
+                if not os.path.exists(csv_file):
+                    continue
+                raw_df = pd.read_csv(csv_file)
+                t_raw = raw_df.iloc[:, 0].values
+                y_raw = raw_df[inv_columns[signal_label]].values
+
+                # Time Mask
+                mask = t_raw > 0.2
+                t = t_raw[mask].copy()
+                y_proc = y_raw[mask].copy()
+
+                # No Time Mask
+                # t = t_raw.copy()
+                # y_proc = y_raw.copy()
+
+                t = t - t[0]
+                y_ref = filter_signal(detrend(y_proc), t, fc=10)
 
 
             fig, axes = plt.subplots(3, 2, figsize=(16, 14), sharex=True)
@@ -193,7 +200,7 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
 
             plt.tight_layout(rect=[0, 0.03, 1, 0.95])
             fname = f"{gen}_{signal_label.replace(' ', '_')}_Reconstruction"
-            plt.savefig(os.path.join(recon_path, "pdf", f"{fname}.pdf"), format='pdf', bbox_inches='tight')
+            save_pdf(plt, os.path.join(recon_path, "pdf", f"{fname}.pdf"))
             plt.savefig(os.path.join(recon_path, "png", f"{fname}.png"), dpi=300, bbox_inches='tight')
             plt.close()
 

@@ -198,6 +198,7 @@ cython_debug/
 # Cursor
 #  Cursor is an AI-powered code editor. `.cursorignore` specifies files/directories to
 #  exclude from AI features like autocomplete and code analysis. Recommended for sensitive data
+test.txt
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
@@ -222,16 +223,23 @@ test.txt
 *.fdb_latexmk
 *.xdv
 
-
 # IEEE39 generated data and analysis outputs
-# Results: keep only generator CSVs and scenario metadata.
-IEEE39/results/**
-!IEEE39/results/**/
-!IEEE39/results/**/g*.csv
-!IEEE39/results/**/scenario.json
+# Results are generated artifacts and stay local.
+IEEE39/results/
 
-# Analysis: keep CSVs and analysis configs; keep plots and other generated artifacts local.
-IEEE39/analysis/**
-!IEEE39/analysis/**/
-!IEEE39/analysis/**/*.csv
-!IEEE39/analysis/**/analysis_config.json
+# Analysis outputs are generated artifacts and stay local.
+IEEE39/analysis/
+
+# IEEE39 local diagnostics and repro artifacts
+IEEE39/investigations/pf_drift_2026_05_22/
+
+# Preliminary Investigation: keep source/data inputs, ignore generated PDFs/PNGs.
+PreliminaryInvestigation/**/*.pdf
+PreliminaryInvestigation/**/*.png
+PreliminaryInvestigation/windows results/
+PreliminaryInvestigation/wsl results/
+PreliminaryInvestigation/validation/validation_outputs/
+PreliminaryInvestigation/validation/validation_outputs_legacy/
+
+PreliminaryInvestigation/summary_modes_report.txt
+Results
