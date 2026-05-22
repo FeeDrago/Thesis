@@ -230,14 +230,7 @@ IEEE39/results/
 IEEE39/analysis/
 
 # IEEE39 local diagnostics and repro artifacts
-IEEE39/compare_load03_vs_head.json
-IEEE39/pf_dump_load03.json
-IEEE39/diagnose_pf_drift.py
-IEEE39/run_generate_data_from_commit_20ac7aa.py
-IEEE39/results_clean_ieee39/
-IEEE39/results_repro_20ac7aa/
-IEEE39/results/Load03_Pplus2_50s test/
-IEEE39/results/Load20_Pplus2_50s/
+IEEE39/investigations/pf_drift_2026_05_22/
 
 # Preliminary Investigation: keep PDFs/CSVs/JSONs, ignore generated PNGs.
 PreliminaryInvestigation/**/*.png
