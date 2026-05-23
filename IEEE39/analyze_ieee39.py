@@ -30,11 +30,14 @@ def build_arg_parser():
               python IEEE39/analyze_ieee39.py --scenario Load29_Pplus2_50s
               python IEEE39/analyze_ieee39.py --scenario load20_custom --data-dir results/Load20_Pplus2_50s --output-dir analysis/Load20_Pplus2_50s
               python IEEE39/analyze_ieee39.py --scenario load29 --time-cross global --time-cross-reference g2:Current --plots
+              python IEEE39/analyze_ieee39.py --scenario load29 --fixed-orders 2 4 6 8 --taus 1 0.1 0.01
               python IEEE39/analyze_ieee39.py --scenario Load29_Pplus2_50s --skip-matrix-pencil --analysis-dir analysis/Load29_Pplus2_50s_0_to_end_reset
 
             Notes:
               - --scenario is required for actual analysis runs; the script no longer defaults silently to 'all'.
               - If --data-dir is used, --scenario becomes just a label for the run.
+              - Fixed Matrix Pencil orders can be overridden with --fixed-orders; default: 2 4 6 8.
+              - Adaptive tau values can be overridden with --taus; default: 1 0.1 0.01.
               - Without --output-dir, the analysis folder name is extended automatically with the selected time-window mode.
               - --scenario load29 runs a fresh Matrix Pencil analysis on IEEE39/results/Load29_Pplus2_50s and writes to a derived folder under IEEE39/analysis.
               - --skip-matrix-pencil requires --analysis-dir and reuses that folder's existing results.csv; it still regenerates reports, optional plots, and optional clustering.
@@ -71,6 +74,8 @@ def build_arg_parser():
     parser.add_argument("--no-reset-time", action="store_true", help="Do not shift the selected time window to start at zero.")
     parser.add_argument("--generators", nargs="+", default=None, help="Optional generator subset, e.g. g1 g2 g3.")
     parser.add_argument("--signals", nargs="+", default=None, help="Optional signal subset by label or CSV column, e.g. Voltage 'Active Power' or 's:P1 in MW'.")
+    parser.add_argument("--fixed-orders", nargs="+", type=int, default=None, help="Override the fixed Matrix Pencil orders. Default: 2 4 6 8.")
+    parser.add_argument("--taus", nargs="+", type=float, default=None, help="Override the tau values used for adaptive order selection. Default: 1 0.1 0.01.")
     return parser
 
 
@@ -165,8 +170,6 @@ MODE_FREQ_EPS_HZ = 1e-6
 RECON_X_LIMS = (0, 50)
 RECON_TICK_LABEL_SIZE = 30
 RECON_AXIS_LABEL_SIZE = 34
-METHOD_ORDER = ["Order 2", "Order 4", "Order 6", "Tau 1", "Tau 0.1", "Tau 0.01"]
-RECONSTRUCTION_ROWS = [("Order 2", "Tau 1"), ("Order 4", "Tau 0.1"), ("Order 6", "Tau 0.01")]
 SIGNAL_LABELS = {
     "Voltage": r"$\Delta V$ [p.u.]",
     "Current": r"$\Delta \mathrm{I}$ [p.u.]",
@@ -223,7 +226,7 @@ def _base_scenario_defaults():
         "time_mask": {"start_inclusive": DEFAULT_TIME_START_S, "reset_time": True},
         "generators": list(IEEE39_GENERATORS),
         "columns": dict(COLUMNS),
-        "fixed_orders": [2, 4, 6],
+        "fixed_orders": [2, 4, 6, 8],
         "taus": [1, 0.1, 0.01],
         "auto_order_decimation": AUTO_ORDER_DECIMATION,
         "filter": {"fc": 10, "N": 15},
@@ -951,6 +954,23 @@ def _result_diagnostic_methods(scenario):
     return fixed_orders + taus
 
 
+def _scenario_method_order(scenario):
+    return _result_diagnostic_methods(scenario)
+
+
+def _scenario_reconstruction_rows(scenario):
+    fixed_orders = [f"Order {int(order)}" for order in scenario.get("fixed_orders", [])]
+    taus = [f"Tau {tau}" for tau in scenario.get("taus", [])]
+    row_count = max(len(fixed_orders), len(taus))
+    return [
+        (
+            fixed_orders[row_idx] if row_idx < len(fixed_orders) else None,
+            taus[row_idx] if row_idx < len(taus) else None,
+        )
+        for row_idx in range(row_count)
+    ]
+
+
 def _collect_result_diagnostics(data_dir, scenario, generators, columns, df_results):
     missing_results = []
     methods = _result_diagnostic_methods(scenario)
@@ -1104,7 +1124,7 @@ def generate_ieee39_comprehensive_report(df_results, scenario):
             if t is None or y_ref is None:
                 continue
 
-            for method in METHOD_ORDER:
+            for method in _scenario_method_order(scenario):
                 modes = df_results[
                     (df_results["Gen"] == gen)
                     & (df_results["Signal"] == signal)
@@ -1192,6 +1212,7 @@ def generate_ieee39_plots(df_results, scenario):
     plt.close()
 
     inv_columns = {label: csv_col for csv_col, label in columns.items()}
+    reconstruction_rows = _scenario_reconstruction_rows(scenario)
     for gen in generators:
         csv_path = data_dir / f"{gen}.csv"
         if not csv_path.exists():
@@ -1207,18 +1228,27 @@ def generate_ieee39_plots(df_results, scenario):
             if t is None or y_ref is None:
                 continue
 
-            fig, axes = plt.subplots(3, 2, figsize=(16, 14), sharex=True)
+            if not reconstruction_rows:
+                continue
+
+            fig, axes = plt.subplots(len(reconstruction_rows), 2, figsize=(16, max(5 * len(reconstruction_rows), 6)), sharex=True)
+            if len(reconstruction_rows) == 1:
+                axes = np.array([axes])
             fig.suptitle(
                 f"Reconstruction Accuracy: {gen.upper()} - {signal}\nLeft: Fixed Orders | Right: Adaptive Tau",
                 fontweight="bold",
                 y=0.98,
             )
 
-            for row_idx, (order_method, tau_method) in enumerate(RECONSTRUCTION_ROWS):
+            for row_idx, (order_method, tau_method) in enumerate(reconstruction_rows):
                 for col_idx, method in enumerate([order_method, tau_method]):
                     ax = axes[row_idx, col_idx]
                     ax.set_xlim(*RECON_X_LIMS)
                     ax.tick_params(axis="both", labelsize=RECON_TICK_LABEL_SIZE)
+
+                    if method is None:
+                        ax.axis("off")
+                        continue
 
                     modes = df_results[
                         (df_results["Gen"] == gen)
@@ -1242,7 +1272,7 @@ def generate_ieee39_plots(df_results, scenario):
 
                     if col_idx == 0:
                         ax.set_ylabel(SIGNAL_LABELS.get(signal, signal), fontsize=RECON_AXIS_LABEL_SIZE)
-                    if row_idx == 2:
+                    if row_idx == len(reconstruction_rows) - 1:
                         ax.set_xlabel("Time (s)", fontsize=RECON_AXIS_LABEL_SIZE)
 
             plt.tight_layout(rect=[0, 0.03, 1, 0.95])
@@ -1256,7 +1286,7 @@ def run_matrix_pencil_for_scenario(name, scenario):
     validate_scenario_time_window(name, scenario, generated_config=generated_config, generators=generators)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    fixed_orders = scenario.get("fixed_orders", [2, 4, 6])
+    fixed_orders = scenario.get("fixed_orders", [2, 4, 6, 8])
     taus = scenario.get("taus", [1, 0.1, 0.01])
     auto_order_decimation = int(
         scenario.get("auto_order_decimation", scenario.get("order_rate", AUTO_ORDER_DECIMATION))
@@ -1464,6 +1494,10 @@ def apply_existing_analysis_config(scenario, results_path, args):
             scenario["time_cross"] = config.get("time_cross")
 
     for key in ["filter", "columns", "fixed_orders", "taus", "auto_order_decimation", "generator_subset", "signal_subset"]:
+        if key == "fixed_orders" and args.fixed_orders is not None:
+            continue
+        if key == "taus" and args.taus is not None:
+            continue
         if key in config:
             scenario[key] = config[key]
 
@@ -1671,6 +1705,12 @@ def apply_cli_overrides(selected, args):
         if signal_subset is not None:
             scenario["signal_subset"] = list(signal_subset.values())
             scenario["columns"] = signal_subset
+
+        if args.fixed_orders is not None:
+            scenario["fixed_orders"] = list(args.fixed_orders)
+
+        if args.taus is not None:
+            scenario["taus"] = list(args.taus)
 
         time_mask = dict(scenario.get("time_mask", {}))
         if args.time_cross is None:
