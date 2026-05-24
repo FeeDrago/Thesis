@@ -63,8 +63,8 @@ def build_arg_parser():
     parser.add_argument("--clustering-scope", choices=["both", "global", "areas", "none"], default="areas", help="Choose clustering output scope. Default: areas.")
     parser.add_argument("--skip-matrix-pencil", action="store_true", help="Reuse an existing results.csv instead of recomputing Matrix Pencil poles.")
     parser.add_argument("--analysis-dir", default=None, help="Existing analysis directory to reuse with --skip-matrix-pencil. Relative paths are resolved from IEEE39.")
-    parser.add_argument("--skip-plots", dest="skip_plots", action="store_true", help="Skip IEEE39 modal maps and reconstruction plots (default).")
-    parser.add_argument("--plots", dest="skip_plots", action="store_false", help="Enable IEEE39 modal maps and reconstruction plots.")
+    parser.add_argument("--skip-plots", dest="skip_plots", action="store_true", help="Skip IEEE39 plot outputs, including modal maps, reconstructions, and thesis-used summary figures (default).")
+    parser.add_argument("--plots", dest="skip_plots", action="store_false", help="Enable IEEE39 modal maps, reconstructions, and thesis-used summary figures.")
     parser.add_argument("--data-dir", default=None, help="Explicit input data directory relative to IEEE39, or an absolute path. Use with exactly one --scenario.")
     parser.add_argument("--output-dir", default=None, help="Explicit output directory relative to IEEE39, or an absolute path. Use with exactly one --scenario.")
     parser.add_argument("--time-start", type=float, default=None, help="Inclusive analysis start time in seconds. Default: 0.")
@@ -149,6 +149,7 @@ prepare_matrix_pencil = matrix_pencil.prepare_matrix_pencil
 
 from plot_style import (
     apply_thesis_style,
+    save_pdf,
     style_axis,
     SIGNAL_COLORS,
 )
@@ -933,10 +934,12 @@ def _r2_score(y_true, y_pred):
 
 
 def _save_current_figure(path_base, filename):
-    for subdir, extension in [("png", "png"), ("pdf", "pdf")]:
-        out_dir = path_base / subdir
-        out_dir.mkdir(parents=True, exist_ok=True)
-        plt.savefig(out_dir / f"{filename}.{extension}", dpi=300 if extension == "png" else None, bbox_inches="tight")
+    png_dir = path_base / "png"
+    pdf_dir = path_base / "pdf"
+    png_dir.mkdir(parents=True, exist_ok=True)
+    pdf_dir.mkdir(parents=True, exist_ok=True)
+    save_pdf(plt, pdf_dir / f"{filename}.pdf")
+    plt.savefig(png_dir / f"{filename}.png", dpi=300, bbox_inches="tight")
 
 
 def _reconstruct_signal(t, modes):
@@ -1150,7 +1153,227 @@ def generate_ieee39_comprehensive_report(df_results, scenario):
     return report
 
 
-def generate_ieee39_plots(df_results, scenario):
+def _generate_ieee39_modal_grid_plots(df_results, modal_maps_dir, generators, columns):
+    colors = SIGNAL_COLORS.copy()
+
+    for gen in generators:
+        gen_data = df_results[df_results["Gen"] == gen]
+        if gen_data.empty:
+            continue
+
+        fig, axes = plt.subplots(2, 2, figsize=(16, 12), sharex=True, sharey=True)
+        fig.suptitle(f"Modal Identification per Signal: Generator {gen.upper()}", fontweight="bold")
+        axes_flat = axes.flatten()
+
+        for idx, signal in enumerate(columns.values()):
+            ax = axes_flat[idx]
+            signal_data = gen_data[gen_data["Signal"] == signal]
+            ax.scatter(
+                signal_data["Damping"],
+                signal_data["Frequency"],
+                color=colors[signal],
+                alpha=0.6,
+                edgecolors="k",
+                s=50,
+            )
+            ax.axvline(0, color="red", linestyle="--", alpha=0.5)
+            ax.set_title(signal, fontweight="semibold")
+            style_axis(ax)
+
+            if idx >= 2:
+                ax.set_xlabel("Damping (Sigma) [rad/s]")
+            if idx % 2 == 0:
+                ax.set_ylabel("Frequency [Hz]")
+
+        plt.tight_layout(rect=[0, 0, 1, 0.96])
+        _save_current_figure(modal_maps_dir, f"{gen}_2x2_grid")
+        plt.close(fig)
+
+    ncols = 2
+    nrows = int(np.ceil(len(generators) / ncols))
+    fig, axes = plt.subplots(nrows, ncols, figsize=(16, 4.8 * nrows), sharex=True, sharey=True)
+    fig.suptitle("System-Wide Modal Identification (All Generators)", fontweight="bold")
+    axes_flat = np.atleast_1d(axes).flatten()
+
+    for idx, gen in enumerate(generators):
+        ax = axes_flat[idx]
+        gen_data = df_results[df_results["Gen"] == gen]
+        for signal in columns.values():
+            signal_data = gen_data[gen_data["Signal"] == signal]
+            ax.scatter(
+                signal_data["Damping"],
+                signal_data["Frequency"],
+                label=signal,
+                c=colors[signal],
+                alpha=0.6,
+                edgecolors="k",
+                s=60,
+            )
+        ax.axvline(0, color="red", linestyle="-", alpha=0.3)
+        ax.set_title(f"Generator {gen.upper()}")
+        style_axis(ax)
+        if idx >= len(generators) - ncols:
+            ax.set_xlabel("Damping (Sigma) [rad/s]")
+        if idx % ncols == 0:
+            ax.set_ylabel("Frequency [Hz]")
+
+    for ax in axes_flat[len(generators):]:
+        ax.axis("off")
+
+    handles = [
+        plt.Line2D([0], [0], marker="o", color="w", markerfacecolor=color, markersize=12, label=signal)
+        for signal, color in colors.items()
+    ]
+    fig.legend(handles=handles, labels=colors.keys(), loc="lower center", ncol=4, title="Signals")
+    plt.tight_layout(rect=[0, 0.06, 1, 0.96])
+    _save_current_figure(modal_maps_dir, "All_Generators_Grid")
+    plt.close(fig)
+
+
+def _generate_ieee39_bubble_map(df_results, stats_dir):
+    if df_results.empty:
+        return
+
+    plot_df = df_results.copy()
+    plot_df["Src"] = plot_df["Gen"] + " | " + plot_df["Signal"]
+    counts = plot_df.groupby("Src").size().reset_index(name="Count")
+    plot_df = plot_df.merge(counts, on="Src")
+    plot_df["Src"] = plot_df["Src"] + " | Poles: " + plot_df["Count"].astype(str)
+    omega = 2 * np.pi * plot_df["Frequency"]
+    plot_df["Energy"] = 0.5 * (omega ** 2) * (plot_df["Amplitude"] ** 2)
+    norm_energy = (plot_df["Energy"] - plot_df["Energy"].min()) / (
+        plot_df["Energy"].max() - plot_df["Energy"].min() + 1e-12
+    )
+    plot_df["BubbleSize"] = norm_energy * 800 + 100
+
+    plt.figure(figsize=(18, 16))
+    plt.scatter(
+        plot_df["Frequency"],
+        plot_df["Src"],
+        s=plot_df["BubbleSize"],
+        c=plot_df["Damping"],
+        cmap="RdYlGn",
+        edgecolors="black",
+    )
+    plt.colorbar().set_label(r"Damping ($\sigma$)")
+    plt.title("Modal Frequency/Damping/Energy Map", fontweight="bold")
+    plt.xlabel("Frequency [Hz]")
+    plt.ylabel("Generator | Signal | Pole Count")
+    style_axis(plt.gca())
+    _save_current_figure(stats_dir, "5_bubble_map_single_panel")
+    plt.close()
+
+    generator_order = sorted(plot_df["Gen"].dropna().unique(), key=lambda name: int(name[1:]) if name.startswith("g") else name)
+    generator_positions = {gen: idx for idx, gen in enumerate(generator_order)}
+    plot_df["GeneratorIndex"] = plot_df["Gen"].map(generator_positions)
+
+    fig, axes = plt.subplots(2, 2, figsize=(18, 14), sharex=True, sharey=True)
+    fig.suptitle("Modal Frequency/Damping/Energy Map", fontweight="bold", y=0.98)
+    axes_flat = axes.flatten()
+    scatter = None
+
+    for idx, signal in enumerate(COLUMNS.values()):
+        ax = axes_flat[idx]
+        signal_df = plot_df[plot_df["Signal"] == signal]
+        if signal_df.empty:
+            ax.axis("off")
+            continue
+
+        scatter = ax.scatter(
+            signal_df["Frequency"],
+            signal_df["GeneratorIndex"],
+            s=signal_df["BubbleSize"],
+            c=signal_df["Damping"],
+            cmap="RdYlGn",
+            edgecolors="black",
+        )
+        ax.set_title(signal, fontweight="semibold")
+        ax.set_yticks(range(len(generator_order)))
+        ax.set_yticklabels([gen.upper() for gen in generator_order])
+        if idx >= 2:
+            ax.set_xlabel("Frequency [Hz]")
+        if idx % 2 == 0:
+            ax.set_ylabel("Generator")
+        style_axis(ax)
+
+    if scatter is not None:
+        cbar = fig.colorbar(scatter, ax=axes, fraction=0.03, pad=0.02)
+        cbar.set_label(r"Damping ($\sigma$)")
+
+    fig.subplots_adjust(left=0.10, right=0.92, bottom=0.08, top=0.92, wspace=0.16, hspace=0.20)
+    _save_current_figure(stats_dir, "5_bubble_map")
+    plt.close(fig)
+
+
+def _generate_ieee39_best_reconstruction_plots(df_results, report, scenario, stats_dir, data_dir, generators, columns):
+    if report.empty:
+        return
+
+    best_rows = report.loc[report.groupby(["Gen", "Signal"])["R2"].idxmax()].copy()
+    inv_columns = {label: csv_col for csv_col, label in columns.items()}
+
+    for gen in generators:
+        csv_path = data_dir / f"{gen}.csv"
+        if not csv_path.exists():
+            continue
+
+        df = _read_numeric_csv(csv_path)
+        fig, axes = plt.subplots(2, 2, figsize=(24, 16), sharex=True)
+        fig.suptitle(f"Absolute Best Signal Reconstruction (Max $R^2$) - {gen.upper()}", fontweight="bold", y=0.99)
+        axes_flat = axes.flatten()
+
+        for idx, signal in enumerate(columns.values()):
+            ax = axes_flat[idx]
+            ax.set_xlim(*RECON_X_LIMS)
+            ax.tick_params(axis="both", labelsize=RECON_TICK_LABEL_SIZE)
+
+            source_col = inv_columns[signal]
+            if source_col not in df.columns:
+                ax.axis("off")
+                continue
+
+            t, y_ref, _ = _preprocess_signal(df, source_col, scenario, gen, signal)
+            if t is None or y_ref is None:
+                ax.text(0.5, 0.5, "No Data", ha="center", va="center", transform=ax.transAxes)
+                continue
+
+            y_ref = y_ref - np.mean(y_ref)
+            best_row = best_rows[(best_rows["Gen"] == gen) & (best_rows["Signal"] == signal)]
+            if best_row.empty:
+                ax.text(0.5, 0.5, "No Data", ha="center", va="center", transform=ax.transAxes)
+                continue
+
+            best_method = best_row.iloc[0]["Method"]
+            best_r2 = float(best_row.iloc[0]["R2"])
+            modes = df_results[
+                (df_results["Gen"] == gen)
+                & (df_results["Signal"] == signal)
+                & (df_results["Method"] == best_method)
+            ]
+            if modes.empty:
+                ax.text(0.5, 0.5, "No Data", ha="center", va="center", transform=ax.transAxes)
+                continue
+
+            y_est = _reconstruct_signal(t, modes)
+            ax.plot(t, y_ref, color="black", alpha=0.3, linewidth=2, label="Original (filtered)")
+            ax.plot(t, y_est, "--", color="red", linewidth=1.5, label="MP Estimate")
+            ax.set_title(
+                f"{gen.upper()} - {signal}\nMethod: {best_method} ($R^2$: {best_r2:.4f})",
+                fontweight="semibold",
+            )
+            if idx >= 2:
+                ax.set_xlabel("Time (s)", fontsize=RECON_AXIS_LABEL_SIZE)
+            ax.set_ylabel(SIGNAL_LABELS.get(signal, signal), fontsize=RECON_AXIS_LABEL_SIZE)
+            ax.grid(True, linestyle=":", alpha=0.75, linewidth=1.3, color="gray")
+            if idx == 1:
+                ax.legend(loc="upper right")
+
+        fig.subplots_adjust(left=0.08, right=0.98, bottom=0.08, top=0.90, wspace=0.22, hspace=0.36)
+        _save_current_figure(stats_dir, f"10_best_reconstruction_{gen}_2x2")
+        plt.close(fig)
+
+
+def generate_ieee39_plots(df_results, report, scenario):
     if df_results.empty:
         print("No Matrix Pencil results available; skipping IEEE39 plots.")
         return
@@ -1159,6 +1382,9 @@ def generate_ieee39_plots(df_results, scenario):
     plots_dir = output_dir / "plots"
     modal_maps_dir = plots_dir / "modal_maps"
     recon_dir = plots_dir / "reconstruction_grids"
+    stats_dir = output_dir / "stats"
+
+    _generate_ieee39_modal_grid_plots(df_results, modal_maps_dir, generators, columns)
 
     for gen in generators:
         gen_data = df_results[df_results["Gen"] == gen]
@@ -1278,6 +1504,9 @@ def generate_ieee39_plots(df_results, scenario):
             plt.tight_layout(rect=[0, 0.03, 1, 0.95])
             _save_current_figure(recon_dir, f"{gen}_{signal.replace(' ', '_')}_reconstruction")
             plt.close(fig)
+
+    _generate_ieee39_bubble_map(df_results, stats_dir)
+    _generate_ieee39_best_reconstruction_plots(df_results, report, scenario, stats_dir, data_dir, generators, columns)
 
 
 def run_matrix_pencil_for_scenario(name, scenario):
@@ -1767,14 +1996,14 @@ def main():
             output_dir, results_path, df_results, analysis_config = run_matrix_pencil_for_scenario(name, scenario)
 
         report_start = time.perf_counter()
-        generate_ieee39_comprehensive_report(df_results, scenario)
+        report = generate_ieee39_comprehensive_report(df_results, scenario)
         report_elapsed = time.perf_counter() - report_start
         analysis_config.setdefault("timings", {})["comprehensive_report"] = _timing_entry(report_elapsed)
 
         plotting_elapsed = 0.0
         if not args.skip_plots:
             plotting_start = time.perf_counter()
-            generate_ieee39_plots(df_results, scenario)
+            generate_ieee39_plots(df_results, report, scenario)
             plotting_elapsed = time.perf_counter() - plotting_start
         analysis_config["timings"]["plotting"] = _timing_entry(plotting_elapsed, skipped=args.skip_plots)
 
