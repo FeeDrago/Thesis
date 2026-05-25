@@ -197,6 +197,18 @@ def _assign_reference_modes(df, reference_modes=None):
     return df
 
 
+def _complete_reference_mode_summary(summary_df, reference_modes):
+    reference_names = list(reference_modes.keys())
+    complete_df = pd.DataFrame({
+        "Reference_Mode": reference_names,
+        "Reference_Frequency": [float(reference_modes[name]["Frequency"]) for name in reference_names],
+        "Reference_Damping": [float(reference_modes[name]["Damping"]) for name in reference_names],
+    })
+    complete_df = complete_df.merge(summary_df, on=["Reference_Mode", "Reference_Frequency", "Reference_Damping"], how="left")
+    complete_df["Count"] = complete_df["Count"].fillna(0).astype(int)
+    return complete_df
+
+
 def _save_reference_mad_outputs(df, output_path, reference_modes=None):
     """
     Save MAD summaries exactly in the spirit of Eq. (26) of the reference paper:
@@ -225,6 +237,7 @@ def _save_reference_mad_outputs(df, output_path, reference_modes=None):
             Max_Distance=("Distance_to_Reference", "max"),
         )
     )
+    overall_by_mode = _complete_reference_mode_summary(overall_by_mode, reference_modes)
     overall_by_mode.to_csv(
         os.path.join(ref_dir, "reference_mad_summary_overall.csv"),
         index=False

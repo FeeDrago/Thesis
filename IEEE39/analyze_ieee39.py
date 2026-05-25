@@ -974,6 +974,12 @@ def _scenario_reconstruction_rows(scenario):
     ]
 
 
+def _generator_display_name(gen):
+    if isinstance(gen, str) and gen.startswith("g") and gen[1:].isdigit():
+        return f"Generator {int(gen[1:])}"
+    return str(gen)
+
+
 def _collect_result_diagnostics(data_dir, scenario, generators, columns, df_results):
     missing_results = []
     methods = _result_diagnostic_methods(scenario)
@@ -1311,6 +1317,12 @@ def _generate_ieee39_best_reconstruction_plots(df_results, report, scenario, sta
 
     best_rows = report.loc[report.groupby(["Gen", "Signal"])["R2"].idxmax()].copy()
     inv_columns = {label: csv_col for csv_col, label in columns.items()}
+    labels_map = {
+        "Voltage": r"$\Delta V$ [p.u.]",
+        "Current": r"$\Delta \mathrm{I}$ [p.u.]",
+        "Active Power": r"$\Delta P$ [MW]",
+        "Reactive Power": r"$\Delta Q$ [Mvar]",
+    }
 
     for gen in generators:
         csv_path = data_dir / f"{gen}.csv"
@@ -1318,8 +1330,9 @@ def _generate_ieee39_best_reconstruction_plots(df_results, report, scenario, sta
             continue
 
         df = _read_numeric_csv(csv_path)
+        generator_label = _generator_display_name(gen)
         fig, axes = plt.subplots(2, 2, figsize=(24, 16), sharex=True)
-        fig.suptitle(f"Absolute Best Signal Reconstruction (Max $R^2$) - {gen.upper()}", fontweight="bold", y=0.99)
+        fig.suptitle(f"Absolute Best Signal Reconstruction (Max $R^2$) - {generator_label}", fontweight="bold", y=0.99)
         axes_flat = axes.flatten()
 
         for idx, signal in enumerate(columns.values()):
@@ -1358,12 +1371,12 @@ def _generate_ieee39_best_reconstruction_plots(df_results, report, scenario, sta
             ax.plot(t, y_ref, color="black", alpha=0.3, linewidth=2, label="Original (filtered)")
             ax.plot(t, y_est, "--", color="red", linewidth=1.5, label="MP Estimate")
             ax.set_title(
-                f"{gen.upper()} - {signal}\nMethod: {best_method} ($R^2$: {best_r2:.4f})",
+                f"{generator_label} - {signal}\nMethod: {best_method} ($R^2$: {best_r2:.4f})",
                 fontweight="semibold",
             )
             if idx >= 2:
                 ax.set_xlabel("Time (s)", fontsize=RECON_AXIS_LABEL_SIZE)
-            ax.set_ylabel(SIGNAL_LABELS.get(signal, signal), fontsize=RECON_AXIS_LABEL_SIZE)
+            ax.set_ylabel(labels_map.get(signal, ""), fontsize=RECON_AXIS_LABEL_SIZE)
             ax.grid(True, linestyle=":", alpha=0.75, linewidth=1.3, color="gray")
             if idx == 1:
                 ax.legend(loc="upper right")
@@ -1457,9 +1470,8 @@ def generate_ieee39_plots(df_results, report, scenario):
             if not reconstruction_rows:
                 continue
 
-            fig, axes = plt.subplots(len(reconstruction_rows), 2, figsize=(16, max(5 * len(reconstruction_rows), 6)), sharex=True)
-            if len(reconstruction_rows) == 1:
-                axes = np.array([axes])
+            fig = plt.figure(figsize=(16, max(5 * len(reconstruction_rows), 6)))
+            grid = fig.add_gridspec(len(reconstruction_rows), 2)
             fig.suptitle(
                 f"Reconstruction Accuracy: {gen.upper()} - {signal}\nLeft: Fixed Orders | Right: Adaptive Tau",
                 fontweight="bold",
@@ -1467,14 +1479,21 @@ def generate_ieee39_plots(df_results, report, scenario):
             )
 
             for row_idx, (order_method, tau_method) in enumerate(reconstruction_rows):
-                for col_idx, method in enumerate([order_method, tau_method]):
-                    ax = axes[row_idx, col_idx]
+                row_methods = [method for method in (order_method, tau_method) if method is not None]
+                if not row_methods:
+                    continue
+
+                if len(row_methods) == 1:
+                    axis_method_pairs = [(fig.add_subplot(grid[row_idx, :]), row_methods[0], 0)]
+                else:
+                    axis_method_pairs = [
+                        (fig.add_subplot(grid[row_idx, 0]), order_method, 0),
+                        (fig.add_subplot(grid[row_idx, 1]), tau_method, 1),
+                    ]
+
+                for ax, method, col_idx in axis_method_pairs:
                     ax.set_xlim(*RECON_X_LIMS)
                     ax.tick_params(axis="both", labelsize=RECON_TICK_LABEL_SIZE)
-
-                    if method is None:
-                        ax.axis("off")
-                        continue
 
                     modes = df_results[
                         (df_results["Gen"] == gen)
@@ -1496,12 +1515,12 @@ def generate_ieee39_plots(df_results, report, scenario):
                     ax.legend(loc="upper right")
                     ax.grid(True, linestyle=":", alpha=0.75, linewidth=1.3, color="gray")
 
-                    if col_idx == 0:
+                    if col_idx == 0 or len(row_methods) == 1:
                         ax.set_ylabel(SIGNAL_LABELS.get(signal, signal), fontsize=RECON_AXIS_LABEL_SIZE)
                     if row_idx == len(reconstruction_rows) - 1:
                         ax.set_xlabel("Time (s)", fontsize=RECON_AXIS_LABEL_SIZE)
 
-            plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+            fig.tight_layout(rect=[0, 0.03, 1, 0.95])
             _save_current_figure(recon_dir, f"{gen}_{signal.replace(' ', '_')}_reconstruction")
             plt.close(fig)
 
@@ -1702,9 +1721,56 @@ def run_clustering_for_scenario(output_dir, results_path, df_results, scenario):
                 reference_modes=IEEE39_REFERENCE_MODES,
             )
 
+        _save_ieee39_combined_reference_mad_summary(area_root, IEEE39_REFERENCE_MODES)
+
         timings["by_control_area"] = area_timings
 
     return timings
+
+
+def _save_ieee39_combined_reference_mad_summary(area_root, reference_modes):
+    assignment_files = sorted(area_root.glob("area_*/reference_mad/mp_estimates_with_reference_assignment.csv"))
+    if not assignment_files:
+        return
+
+    combined_dir = area_root / "reference_mad"
+    combined_dir.mkdir(parents=True, exist_ok=True)
+
+    assigned_df = pd.concat([pd.read_csv(path) for path in assignment_files], ignore_index=True)
+    assigned_df.to_csv(combined_dir / "mp_estimates_with_reference_assignment.csv", index=False)
+
+    summary = (
+        assigned_df.groupby("Reference_Mode", as_index=False)
+        .agg(
+            Reference_Frequency=("Reference_Frequency", "first"),
+            Reference_Damping=("Reference_Damping", "first"),
+            Count=("Distance_to_Reference", "size"),
+            MAD=("Distance_to_Reference", "median"),
+            Mean_Distance=("Distance_to_Reference", "mean"),
+            Max_Distance=("Distance_to_Reference", "max"),
+        )
+    )
+
+    mode_names = list(reference_modes.keys())
+    complete_summary = pd.DataFrame({
+        "Reference_Mode": mode_names,
+        "Reference_Frequency": [float(reference_modes[name]["Frequency"]) for name in mode_names],
+        "Reference_Damping": [float(reference_modes[name]["Damping"]) for name in mode_names],
+    }).merge(
+        summary,
+        on=["Reference_Mode", "Reference_Frequency", "Reference_Damping"],
+        how="left",
+    )
+    complete_summary["Count"] = complete_summary["Count"].fillna(0).astype(int)
+    complete_summary.to_csv(combined_dir / "reference_mad_summary_overall.csv", index=False)
+
+    overall = pd.DataFrame([{
+        "Count": int(len(assigned_df)),
+        "MAD": float(assigned_df["Distance_to_Reference"].median()),
+        "Mean_Distance": float(assigned_df["Distance_to_Reference"].mean()),
+        "Max_Distance": float(assigned_df["Distance_to_Reference"].max()),
+    }])
+    overall.to_csv(combined_dir / "reference_mad_overall.csv", index=False)
 
 
 def apply_existing_analysis_config(scenario, results_path, args):
