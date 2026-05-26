@@ -131,6 +131,26 @@ def _overlay_reference_modes(ax, reference_modes):
         )
 
 
+def _plot_selected_cluster_map(ax, df, labels, representatives, representative_label, title, reference_modes=None):
+    point_colors = _label_colors(labels)
+    ax.scatter(
+        df['Damping'], df['Frequency'], c=point_colors,
+        alpha=POINT_ALPHA, edgecolors='k', linewidths=0.8, s=POINT_SIZE
+    )
+    ax.scatter(
+        representatives[:, 1], representatives[:, 0], c=ACCENT_RED, marker='x',
+        s=REP_SIZE, linewidths=4, label=representative_label
+    )
+    _overlay_reference_modes(ax, reference_modes)
+    ax.axvline(0, color=ACCENT_RED, linestyle='--', alpha=0.35, linewidth=2)
+    ax.set_title(title, fontweight='bold')
+    ax.set_xlabel("Damping (Sigma) [rad/s]")
+    ax.set_ylabel("Frequency [Hz]")
+    handles = _cluster_legend_handles(len(representatives), representative_label=representative_label) + _reference_mode_handles(reference_modes)
+    ax.legend(handles=handles, loc='upper left')
+    _apply_axis_style(ax, GRID_ALPHA_SUB)
+
+
 def _pairwise_distances(X):
     diffs = X[:, None, :] - X[None, :, :]
     return np.sqrt(np.sum(diffs ** 2, axis=2))
@@ -500,6 +520,34 @@ def run_kmeans_modal_analysis(results_path, output_path, reference_modes=None):
     _save_figure(fig, base_output, "elbow_method")
     plt.close(fig)
 
+    labels_opt, centers_opt, inertia_opt = stored_results[k_opt]
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 8), gridspec_kw={"width_ratios": [1.0, 1.1]})
+    ax1.plot(k_values, wcss, marker='o', color=LINE_BLUE, linewidth=3, markersize=10)
+    ax1.scatter(
+        k_opt, wcss[k_opt_idx], color=ACCENT_RED, marker='o', s=200,
+        edgecolors='k', zorder=5, label='Optimal Knee Point by Maximum Chord Distance'
+    )
+    ax1.set_xticks(k_values)
+    ax1.set_xlabel("Number of clusters (k)")
+    ax1.set_ylabel("WCSS")
+    ax1.set_title("Elbow Method for $k$-Means Optimization", fontweight='bold')
+    ax1.legend(loc='upper right')
+    _apply_axis_style(ax1)
+
+    _plot_selected_cluster_map(
+        ax2,
+        df,
+        labels_opt,
+        centers_opt,
+        'Centroids',
+        f"$k$-Means Cluster Map ($k={k_opt}$)\nWCSS: {inertia_opt:.2f}",
+        reference_modes=reference_modes,
+    )
+
+    fig.tight_layout()
+    _save_figure(fig, base_output, "elbow_selected_kmeans")
+    plt.close(fig)
+
     metrics_df["k_selected_by_max_chord"] = metrics_df["k"] == k_opt
     metrics_df.to_csv(os.path.join(base_output, "kmeans_metrics_summary.csv"), index=False)
     pd.DataFrame(cluster_stats).to_csv(os.path.join(base_output, "cluster_centers_sizes.csv"), index=False)
@@ -646,6 +694,34 @@ def run_kmedoids_modal_analysis(results_path, output_path, reference_modes=None)
     ax.legend()
     _apply_axis_style(ax)
     _save_figure(fig, base_output, "kmedoids_elbow_method")
+    plt.close(fig)
+
+    labels_opt, medoids_opt, cost_opt = stored_results[k_opt]
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 8), gridspec_kw={"width_ratios": [1.0, 1.1]})
+    ax1.plot(k_values, costs, marker='o', color=LINE_BLUE, linewidth=3, markersize=10)
+    ax1.scatter(
+        k_opt, costs[k_opt_idx], color=ACCENT_RED, marker='o', s=200,
+        edgecolors='k', zorder=5, label='Optimal Knee Point by Maximum Chord Distance'
+    )
+    ax1.set_xticks(k_values)
+    ax1.set_xlabel("Number of clusters (k)")
+    ax1.set_ylabel("Total Medoid Distance")
+    ax1.set_title("Elbow-Like Method for $k$-Medoids Optimization", fontweight='bold')
+    ax1.legend(loc='upper right')
+    _apply_axis_style(ax1)
+
+    _plot_selected_cluster_map(
+        ax2,
+        df,
+        labels_opt,
+        medoids_opt,
+        'Medoids',
+        f"$k$-Medoids Cluster Map ($k={k_opt}$)\nCost: {cost_opt:.2f}",
+        reference_modes=reference_modes,
+    )
+
+    fig.tight_layout()
+    _save_figure(fig, base_output, "elbow_selected_kmedoids")
     plt.close(fig)
 
     metrics_df["k_selected_by_max_chord"] = metrics_df["k"] == k_opt
