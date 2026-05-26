@@ -9,6 +9,7 @@ from sklearn.metrics import r2_score, mean_squared_error
 from matrix_pencil import filter_signal
 from matplotlib.ticker import MaxNLocator
 from plot_style import apply_thesis_style, save_pdf, style_axis
+from shared_plotting import plot_best_reconstruction_grid, plot_bubble_map
 
 
 apply_thesis_style()
@@ -149,28 +150,7 @@ def generate_preliminary_report_stats(path, preprocessed_signals=None):
     plt.close()
 
     # 5. Modal bubble map
-    plt.figure(figsize=(14, 9))
-    df['Src'] = df['Gen'] + " | " + df['Signal']
-    counts = df.groupby('Src').size().reset_index(name='Count')
-    df = df.merge(counts, on='Src')
-    df['Src'] = df['Src'] + " | Poles: " + df['Count'].astype(str)
-    omega = 2 * np.pi * df['Frequency']
-    df['Energy'] = 0.5 * (omega**2) * (df['Amplitude']**2)
-    norm_e = (df['Energy'] - df['Energy'].min()) / (df['Energy'].max() - df['Energy'].min() + 1e-12)
-    plt.scatter(
-        df['Frequency'],
-        df['Src'],
-        s=norm_e * 800 + 100,
-        c=df['Damping'],
-        cmap='RdYlGn',
-        edgecolors='black'
-    )
-    plt.colorbar().set_label(r'Damping ($\sigma$)')
-    plt.title("Modal Frequency/Damping/Energy Map", fontweight='bold')
-    style_axis(plt.gca())
-    save_pdf(plt, os.path.join(pdf_path, "5_bubble_map.pdf"))
-    plt.savefig(os.path.join(png_path, "5_bubble_map.png"), dpi=300, bbox_inches='tight')
-    plt.close()
+    plot_bubble_map(df, stats_path, "5_bubble_map", min_height=9.0)
 
     # 6. R2 boxplot
     plt.figure(figsize=(12, 7))
@@ -280,13 +260,6 @@ def generate_preliminary_report_stats(path, preprocessed_signals=None):
     plt.close()
 
     # 10. Best Reconstruction 2x2 per Generator
-    labels_map = {
-        'Voltage': r"$\Delta V$ [p.u.]",
-        'Current': r"$\Delta \mathrm{I}$ [p.u.]",
-        'Active Power': r"$\Delta P$ [MW]",
-        'Reactive Power': r"$\Delta Q$ [Mvar]"
-    }
-
     for glabel in gens:
         gid = [k for k, v in gen_id_map.items() if v == glabel][0]
         csv_file = os.path.join(path, f"{gid}.csv")
@@ -304,17 +277,11 @@ def generate_preliminary_report_stats(path, preprocessed_signals=None):
         # t_f = raw_df.iloc[:, 0].values
         # t = t_f.copy() - t_f[0]
 
-        fig_g, axes_g = plt.subplots(2, 2, figsize=(24, 16), sharex=True)
-        fig_g.suptitle(f"Absolute Best Signal Reconstruction (Max $R^2$) - {glabel}", fontweight='bold', y=0.99)
-        axes_flat = axes_g.flatten()
+        items = []
 
         for j, sig_l in enumerate(sigs):
-            ax = axes_flat[j]
-            ax.set_xlim(*RECON_X_LIMS)
-            ax.tick_params(axis='both', labelsize=RECON_TICK_LABEL_SIZE)
             col = signals_map[sig_l]
             if col not in raw_df.columns:
-                ax.axis('off')
                 continue
 
             # Time Mask
@@ -327,7 +294,6 @@ def generate_preliminary_report_stats(path, preprocessed_signals=None):
 
             best_row = best_m[(best_m['Gen'] == glabel) & (best_m['Signal'] == sig_l)]
             if best_row.empty:
-                ax.text(0.5, 0.5, "No Data", ha='center', va='center', transform=ax.transAxes)
                 continue
 
             best_method = best_row.iloc[0]['Method']
@@ -337,20 +303,25 @@ def generate_preliminary_report_stats(path, preprocessed_signals=None):
             for _, m in modes.iterrows():
                 y_est += 2 * m['Amplitude'] * np.exp(m['Damping'] * t) * np.cos(2 * np.pi * m['Frequency'] * t + m['Phase'])
 
-            ax.plot(t, y_ref, color='black', alpha=0.3, linewidth=2, label='Original (filtered)')
-            ax.plot(t, y_est, '--', color='red', linewidth=1.5, label='MP Estimate')
-            ax.set_title(f"{glabel} - {sig_l}\nMethod: {best_method} ($R^2$: {best_r2:.4f})", fontweight='semibold')
-            if j >= 2:
-                ax.set_xlabel("Time (s)", fontsize=RECON_AXIS_LABEL_SIZE)
-            ax.set_ylabel(labels_map.get(sig_l, ""), fontsize=RECON_AXIS_LABEL_SIZE)
-            ax.grid(True, linestyle=':', alpha=0.75, linewidth=1.3, color='gray')
-            if j == 1:
-                ax.legend(loc='upper right')
+            items.append({
+                't': t,
+                'y_ref': y_ref,
+                'y_est': y_est,
+                'title': f"{glabel} - {sig_l}\nMethod: {best_method} ($R^2$: {best_r2:.4f})",
+                'signal': sig_l,
+                'show_legend': len(items) == 1,
+            })
 
-        fig_g.subplots_adjust(left=0.08, right=0.98, bottom=0.08, top=0.90, wspace=0.22, hspace=0.36)
-        save_pdf(plt, os.path.join(pdf_path, f"10_best_reconstruction_{gid}_2x2.pdf"))
-        plt.savefig(os.path.join(png_path, f"10_best_reconstruction_{gid}_2x2.png"), dpi=300, bbox_inches='tight')
-        plt.close(fig_g)
+        if not items:
+            continue
+
+        plot_best_reconstruction_grid(
+            items=items,
+            output_dir=stats_path,
+            filename=f"10_best_reconstruction_{gid}_2x2",
+            title=f"Absolute Best Signal Reconstruction (Max $R^2$) - {glabel}",
+            x_lims=RECON_X_LIMS,
+        )
 
     
 

@@ -3,9 +3,15 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.signal import detrend
-from sklearn.metrics import r2_score, mean_squared_error
 from matrix_pencil import filter_signal
 from plot_style import apply_thesis_style, save_pdf, style_axis, SIGNAL_COLORS
+from shared_plotting import (
+    generator_modal_label,
+    plot_modal_combined_map,
+    plot_modal_signal_grid,
+    plot_modal_generator_grid,
+    plot_reconstruction_method_grid,
+)
 
 apply_thesis_style()
 
@@ -49,77 +55,45 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
     # Combined plot per generator
     for gen in generators:
         data = df_results[df_results['Gen'] == gen]
-        if data.empty: continue
-        
-        plt.figure(figsize=(10, 6))
-        for signal in columns.values():
-            sig_data = data[data['Signal'] == signal]
-            plt.scatter(sig_data['Damping'], sig_data['Frequency'], label=signal, c=colors[signal], alpha=0.6, edgecolors='k', s=60)
-        
-        plt.axvline(0, color='red', linestyle='-', alpha=0.3)
-        plt.title(f"Combined Modal Map: Generator {gen.upper()}")
-        plt.xlabel("Damping (Sigma) [rad/s]")
-        plt.ylabel("Frequency [Hz]")
-        plt.legend()
-        style_axis(plt.gca())
-        
-        fname = f"{gen}_combined"
-        save_pdf(plt, os.path.join(modal_maps_path, "pdf", f"{fname}.pdf"))
-        plt.savefig(os.path.join(modal_maps_path, "png", f"{fname}.png"), dpi=300, bbox_inches='tight')
-        plt.close()
+        if data.empty:
+            continue
 
-    # 2x2 Per Generator Plots
+        plot_modal_combined_map(
+            df_results=df_results,
+            output_dir=modal_maps_path,
+            filename=f"{gen}_combined",
+            title=f"Combined Modal Map: {generator_modal_label(gen)}",
+            signals=list(columns.values()),
+            gen=gen,
+            colors=colors,
+            figsize=(10, 6),
+        )
+
+    # Adaptive per-generator signal grids
     for gen in generators:
         gen_data = df_results[df_results['Gen'] == gen]
-        if gen_data.empty: continue
-        
-        fig, axes = plt.subplots(2, 2, figsize=(16, 12), sharex=True, sharey=True)
-        fig.suptitle(f"Modal Identification per Signal: Generator {gen.upper()}", fontweight='bold')
-        axes_flat = axes.flatten()
-        
-        for i, signal in enumerate(columns.values()):
-            ax = axes_flat[i]
-            sig_data = gen_data[gen_data['Signal'] == signal]
-            
-            ax.scatter(sig_data['Damping'], sig_data['Frequency'], 
-                       color=colors[signal], alpha=0.6, edgecolors='k', s=50)
-            ax.axvline(0, color='red', linestyle='--', alpha=0.5)
-            ax.set_title(signal, fontweight='semibold')
-            style_axis(ax)
-            
-            if i >= 2: ax.set_xlabel("Damping (Sigma) [rad/s]")
-            if i % 2 == 0: ax.set_ylabel("Frequency [Hz]")
-            
-        plt.tight_layout(rect=[0, 0, 1, 0.96])
-        fname = f"{gen}_2x2_grid"
-        save_pdf(plt, os.path.join(modal_maps_path, "pdf", f"{fname}.pdf"))
-        plt.savefig(os.path.join(modal_maps_path, "png", f"{fname}.png"), dpi=300, bbox_inches='tight')
-        plt.close(fig)
+        if gen_data.empty:
+            continue
 
-    # 2x2 Grid for all generators
-    fig, axes = plt.subplots(2, 2, figsize=(16, 12), sharex=True, sharey=True)
-    fig.suptitle("System-Wide Modal Identification (All Generators)", fontweight='bold')
-    axes_flat = axes.flatten()
-    for i, gen in enumerate(generators):
-        ax = axes_flat[i]
-        gen_data = df_results[df_results['Gen'] == gen]
-        for signal in columns.values():
-            sig_data = gen_data[gen_data['Signal'] == signal]
-            ax.scatter(sig_data['Damping'], sig_data['Frequency'], label=signal, c=colors[signal], alpha=0.6, edgecolors='k', s=60)
-        ax.axvline(0, color='red', linestyle='-', alpha=0.3)
-        ax.set_title(f"Generator {gen.upper()}")
-        style_axis(ax)
-        if i >= 2: ax.set_xlabel("Damping (Sigma) [rad/s]")
-        if i % 2 == 0: ax.set_ylabel("Frequency [Hz]")
+        plot_modal_signal_grid(
+            df_results=df_results,
+            gen=gen,
+            signals=list(columns.values()),
+            output_dir=modal_maps_path,
+            filename=f"{gen}_2x2_grid",
+            title=f"Modal Identification per Signal: {generator_modal_label(gen)}",
+            colors=colors,
+        )
 
-    handles = [plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=c, markersize=12, label=s) for s, c in colors.items()]
-    fig.legend(handles=handles, labels=colors.keys(), loc='lower center', ncol=4, title="Signals")
-    plt.tight_layout(rect=[0, 0.08, 1, 0.95])
-    
-    fname = "All_Generators_Grid"
-    save_pdf(plt, os.path.join(modal_maps_path, "pdf", f"{fname}.pdf"))
-    plt.savefig(os.path.join(modal_maps_path, "png", f"{fname}.png"), dpi=300, bbox_inches='tight')
-    plt.close()
+    plot_modal_generator_grid(
+        df_results=df_results,
+        generators=generators,
+        signals=list(columns.values()),
+        output_dir=modal_maps_path,
+        filename="All_Generators_Grid",
+        title="System-Wide Modal Identification (All Generators)",
+        colors=colors,
+    )
 
     # 2. SIGNAL RECONSTRUCTION PLOTS 
     row_configs = [('Order 2', 'Tau 1'), ('Order 4', 'Tau 0.1'), ('Order 6', 'Tau 0.01')]
@@ -155,54 +129,21 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
                 y_ref = filter_signal(detrend(y_proc), t, fc=10)
 
 
-            fig, axes = plt.subplots(3, 2, figsize=(16, 14), sharex=True)
-            fig.suptitle(f"Reconstruction Accuracy: {gen.upper()} - {signal_label}\nLeft: Fixed Orders | Right: Adaptive Tau", 
-                         fontweight='bold', y=0.98)
-
-            for row_idx, (left_meth, right_meth) in enumerate(row_configs):
-                for col_idx, method in enumerate([left_meth, right_meth]):
-                    ax = axes[row_idx, col_idx]
-                    ax.set_xlim(*RECON_X_LIMS)
-                    ax.tick_params(axis='both', labelsize=RECON_TICK_LABEL_SIZE)
-                    
-                    modes = df_results[(df_results['Gen'] == gen) & 
-                                       (df_results['Signal'] == signal_label) & 
-                                       (df_results['Method'] == method)]
-                    
-                    if modes.empty:
-                        ax.text(0.5, 0.5, "No Data Found", ha='center')
-                        continue
-
-                    y_est = np.zeros_like(t)
-                    for _, m in modes.iterrows():
-                        y_est += 2 * m['Amplitude'] * np.exp(m['Damping'] * t) * \
-                                 np.cos(2 * np.pi * m['Frequency'] * t + m['Phase'])
-                    
-                    r2 = r2_score(y_ref, y_est)
-                    rmse = np.sqrt(mean_squared_error(y_ref, y_est))
-                    
-                    ax.plot(t, y_ref, color='black', alpha=0.3, linewidth=2, label='Original (Filtered)')
-                    ax.plot(t, y_est, '--', color='red', linewidth=1.5, label=f'MP Estimate ($R^2$={r2:.4f})')
-                    ax.set_title(f"Method: {method} (RMSE: {rmse:.2e})", fontweight='semibold')
-                    ax.legend(loc='upper right')
-                    ax.grid(True, linestyle=':', alpha=0.75, linewidth=1.3, color='gray')
-                    
-                    if col_idx == 0: 
-                       labels_map = {
-                            'Voltage': r"$\Delta V$ [p.u.]",
-                            'Current': r"$\Delta \mathrm{I}$ [p.u.]",
-                            'Active Power': r"$\Delta P$ [MW]",
-                            'Reactive Power': r"$\Delta Q$ [Mvar]"
-                        }
-                    ax.set_ylabel(labels_map.get(signal_label, ""), fontsize=RECON_AXIS_LABEL_SIZE)
-                    if row_idx == 2:
-                        ax.set_xlabel("Time (s)", fontsize=RECON_AXIS_LABEL_SIZE)
-
-            plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-            fname = f"{gen}_{signal_label.replace(' ', '_')}_Reconstruction"
-            save_pdf(plt, os.path.join(recon_path, "pdf", f"{fname}.pdf"))
-            plt.savefig(os.path.join(recon_path, "png", f"{fname}.png"), dpi=300, bbox_inches='tight')
-            plt.close()
+            plot_reconstruction_method_grid(
+                t=t,
+                y_ref=y_ref,
+                reconstruction_rows=row_configs,
+                fetch_modes=lambda method: df_results[(df_results['Gen'] == gen) & (df_results['Signal'] == signal_label) & (df_results['Method'] == method)],
+                reconstruct_signal=lambda t_values, modes: np.sum([
+                    2 * m['Amplitude'] * np.exp(m['Damping'] * t_values) * np.cos(2 * np.pi * m['Frequency'] * t_values + m['Phase'])
+                    for _, m in modes.iterrows()
+                ], axis=0) if not modes.empty else np.zeros_like(t_values),
+                output_dir=recon_path,
+                filename=f"{gen}_{signal_label.replace(' ', '_')}_Reconstruction",
+                title=f"Reconstruction Accuracy: {gen.upper()} - {signal_label}\nLeft: Fixed Orders | Right: Adaptive Tau",
+                signal=signal_label,
+                x_lims=RECON_X_LIMS,
+            )
 
 if __name__ == "__main__":
     output_path = os.path.dirname(os.path.abspath(__file__))

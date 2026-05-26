@@ -28,6 +28,7 @@ apply_thesis_style()
 
 FREQ_MIN = 0.1
 FREQ_MAX = 2.0
+DAMPING_MAX = -1e-3
 
 REFERENCE_MODES = {
     "Inter-area": {"Frequency": 0.540, "Damping": -0.127},
@@ -80,6 +81,54 @@ def _cluster_legend_handles(k, representative_label=None):
             )
         )
     return handles
+
+
+def _reference_mode_handles(reference_modes):
+    if not reference_modes:
+        return []
+    return [
+        Line2D(
+            [0], [0],
+            marker='D',
+            color='k',
+            markerfacecolor='white',
+            markeredgecolor='k',
+            linestyle='None',
+            markersize=9,
+            label='Reference Modes',
+        )
+    ]
+
+
+def _overlay_reference_modes(ax, reference_modes):
+    if reference_modes is None:
+        reference_modes = REFERENCE_MODES
+    if not reference_modes:
+        return
+
+    ref_names = list(reference_modes.keys())
+    ref_freq = [float(reference_modes[name]["Frequency"]) for name in ref_names]
+    ref_damping = [float(reference_modes[name]["Damping"]) for name in ref_names]
+    ax.scatter(
+        ref_damping,
+        ref_freq,
+        marker='D',
+        s=150,
+        facecolors='white',
+        edgecolors='black',
+        linewidths=2.2,
+        zorder=6,
+    )
+    for name, damping, freq in zip(ref_names, ref_damping, ref_freq):
+        ax.annotate(
+            name,
+            (damping, freq),
+            xytext=(8, 6),
+            textcoords='offset points',
+            fontsize=12,
+            fontweight='semibold',
+            color='black',
+        )
 
 
 def _pairwise_distances(X):
@@ -136,12 +185,18 @@ def _apply_frequency_screening(df, output_path=None):
     df = df.loc[freq_mask].copy()
     n_after_frequency = len(df)
 
+    damping_mask = df["Damping"] <= DAMPING_MAX
+    df = df.loc[damping_mask].copy()
+    n_after_damping = len(df)
+
     summary = pd.DataFrame([
         {"step": "initial_rows", "count": n_initial},
         {"step": "after_finite_numeric_filter", "count": n_after_finite},
         {"step": "removed_non_finite_rows", "count": n_initial - n_after_finite},
         {"step": "after_frequency_screening", "count": n_after_frequency},
         {"step": "removed_out_of_range_frequency_rows", "count": n_after_finite - n_after_frequency},
+        {"step": "after_negative_damping_screening", "count": n_after_damping},
+        {"step": "removed_non_negative_or_near_zero_damping_rows", "count": n_after_frequency - n_after_damping},
     ])
 
     if output_path is not None:
@@ -198,6 +253,9 @@ def _assign_reference_modes(df, reference_modes=None):
 
 
 def _complete_reference_mode_summary(summary_df, reference_modes):
+    if reference_modes is None:
+        return summary_df
+
     reference_names = list(reference_modes.keys())
     complete_df = pd.DataFrame({
         "Reference_Mode": reference_names,
@@ -307,7 +365,7 @@ def _save_metrics_summary(base_output, metrics_rows, filename):
     pd.DataFrame(metrics_rows).to_csv(os.path.join(base_output, filename), index=False)
 
 
-def run_kmeans_modal_analysis(results_path, output_path):
+def run_kmeans_modal_analysis(results_path, output_path, reference_modes=None):
     base_output = os.path.join(output_path, "kmeans")
     _prepare_output_dirs(base_output)
 
@@ -355,6 +413,7 @@ def run_kmeans_modal_analysis(results_path, output_path):
             centers[:, 1], centers[:, 0], c=ACCENT_RED, marker='x',
             s=REP_SIZE, linewidths=4, label='Centroids'
         )
+        _overlay_reference_modes(ax, reference_modes)
 
         ax.axvline(0, color=ACCENT_RED, linestyle='--', alpha=0.35, linewidth=2)
         ax.set_xlabel("Damping (Sigma) [rad/s]")
@@ -363,7 +422,8 @@ def run_kmeans_modal_analysis(results_path, output_path):
             f"Modal Clustering with $k-Means$ ($k={k}$)\nWCSS: {inertia:.2f}",
             fontweight='bold'
         )
-        ax.legend(loc='upper left')
+        handles = _cluster_legend_handles(k, representative_label='Centroids') + _reference_mode_handles(reference_modes)
+        ax.legend(handles=handles, loc='upper left')
         _apply_axis_style(ax)
         _save_figure(fig, base_output, f"kmeans_modal_map_k{k}")
         plt.close(fig)
@@ -405,6 +465,7 @@ def run_kmeans_modal_analysis(results_path, output_path):
         ax.scatter(df['Damping'], df['Frequency'], c=point_colors, alpha=POINT_ALPHA, s=GRID_POINT_SIZE,
                    edgecolors='k', linewidths=0.5)
         ax.scatter(centers[:, 1], centers[:, 0], c=ACCENT_RED, marker='x', s=REP_GRID_SIZE, linewidths=3)
+        _overlay_reference_modes(ax, reference_modes)
 
         ax.axvline(0, color=ACCENT_RED, linestyle='--', alpha=0.35, linewidth=2)
         ax.set_title(
@@ -418,7 +479,7 @@ def run_kmeans_modal_analysis(results_path, output_path):
         if idx % 2 == 0:
             ax.set_ylabel("Frequency [Hz]")
 
-    handles = _cluster_legend_handles(max(grid_ks), representative_label="Centroids")
+    handles = _cluster_legend_handles(max(grid_ks), representative_label="Centroids") + _reference_mode_handles(reference_modes)
     fig.legend(handles=handles, loc='lower center', bbox_to_anchor=(0.5, -0.02), ncol=min(4, len(handles)))
     fig.tight_layout(rect=[0, 0.12, 1, 0.95])
     _save_figure(fig, base_output, "kmeans_optimization_grid")
@@ -444,7 +505,7 @@ def run_kmeans_modal_analysis(results_path, output_path):
     pd.DataFrame(cluster_stats).to_csv(os.path.join(base_output, "cluster_centers_sizes.csv"), index=False)
 
 
-def run_kmedoids_modal_analysis(results_path, output_path):
+def run_kmedoids_modal_analysis(results_path, output_path, reference_modes=None):
     base_output = os.path.join(output_path, "kmedoids")
     _prepare_output_dirs(base_output)
 
@@ -495,6 +556,7 @@ def run_kmedoids_modal_analysis(results_path, output_path):
             c=ACCENT_RED, marker='x',
             s=REP_SIZE, linewidths=4, label='Medoids'
         )
+        _overlay_reference_modes(ax, reference_modes)
 
         ax.axvline(0, color=ACCENT_RED, linestyle='--', alpha=0.35, linewidth=2)
         ax.set_xlabel("Damping (Sigma) [rad/s]")
@@ -503,7 +565,8 @@ def run_kmedoids_modal_analysis(results_path, output_path):
             f"Modal Clustering with $k-Medoids$ ($k={k}$)\nCost: {cost:.2f}",
             fontweight='bold'
         )
-        ax.legend(loc='upper left')
+        handles = _cluster_legend_handles(k, representative_label='Medoids') + _reference_mode_handles(reference_modes)
+        ax.legend(handles=handles, loc='upper left')
         _apply_axis_style(ax)
         _save_figure(fig, base_output, f"kmedoids_modal_map_k{k}")
         plt.close(fig)
@@ -545,6 +608,7 @@ def run_kmedoids_modal_analysis(results_path, output_path):
         ax.scatter(df['Damping'], df['Frequency'], c=point_colors, alpha=POINT_ALPHA, s=GRID_POINT_SIZE,
                    edgecolors='k', linewidths=0.5)
         ax.scatter(medoids[:, 1], medoids[:, 0], c=ACCENT_RED, marker='x', s=REP_GRID_SIZE, linewidths=3)
+        _overlay_reference_modes(ax, reference_modes)
 
         ax.axvline(0, color=ACCENT_RED, linestyle='--', alpha=0.35, linewidth=2)
         ax.set_title(
@@ -558,7 +622,7 @@ def run_kmedoids_modal_analysis(results_path, output_path):
         if idx % 2 == 0:
             ax.set_ylabel("Frequency [Hz]")
 
-    handles = _cluster_legend_handles(max(grid_ks), representative_label="Medoids")
+    handles = _cluster_legend_handles(max(grid_ks), representative_label="Medoids") + _reference_mode_handles(reference_modes)
     fig.legend(
         handles=handles,
         loc='lower center',
@@ -589,7 +653,7 @@ def run_kmedoids_modal_analysis(results_path, output_path):
     pd.DataFrame(cluster_stats).to_csv(os.path.join(base_output, "cluster_medoids_sizes.csv"), index=False)
 
 
-def run_silhouette_analysis(results_path, output_path):
+def run_silhouette_analysis(results_path, output_path, reference_modes=None):
     base_output = os.path.join(output_path, "silhouette")
     _prepare_output_dirs(base_output)
 
@@ -705,6 +769,7 @@ def run_silhouette_analysis(results_path, output_path):
             representatives[:, 1], representatives[:, 0], c=ACCENT_RED, marker='x',
             s=REP_SIZE, linewidths=4, label=rep_label
         )
+        _overlay_reference_modes(ax2, reference_modes)
         ax2.axvline(0, color=ACCENT_RED, linestyle='--', alpha=0.35, linewidth=2)
         ax2.set_title(
             f"${method_name}$ Cluster Map ($k={k_opt}$)\n{compactness_text}",
@@ -714,7 +779,7 @@ def run_silhouette_analysis(results_path, output_path):
         ax2.set_ylabel("Frequency [Hz]")
         _apply_axis_style(ax2, GRID_ALPHA_SUB)
 
-        handles = _cluster_legend_handles(k_opt, representative_label=rep_label)
+        handles = _cluster_legend_handles(k_opt, representative_label=rep_label) + _reference_mode_handles(reference_modes)
         ax2.legend(handles=handles, loc='upper left')
 
         fig.tight_layout()
