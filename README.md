@@ -12,7 +12,12 @@
 ## Φάκελος: IEEE39
 Εδώ βρίσκεται το υλικό για την παραγωγή και την ανάλυση δεδομένων του συστήματος IEEE 39.
 
-**Παραγωγή Δεδομένων:** Το αρχείο `IEEE39/generate_data.py` εκτελεί σενάρια στο PowerFactory και αποθηκεύει τα αποτελέσματα στον φάκελο `IEEE39/results`. Κάθε σενάριο γράφεται σε ξεχωριστό υποφάκελο και περιέχει τα αρχεία `g1.csv`, `g2.csv`, κλπ., μαζί με ένα αρχείο `scenario.json` που περιλαμβάνει το configuration και την κατάσταση εκτέλεσης του σεναρίου.
+**Παραγωγή Δεδομένων:** Το αρχείο `IEEE39/generate_data.py` εκτελεί runs στο PowerFactory και αποθηκεύει τα αποτελέσματα στον φάκελο `IEEE39/results`. Υπάρχουν πλέον δύο modes:
+
+- default `step-event` mode για load step disturbance
+- `ambient` mode με `--ambient` για μικρές χρονικά μεταβαλλόμενες load μεταβολές
+
+Κάθε run γράφεται σε ξεχωριστό υποφάκελο και περιέχει αρχεία `g1.csv`, `g2.csv`, κλπ., μαζί με `scenario.json`.
 
 **Ρύθμιση PowerFactory Python:** Για να τρέξει το data generation, το Python environment πρέπει να μπορεί να φορτώσει το Python API του PowerFactory. Στο virtual environment δημιουργήστε ένα αρχείο `powerfactory.pth` μέσα στο `.venv/Lib/site-packages` με μοναδική γραμμή το path προς τον φάκελο Python της εγκατάστασης του PowerFactory, π.χ. `C:\Program Files\DIgSILENT\PowerFactory <version>\Python\<python-version>`. Προσαρμόστε το `<version>` και το `<python-version>` ανάλογα με την εγκατάστασή σας.
 
@@ -20,15 +25,78 @@
 
 **CLI Help:** Τα scripts που δέχονται παραμέτρους από command line εμφανίζουν όλες τις διαθέσιμες επιλογές με `--help`, π.χ. `python IEEE39/generate_data.py --help` και `python IEEE39/analyze_ieee39.py --help`.
 
-**PowerFactory Context:** Αν τα default ονόματα του PowerFactory δεν ταιριάζουν στο μηχάνημα που τρέχει το script, μπορούν να γίνουν override από command line με `--project-name`, `--study-case` και `--grid-name`, για παράδειγμα `python IEEE39/generate_data.py --scenario load29 --project-name "39 Bus New England System" --study-case "RMS" --grid-name "Grid"`.
+**PowerFactory Context:** Αν τα default ονόματα του PowerFactory δεν ταιριάζουν στο μηχάνημα που τρέχει το script, μπορούν να γίνουν override από command line με `--project-name`, `--study-case` και `--grid-name`. Στο default `step-event` mode, τα built-in defaults είναι:
 
-**Επιλογή Σεναρίων:** Τα διαθέσιμα preset scenarios εμφανίζονται με την εντολή `python IEEE39/generate_data.py --list-scenarios`. Το βασικό interface είναι το `--scenario` και δέχεται preset keys όπως `load29`, πολλαπλά preset keys όπως `load03 load24`, το ειδικό `all`, αλλά και bare custom load names όπως `"Load 20"`. Για παράδειγμα: `python IEEE39/generate_data.py --scenario load29`, `python IEEE39/generate_data.py --scenario load03 load24`, `python IEEE39/generate_data.py --scenario all`, ή `python IEEE39/generate_data.py --scenario "Load 20"`.
+- `project_name = "39 Bus New England System"`
+- `study_case = "RMS mine"`
+- `grid_name = "Grid"`
+
+Στο `ambient` mode, τα built-in defaults ακολουθούν το παλιό ambient script:
+
+- `project_name = "39 Bus New England System TEST"`
+- `study_case = "RMS mine"`
+
+Παράδειγμα override:
+
+`python IEEE39/generate_data.py --scenario load29 --project-name "39 Bus New England System" --study-case "RMS" --grid-name "Grid"`
+
+**Επιλογή Σεναρίων:** Τα διαθέσιμα preset scenarios εμφανίζονται με την εντολή `python IEEE39/generate_data.py --list-scenarios`. Στο default `step-event` mode, το βασικό interface είναι το `--scenario` και δέχεται preset keys όπως `load29`, πολλαπλά preset keys όπως `load03 load24`, το ειδικό `all`, αλλά και bare custom load names όπως `"Load 20"`. Για παράδειγμα: `python IEEE39/generate_data.py --scenario load29`, `python IEEE39/generate_data.py --scenario load03 load24`, `python IEEE39/generate_data.py --scenario all`, ή `python IEEE39/generate_data.py --scenario "Load 20"`.
+
+Στο `ambient` mode, το `--scenario` δεν σημαίνει load selection. Αν δοθεί, επιτρέπεται μόνο μία τιμή και χρησιμοποιείται μόνο ως custom label για το ambient output folder, π.χ. `python IEEE39/generate_data.py --ambient --scenario ambient_test`.
 
 **Προσαρμοσμένα Σενάρια:** Για ad-hoc loads που δεν είναι hard-coded, ο τρόπος είναι το `--scenario`. Αν δοθεί μόνο όνομα load, π.χ. `python IEEE39/generate_data.py --scenario "Load 20"`, το script το ερμηνεύει αυτόματα ως custom scenario με defaults `dp=2`, `dq=0`, `duration=50s`, `event_time=0s`. Αν χρειάζονται ρητές τιμές, μπορεί να χρησιμοποιηθεί inline spec μορφής `load_name:dp[:dq[:duration[:event_time[:name]]]]`, για παράδειγμα `python IEEE39/generate_data.py --scenario "Load 20:2"`, `python IEEE39/generate_data.py --scenario "Load 24:2:0:60:0.5"`, ή `python IEEE39/generate_data.py --scenario "Load 20:2:0:60:0.5:load20_test"`. Το προαιρετικό τελευταίο πεδίο `name` είναι μόνο custom label για το τελικό scenario run folder κάτω από το `IEEE39/results`. Δεν αλλάζει το parent output root και δεν είναι το ίδιο πράγμα με το `--output-dir`.
 
-**Χρόνος Προσομοίωσης και Load Event:** Από προεπιλογή η προσομοίωση τρέχει μέχρι `50s` και το load event τοποθετείται στο `t=0`, αλλά μπορούν να αλλάξουν από command line με `--duration` και `--event-time`. Για παράδειγμα, `python IEEE39/generate_data.py --scenario load03 --duration 60 --event-time 0.5` δημιουργεί τα δεδομένα με stop time `60s` και event στο `0.5s`. Αν στο inline spec δοθούν ήδη duration ή event time, π.χ. `python IEEE39/generate_data.py --scenario "Load 20:2:0:60:0.5"`, τότε αυτά υπερισχύουν των global defaults. Όταν το event time είναι διαφορετικό από το default, προστίθεται suffix τύπου `_evt0.5s` στο όνομα του scenario folder, ώστε να ξεχωρίζουν τα runs.
+**Χρόνος Προσομοίωσης και Load Event:** Στο default `step-event` mode, από προεπιλογή η προσομοίωση τρέχει μέχρι `50s` και το load event τοποθετείται στο `t=0`, αλλά μπορούν να αλλάξουν από command line με `--duration` και `--event-time`. Για παράδειγμα, `python IEEE39/generate_data.py --scenario load03 --duration 60 --event-time 0.5` δημιουργεί τα δεδομένα με stop time `60s` και event στο `0.5s`. Αν στο inline spec δοθούν ήδη duration ή event time, π.χ. `python IEEE39/generate_data.py --scenario "Load 20:2:0:60:0.5"`, τότε αυτά υπερισχύουν των global defaults. Όταν το event time είναι διαφορετικό από το default, προστίθεται suffix τύπου `_evt0.5s` στο όνομα του scenario folder, ώστε να ξεχωρίζουν τα runs.
+
+Στο `ambient` mode, το `--duration` συνεχίζει να ελέγχει το simulation stop time, αλλά το default είναι `600s`. Το `--event-time` δεν έχει ρόλο στο ambient run.
+
+**Ambient Parameters:** Στο `ambient` mode, τα βασικά flags είναι:
+
+- `--ambient`
+- `--ambient-magnitude-percent`
+- `--ambient-lowpass-hz`
+- `--ambient-seed`
+- `--sim-step-ms`
+
+Παραδείγματα:
+
+- `python IEEE39/generate_data.py --ambient`
+- `python IEEE39/generate_data.py --ambient --scenario ambient_test`
+- `python IEEE39/generate_data.py --ambient --duration 900 --ambient-magnitude-percent 0.2`
+- `python IEEE39/generate_data.py --ambient --project-name "39 Bus New England System TEST" --study-case "RMS mine"`
+
+Αν δεν δοθεί custom ambient label με `--scenario`, το automatic folder name περιλαμβάνει  και το seed, π.χ. `Ambient_Mag0.1_T600s_dt10ms_seed1997`.
 
 **Φάκελος Αποτελεσμάτων:** Από προεπιλογή τα αποτελέσματα γράφονται στο `IEEE39/results`. Αν χρειαστεί διαφορετικός φάκελος, μπορεί να δοθεί `--output-dir`, για παράδειγμα `python IEEE39/generate_data.py --scenario load29 --output-dir results_test`. Στο `generate_data.py`, κάθε relative path δίνεται ως relative προς τον φάκελο `IEEE39`, ενώ μπορεί να δοθεί και absolute path.
+
+Στο `step-event` mode, κάθε `g*.csv` περιέχει:
+
+- `b:tnow in s`
+- `s:ut in p.u.`
+- `s:cur1 in p.u.`
+- `s:Q1 in Mvar`
+- `s:P1 in MW`
+
+Στο `ambient` mode, κάθε `g*.csv` περιέχει μόνο:
+
+- `b:tnow in s`
+- `s:ut in p.u.`
+- `s:cur1 in p.u.`
+
+δηλαδή μόνο `Voltage` και `Current` από τις γεννήτριες, χωρίς `P` και `Q`.
+
+Τα `ambient` runs σώζουν επίσης:
+
+- τα time-varying load profiles κάτω από `ambient_load_profiles/`
+- modal analysis CSVs κάτω από `modal/`
+
+Συγκεκριμένα, το ambient flow προσπαθεί να γράψει by default:
+
+- `modal/eigenvalues.csv`
+- `modal/participation_factors.csv`
+- `modal/state_index.csv`
+
+**Ambient και Analyze:** Προς το παρόν το `ambient` mode χρησιμοποιείται μόνο για παραγωγή dataset. Το υπάρχον `IEEE39/analyze_ieee39.py` και το Matrix Pencil workflow αφορούν το step-event flow. Για ambient identification προβλέπεται να χρησιμοποιηθεί αργότερα `N4SID`, όχι το τωρινό Matrix Pencil pipeline.
 
 **Ανάλυση Δεδομένων:** Το αρχείο `IEEE39/analyze_ieee39.py` διαβάζει τα `g*.csv` από το `IEEE39/results` και γράφει τα αποτελέσματα στο `IEEE39/analysis`. Το `--scenario` είναι υποχρεωτικό για κανονικό run. Το `--scenario` δέχεται τρεις μορφές input: preset aliases όπως `load29`, πολλαπλά aliases όπως `load03 load24`, ή το ειδικό `all`, ακριβές folder name από το `IEEE39/results`, π.χ. `Load29_Pplus2_50s`, και custom run label όταν χρησιμοποιείται μαζί με `--data-dir`. Τα preset keys όπως `load29` δείχνουν στα προκαθορισμένα `Pplus2` source folders, άρα το `load29` αντιστοιχεί στο input `IEEE39/results/Load29_Pplus2_50s`. Για διαφορετικά paths μπορεί να δοθεί ρητά input και output, για παράδειγμα `python IEEE39/analyze_ieee39.py --scenario load29_p4 --data-dir results/Load29_Pplus4_50s --output-dir analysis/Load29_Pplus4_50s`. Όταν χρησιμοποιείται `--data-dir`, το όνομα που δίνεται στο `--scenario` είναι μόνο label για το run. Στο `analyze_ieee39.py`, τα `--data-dir`, `--output-dir` και `--analysis-dir` δέχονται relative paths relative προς τον φάκελο `IEEE39`, ή absolute paths.
 

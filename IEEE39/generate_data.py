@@ -7,9 +7,19 @@ import time
 from textwrap import dedent
 
 try:
+    import numpy as np
+except ImportError:
+    np = None
+
+try:
     import pandas as pd
 except ImportError:
     pd = None
+
+try:
+    from scipy import signal as scipy_signal
+except ImportError:
+    scipy_signal = None
 
 try:
     import powerfactory as pf
@@ -25,47 +35,54 @@ PROJECT_NAME = "39 Bus New England System"
 STUDY_CASE_NAME = "RMS mine"
 GRID_NAME = "Grid"
 
+AMBIENT_PROJECT_NAME = "39 Bus New England System TEST"
+AMBIENT_STUDY_CASE_NAME = "RMS mine"
+AMBIENT_GRID_NAME = None
+AMBIENT_DEFAULT_NAME = "Ambient"
+AMBIENT_DIST_MAG_PERCENT = 0.1
+AMBIENT_LOW_PASS_HZ = 5.0
+AMBIENT_RANDOM_SEED = 1997
+AMBIENT_EXPORT_MODAL_CSVS = True
+
 MIN_LOAD_MW = 100.0
 
-# RMS simulation settings
-EVENT_TIME_S = 0
+EVENT_TIME_S = 0.0
 SIM_STOP_TIME_S = 50.0
-SIM_STEP_MS = 10
+SIM_STEP_MS = 10.0
+AMBIENT_SIM_STOP_TIME_S = 600.0
 
-# Generator selection.
-# None = all generators
-# ["G 01"] = only G1
-# ["G 01", "G 02", "G 03", "G 04"] = selected generators
 GENERATOR_NAMES = None
 
-# Each dictionary = one independent scenario.
-# One load event per scenario folder.
 SCENARIOS = [
-    # Zone 1
-    {
-        "name": None,              # None = auto folder name
-        "key": "load29",
-        "load_name": "Load 29",
-        "dp_percent": 2.0,
-        "dq_percent": 0.0,
-    },
-    # Zone 2
-    {
-        "name": None,
-        "key": "load03",
-        "load_name": "Load 03",
-        "dp_percent": 2.0,
-        "dq_percent": 0.0,
-    },
-    # Zone 3
-    {
-        "name": None,
-        "key": "load24",
-        "load_name": "Load 24",
-        "dp_percent": 2.0,
-        "dq_percent": 0.0,
-    },
+    {"name": None, "key": "load29", "load_name": "Load 29", "dp_percent": 2.0, "dq_percent": 0.0},
+    {"name": None, "key": "load03", "load_name": "Load 03", "dp_percent": 2.0, "dq_percent": 0.0},
+    {"name": None, "key": "load24", "load_name": "Load 24", "dp_percent": 2.0, "dq_percent": 0.0},
 ]
+
+STEP_EVENT_RESULT_SCHEMA = {
+    "variables": ["s:ut", "s:cur1", "s:Q1", "s:P1"],
+    "headers": [
+        "b:tnow in s",
+        "s:ut in p.u.",
+        "s:cur1 in p.u.",
+        "s:Q1 in Mvar",
+        "s:P1 in MW",
+    ],
+}
+
+AMBIENT_RESULT_SCHEMA = {
+    "variables": ["s:ut", "s:cur1"],
+    "headers": [
+        "b:tnow in s",
+        "s:ut in p.u.",
+        "s:cur1 in p.u.",
+    ],
+}
+
+
+# ============================================================
+# NAMING / PATHS
+# ============================================================
 
 def make_scenario_key(load_name, dp_percent, dq_percent):
     return f"{load_name.replace(' ', '').lower()}_p{float(dp_percent):g}_q{float(dq_percent):g}"
@@ -103,7 +120,6 @@ def make_scenario_folder_alias(load_name, dp_percent, dq_percent, sim_stop_time,
 
 def build_scenario_lookup(scenarios):
     lookup = {}
-
     for scenario in scenarios:
         dq_percent = scenario.get("dq_percent", 0.0)
         aliases = [
@@ -111,40 +127,17 @@ def build_scenario_lookup(scenarios):
             make_scenario_key(scenario["load_name"], scenario["dp_percent"], dq_percent),
             make_scenario_folder_alias(scenario["load_name"], scenario["dp_percent"], dq_percent, SIM_STOP_TIME_S),
         ]
-
         if scenario.get("key"):
             aliases.append(scenario["key"])
-
         if scenario.get("name"):
             aliases.append(scenario["name"])
-
         for alias in aliases:
             lookup[alias] = scenario
-
     return lookup
 
 
 SCENARIOS_BY_NAME = build_scenario_lookup(SCENARIOS)
 
-GEN_VARIABLES = [
-    "s:ut",
-    "s:cur1",
-    "s:Q1",
-    "s:P1",
-]
-
-CSV_HEADERS = [
-    "b:tnow in s",
-    "s:ut in p.u.",
-    "s:cur1 in p.u.",
-    "s:Q1 in Mvar",
-    "s:P1 in MW",
-]
-
-
-# ============================================================
-# PATHS / NAMING
-# ============================================================
 
 def get_base_dir() -> Path:
     try:
@@ -156,11 +149,9 @@ def get_base_dir() -> Path:
 def resolve_results_root(output_dir=None) -> Path:
     if output_dir is None:
         return get_base_dir() / "results"
-
     path = Path(output_dir)
     if path.is_absolute():
         return path
-
     return get_base_dir() / path
 
 
@@ -172,37 +163,33 @@ def path_for_metadata(path: Path) -> str:
 
 
 def safe_name(text: str) -> str:
-    text = text.strip()
-    text = re.sub(r"[^\w\-.+]+", "_", text)
-    return text
+    return re.sub(r"[^\w\-.+]+", "_", str(text).strip())
 
 
-def make_scenario_name(load, dp_percent, dq_percent, sim_stop_time, custom_name=None, event_time_s=EVENT_TIME_S):
-    """
-    Examples:
-    Load03_Pplus2_50s
-    Load39_Pminus5_Qplus2_50s
-    """
+def make_step_scenario_name(load, dp_percent, dq_percent, sim_stop_time, custom_name=None, event_time_s=EVENT_TIME_S):
     evt_part = event_time_suffix(event_time_s)
     if custom_name:
         return f"{safe_name(custom_name)}{evt_part}"
 
     load_part = safe_name(load.loc_name).replace("_", "")
-
-    if dp_percent >= 0:
-        p_part = f"Pplus{abs(dp_percent):g}"
-    else:
-        p_part = f"Pminus{abs(dp_percent):g}"
+    p_part = f"Pplus{abs(dp_percent):g}" if dp_percent >= 0 else f"Pminus{abs(dp_percent):g}"
 
     if dq_percent is None or abs(dq_percent) < 1e-12:
         return f"{load_part}_{p_part}_{sim_stop_time:g}s{evt_part}"
 
-    if dq_percent >= 0:
-        q_part = f"Qplus{abs(dq_percent):g}"
-    else:
-        q_part = f"Qminus{abs(dq_percent):g}"
-
+    q_part = f"Qplus{abs(dq_percent):g}" if dq_percent >= 0 else f"Qminus{abs(dq_percent):g}"
     return f"{load_part}_{p_part}_{q_part}_{sim_stop_time:g}s{evt_part}"
+
+
+def make_ambient_scenario_name(sim_stop_time_s, sim_step_ms, magnitude_percent, random_seed, custom_name=None):
+    if custom_name:
+        return safe_name(custom_name)
+    return (
+        f"Ambient_Mag{abs(float(magnitude_percent)):g}"
+        f"_T{float(sim_stop_time_s):g}s"
+        f"_dt{float(sim_step_ms):g}ms"
+        f"_seed{int(random_seed)}"
+    )
 
 
 # ============================================================
@@ -214,10 +201,8 @@ def get_app():
         raise RuntimeError("PowerFactory Python module is not available in this environment.")
 
     app = pf.GetApplication()
-
     if app is None:
         app = pf.GetApplicationExt()
-
     if app is None:
         raise RuntimeError("Could not connect to PowerFactory.")
 
@@ -225,40 +210,30 @@ def get_app():
         app.Show()
     except Exception:
         pass
-
     try:
         app.ClearOutputWindow()
     except Exception:
         pass
-
     return app
 
 
 def activate_project(app, project_name):
     project = app.GetActiveProject()
-
     if project is not None and project.loc_name == project_name:
         app.PrintPlain(f"Project already active: {project.loc_name}")
         return project
 
     app.PrintPlain(f"Activating project: {project_name}")
     ret = app.ActivateProject(project_name)
-
     project = app.GetActiveProject()
-
     if project is None:
-        raise RuntimeError(
-            f"Could not activate project '{project_name}'. "
-            f"ActivateProject returned: {ret}"
-        )
-
+        raise RuntimeError(f"Could not activate project '{project_name}'. ActivateProject returned: {ret}")
     app.PrintPlain(f"Active project: {project.loc_name}")
     return project
 
 
 def find_study_case(app, study_case_name):
     study_folder = app.GetProjectFolder("study")
-
     if study_folder is None:
         raise RuntimeError("Could not find Study Cases folder.")
 
@@ -272,23 +247,16 @@ def find_study_case(app, study_case_name):
             return sc
 
     available = [sc.loc_name for sc in all_cases]
-    raise RuntimeError(
-        f"Study case '{study_case_name}' not found.\n"
-        f"Available study cases:\n" + "\n".join(available)
-    )
+    raise RuntimeError(f"Study case '{study_case_name}' not found.\nAvailable study cases:\n" + "\n".join(available))
 
 
 def activate_study_case(app, study_case_name):
     study_case = find_study_case(app, study_case_name)
-
     app.PrintPlain(f"Activating study case: {study_case.loc_name}")
     study_case.Activate()
-
     active = app.GetActiveStudyCase()
-
     if active is None:
         raise RuntimeError("Study case activation failed.")
-
     app.PrintPlain(f"Active study case: {active.loc_name}")
     return active
 
@@ -298,7 +266,6 @@ def activate_grid_if_needed(app, grid_name=None):
         return None
 
     grids = app.GetCalcRelevantObjects("*.ElmNet")
-
     for grid in grids:
         if grid.loc_name == grid_name:
             app.PrintPlain(f"Activating grid: {grid.loc_name}")
@@ -306,13 +273,10 @@ def activate_grid_if_needed(app, grid_name=None):
             return grid
 
     available = [g.loc_name for g in grids]
-    raise RuntimeError(
-        f"Grid '{grid_name}' not found.\n"
-        f"Available grids:\n" + "\n".join(available)
-    )
+    raise RuntimeError(f"Grid '{grid_name}' not found.\nAvailable grids:\n" + "\n".join(available))
 
 
-def activate_context(app, project_name=PROJECT_NAME, study_case_name=STUDY_CASE_NAME, grid_name=GRID_NAME):
+def activate_context(app, project_name, study_case_name, grid_name):
     project = activate_project(app, project_name)
     study_case = activate_study_case(app, study_case_name)
     grid = activate_grid_if_needed(app, grid_name)
@@ -322,7 +286,6 @@ def activate_context(app, project_name=PROJECT_NAME, study_case_name=STUDY_CASE_
     app.PrintPlain(f"Study case: {study_case.loc_name}")
     if grid is not None:
         app.PrintPlain(f"Grid: {grid.loc_name}")
-
     return project, study_case, grid
 
 
@@ -338,22 +301,29 @@ def get_from_study_case(app, class_name: str):
 # ============================================================
 
 def get_load_p_mw(load):
-    candidates = ["plini", "plini_a", "pgini", "m:P:bus1"]
-
-    for attr in candidates:
+    for attr in ["plini", "plini_a", "pgini", "m:P:bus1"]:
         try:
-            val = load.GetAttribute(attr)
-            if val is not None:
-                return float(val)
+            value = load.GetAttribute(attr)
+            if value is not None:
+                return float(value)
         except Exception:
             pass
-
     return None
 
 
-def find_load(app, load_name=None, min_load_mw=100.0):
-    loads = []
+def get_load_q_mvar(load):
+    for attr in ["qlini", "qlini_a", "qgini", "m:Q:bus1"]:
+        try:
+            value = load.GetAttribute(attr)
+            if value is not None:
+                return float(value)
+        except Exception:
+            pass
+    return None
 
+
+def find_loads(app):
+    loads = []
     for pattern in ["*.ElmLod", "*.ElmLodlv", "*.ElmLodmv"]:
         try:
             found = app.GetCalcRelevantObjects(pattern)
@@ -362,34 +332,30 @@ def find_load(app, load_name=None, min_load_mw=100.0):
         except Exception:
             pass
 
-    unique_loads = []
+    unique = []
     seen = set()
-
     for load in loads:
         key = id(load)
         if key not in seen:
-            unique_loads.append(load)
+            unique.append(load)
             seen.add(key)
 
-    loads = unique_loads
-
-    if not loads:
+    if not unique:
         raise RuntimeError("No load objects found. Check active project/study case/grid.")
+    return unique
 
+
+def find_load(app, load_name=None, min_load_mw=100.0):
+    loads = find_loads(app)
     if load_name is not None:
         normalized_load_name = normalize_load_name(load_name)
         for load in loads:
             if load.loc_name == load_name or normalize_load_name(load.loc_name) == normalized_load_name:
                 return load
-
         available = [load.loc_name for load in loads]
-        raise RuntimeError(
-            f"Load '{load_name}' not found.\n"
-            f"Available loads:\n" + "\n".join(available)
-        )
+        raise RuntimeError(f"Load '{load_name}' not found.\nAvailable loads:\n" + "\n".join(available))
 
     candidates = []
-
     for load in loads:
         p_mw = get_load_p_mw(load)
         if p_mw is not None and p_mw >= min_load_mw:
@@ -397,37 +363,25 @@ def find_load(app, load_name=None, min_load_mw=100.0):
 
     if not candidates:
         info = [f"{load.loc_name}: P={get_load_p_mw(load)} MW" for load in loads]
-        raise RuntimeError(
-            f"No load found with P >= {min_load_mw} MW.\n"
-            f"Loads:\n" + "\n".join(info)
-        )
+        raise RuntimeError(f"No load found with P >= {min_load_mw} MW.\nLoads:\n" + "\n".join(info))
 
-    candidates.sort(key=lambda x: x[0], reverse=True)
+    candidates.sort(key=lambda item: item[0], reverse=True)
     return candidates[0][1]
 
 
 def find_generators(app):
     gens = app.GetCalcRelevantObjects("*.ElmSym")
-
     if not gens:
         raise RuntimeError("No synchronous generators found: *.ElmSym")
 
     gens = sorted(gens, key=lambda g: g.loc_name)
-
     if GENERATOR_NAMES is None:
         return gens
 
     selected = []
     missing = []
-
     for name in GENERATOR_NAMES:
-        match = None
-
-        for gen in gens:
-            if gen.loc_name == name:
-                match = gen
-                break
-
+        match = next((gen for gen in gens if gen.loc_name == name), None)
         if match is None:
             missing.append(name)
         else:
@@ -435,21 +389,16 @@ def find_generators(app):
 
     if missing:
         available = [g.loc_name for g in gens]
-        raise RuntimeError(
-            f"Missing generators: {missing}\n"
-            f"Available generators:\n" + "\n".join(available)
-        )
-
+        raise RuntimeError(f"Missing generators: {missing}\nAvailable generators:\n" + "\n".join(available))
     return selected
 
 
 # ============================================================
-# EVENTS / RESULTS
+# EVENTS / SIMULATION SETUP
 # ============================================================
 
 def clean_old_events(app):
     evt_folder = get_from_study_case(app, "IntEvt")
-
     for obj in list(evt_folder.GetContents()):
         try:
             obj.Delete()
@@ -459,17 +408,14 @@ def clean_old_events(app):
 
 def set_first_existing_attribute(obj, candidates, value):
     last_error = None
-
     for attr in candidates:
         try:
             obj.SetAttribute(attr, value)
             return attr
-        except Exception as e:
-            last_error = e
-
+        except Exception as exc:
+            last_error = exc
     raise RuntimeError(
-        f"Could not set any of these attributes on {obj.loc_name}: {candidates}\n"
-        f"Last error: {last_error}"
+        f"Could not set any of these attributes on {obj.loc_name}: {candidates}\nLast error: {last_error}"
     )
 
 
@@ -478,21 +424,10 @@ def create_load_event(app, load, time_s, dp_percent, dq_percent):
     event = evt_folder.CreateObject("EvtLod", f"load_event_{safe_name(load.loc_name)}")
 
     set_first_existing_attribute(event, ["time"], time_s)
-
-    target_attr = set_first_existing_attribute(
-        event,
-        ["p_target", "pTarget", "target", "p_object", "pObj"],
-        load,
-    )
-
-    p_attr = set_first_existing_attribute(
-        event,
-        ["dP", "dp", "P", "p", "dplini", "plini", "deltaP", "DeltaP"],
-        dp_percent,
-    )
+    target_attr = set_first_existing_attribute(event, ["p_target", "pTarget", "target", "p_object", "pObj"], load)
+    p_attr = set_first_existing_attribute(event, ["dP", "dp", "P", "p", "dplini", "plini", "deltaP", "DeltaP"], dp_percent)
 
     q_attr = None
-
     if dq_percent is not None:
         try:
             q_attr = set_first_existing_attribute(
@@ -510,9 +445,8 @@ def create_load_event(app, load, time_s, dp_percent, dq_percent):
     }
 
 
-def setup_result_variables(app, generators):
+def setup_result_variables(app, generators, schema):
     elmres = get_from_study_case(app, "ElmRes")
-
     try:
         elmres.Clear()
     except Exception:
@@ -522,15 +456,10 @@ def setup_result_variables(app, generators):
             pass
 
     for gen in generators:
-        for var in GEN_VARIABLES:
+        for var in schema["variables"]:
             elmres.AddVars(gen, var)
-
     return elmres
 
-
-# ============================================================
-# SIMULATION
-# ============================================================
 
 def try_set_attr(obj, attr_names, value):
     for attr in attr_names:
@@ -539,40 +468,32 @@ def try_set_attr(obj, attr_names, value):
             return attr
         except Exception:
             pass
-
     return None
 
 
-def run_load_flow_initial_conditions_and_rms(app, tstop, step):
+def configure_ambient_rms(app, step_ms):
+    inc = get_from_study_case(app, "ComInc")
+    try_set_attr(inc, ["iopt_sim"], "rms")
+    try_set_attr(inc, ["tstart"], 0.0)
+    try_set_attr(inc, ["dtgrd", "dt", "tstep", "dtemt", "dtout"], float(step_ms))
+    try_set_attr(inc, ["iopt_sync"], 1)
+    try_set_attr(inc, ["syncperiod"], float(step_ms))
+    try_set_attr(inc, ["ciopt_sample"], 2)
+
+
+def run_load_flow_initial_conditions_and_rms(app, tstop, step_ms):
     ldf = get_from_study_case(app, "ComLdf")
     inc = get_from_study_case(app, "ComInc")
     sim = get_from_study_case(app, "ComSim")
 
     app.PrintPlain("Running Load Flow...")
     err = ldf.Execute()
-
     if err:
         raise RuntimeError(f"Load Flow failed with error code {err}")
 
-    app.PrintPlain("Setting RMS time step / simulation options...")
-
-    inc_step_attr = try_set_attr(
-        inc,
-        ["dtgrd", "dt", "tstep", "dtemt", "dtout"],
-        float(step),
-    )
-
-    sim_step_attr = try_set_attr(
-        sim,
-        ["dtgrd", "dt", "tstep", "dtemt", "dtout"],
-        float(step),
-    )
-
-    sim_stop_attr = try_set_attr(
-        sim,
-        ["tstop", "tmax", "t_end"],
-        float(tstop),
-    )
+    inc_step_attr = try_set_attr(inc, ["dtgrd", "dt", "tstep", "dtemt", "dtout"], float(step_ms))
+    sim_step_attr = try_set_attr(sim, ["dtgrd", "dt", "tstep", "dtemt", "dtout"], float(step_ms))
+    sim_stop_attr = try_set_attr(sim, ["tstop", "tmax", "t_end"], float(tstop))
 
     app.PrintPlain(f"Initial Conditions step attr used: {inc_step_attr}")
     app.PrintPlain(f"Simulation step attr used: {sim_step_attr}")
@@ -580,19 +501,247 @@ def run_load_flow_initial_conditions_and_rms(app, tstop, step):
 
     app.PrintPlain("Running RMS Initial Conditions...")
     err = inc.Execute()
-
     if err:
         raise RuntimeError(f"Initial Conditions failed with error code {err}")
 
     app.PrintPlain("Running RMS Simulation...")
     err = sim.Execute()
-
     if err:
         raise RuntimeError(f"RMS Simulation failed with error code {err}")
 
 
 # ============================================================
-# FAST EXPORT WITH COMRES + PANDAS SPLIT
+# AMBIENT EXCITATION
+# ============================================================
+
+def require_ambient_dependencies():
+    missing = []
+    if np is None:
+        missing.append("numpy")
+    if scipy_signal is None:
+        missing.append("scipy")
+    if missing:
+        raise RuntimeError("Ambient mode requires these Python packages: " + ", ".join(missing))
+
+
+def find_grid_file(app):
+    netdat = app.GetProjectFolder("netdat")
+    if not netdat:
+        raise RuntimeError("Could not find netdat folder.")
+
+    grids = netdat.GetContents("*.ElmNet")
+    if grids:
+        return grids[0]
+
+    named = netdat.GetContents("Grid")
+    if named:
+        return named[0]
+
+    raise RuntimeError("Could not find a grid object under netdat.")
+
+
+def clear_old_ambient_load_models(grid):
+    for old_comp in list(grid.GetContents("*_ExtLoad.ElmComp")):
+        try:
+            old_comp.Delete()
+        except Exception:
+            pass
+
+
+def generate_filtered_noise(rng, fs_hz, n_samples, cutoff_hz):
+    white_noise = rng.normal(0.0, 1.0, int(n_samples))
+    nyquist = 0.5 * fs_hz
+    if nyquist <= 0:
+        raise RuntimeError("Ambient sampling frequency must be positive.")
+
+    norm_cutoff = min(float(cutoff_hz) / nyquist, 0.999999)
+    if norm_cutoff <= 0:
+        raise RuntimeError("Ambient low-pass cutoff must be positive.")
+
+    b, a = scipy_signal.butter(N=4, Wn=norm_cutoff, btype="low", analog=False)
+    filtered = scipy_signal.lfilter(b, a, white_noise)
+    max_abs = float(np.max(np.abs(filtered)))
+    if max_abs > 0:
+        filtered = filtered / max_abs
+    return filtered
+
+
+def set_attr_if_exists(obj, attr, value):
+    try:
+        setattr(obj, attr, value)
+        return True
+    except Exception:
+        try:
+            obj.SetAttribute(attr, value)
+            return True
+        except Exception:
+            return False
+
+
+def reset_calculation_if_possible(app):
+    try:
+        app.ResetCalculation()
+    except Exception:
+        pass
+
+
+def convert_text_matrix_to_csv(src_path, dest_path):
+    src_path = Path(src_path)
+    dest_path = Path(dest_path)
+
+    with src_path.open("r", encoding="utf-8", errors="replace") as src_handle, dest_path.open("w", newline="", encoding="utf-8") as dest_handle:
+        writer = csv.writer(dest_handle)
+        for raw_line in src_handle:
+            line = raw_line.strip()
+            if not line:
+                continue
+
+            if ";" in line:
+                fields = [field.strip() for field in line.split(";")]
+            elif "," in line:
+                fields = [field.strip() for field in line.split(",")]
+            else:
+                fields = re.split(r"\s{2,}", line)
+                if len(fields) <= 1:
+                    fields = re.split(r"\s+", line)
+
+            if fields:
+                writer.writerow(fields)
+
+
+def export_ambient_modal_analysis_csvs(app, scenario_dir):
+    modal_dir = scenario_dir / "modal"
+    modal_dir.mkdir(parents=True, exist_ok=True)
+
+    reset_calculation_if_possible(app)
+
+    com_mod = get_from_study_case(app, "ComMod")
+    com_mod.dirMatl = str(modal_dir.resolve())
+    com_mod.iEValMatl = 1
+    com_mod.iPart = 1
+    com_mod.iPartMatl = 1
+    com_mod.isResOscModesOnly = 1
+    com_mod.outputType = 1
+    com_mod.iSysMatsMatl = 1
+
+    err = com_mod.Execute()
+    if err:
+        raise RuntimeError(f"Ambient modal analysis export failed with error code {err}")
+
+    raw_to_csv = {
+        "EVals.mtl": "eigenvalues.csv",
+        "PartFacs.mtl": "participation_factors.csv",
+        "VariableToIdx_Amat.txt": "state_index.csv",
+    }
+    exported = []
+
+    for raw_name, csv_name in raw_to_csv.items():
+        raw_path = modal_dir / raw_name
+        if not raw_path.exists():
+            raise RuntimeError(f"Expected ambient modal artifact was not created: {raw_path}")
+        csv_path = modal_dir / csv_name
+        convert_text_matrix_to_csv(raw_path, csv_path)
+        try:
+            raw_path.unlink()
+        except OSError:
+            pass
+        exported.append({"name": csv_name, "file": path_for_metadata(csv_path)})
+
+    for unused_name in ["Amat.mtl", "Jacobian.mtl", "M.mtl", "VariableToIdx_Jacobian.txt"]:
+        unused_path = modal_dir / unused_name
+        if unused_path.exists():
+            try:
+                unused_path.unlink()
+            except OSError:
+                pass
+
+    reset_calculation_if_possible(app)
+    return exported
+
+
+def create_ambient_load_profiles(app, scenario_dir, time_step_s, time_end_s, magnitude_percent, low_pass_hz, random_seed):
+    require_ambient_dependencies()
+
+    ambient_dir = scenario_dir / "ambient_load_profiles"
+    ambient_dir.mkdir(parents=True, exist_ok=True)
+
+    grid = find_grid_file(app)
+    clear_old_ambient_load_models(grid)
+
+    lib_folder = app.GetProjectFolder("lib")
+    if lib_folder is None:
+        raise RuntimeError("Could not find PowerFactory library folder.")
+    udm_folder = lib_folder.GetContents("User Defined Models.IntPrjFolder")
+    if not udm_folder:
+        raise RuntimeError("Could not find 'User Defined Models' folder.")
+    composite_types = udm_folder[0].GetContents("Composite Type Load.BlkDef")
+    if not composite_types:
+        raise RuntimeError("Could not find 'Composite Type Load.BlkDef'.")
+    composite_type = composite_types[0]
+
+    loads = app.GetCalcRelevantObjects("*.ElmLod")
+    if not loads:
+        raise RuntimeError("Ambient mode could not find any '*.ElmLod' loads.")
+    time_vector = np.arange(-time_step_s, time_end_s + (2 * time_step_s), time_step_s)
+    sample_count = len(time_vector)
+    fs_hz = 1.0 / time_step_s
+    rng = np.random.RandomState(int(random_seed))
+
+    profile_rows = []
+    for load in loads:
+        base_p = get_load_p_mw(load)
+        base_q = get_load_q_mvar(load)
+        if base_p is None:
+            continue
+        if base_q is None:
+            base_q = 0.0
+
+        p_dist = generate_filtered_noise(rng, fs_hz, sample_count, low_pass_hz)
+        q_dist = generate_filtered_noise(rng, fs_hz, sample_count, low_pass_hz)
+
+        p_series = (p_dist * magnitude_percent / 100.0 + 1.0) * base_p
+        q_series = (q_dist * magnitude_percent / 100.0 + 1.0) * base_q
+
+        load_file = ambient_dir / f"{safe_name(load.loc_name)}.txt"
+        with load_file.open("w", newline="") as handle:
+            handle.write("2\n")
+            for t_now, p_now, q_now in zip(time_vector, p_series, q_series):
+                handle.write(f"{t_now:.4f}\t{p_now:.4f}\t{q_now:.4f}\n")
+
+        new_comp = grid.CreateObject("ElmComp", f"{load.loc_name}_ExtLoad")
+        new_comp.typ_id = composite_type
+
+        current_load_type = getattr(load, "typ_id", None)
+        if current_load_type is not None:
+            for attr, value in [("systp", 0), ("phtech", 2), ("lodst", 0), ("loddy", 100), ("aP", 0), ("aQ", 0), ("bP", 0), ("bQ", 0)]:
+                set_attr_if_exists(current_load_type, attr, value)
+
+        for slot in getattr(new_comp, "pblk", []):
+            if slot.loc_name == "load slot":
+                slot.loc_name = "load_slot"
+            elif slot.loc_name == "load measurement":
+                slot.loc_name = "load_measurement"
+
+        set_attr_if_exists(new_comp, "load_slot", load)
+        measurement_file = new_comp.CreateObject("ElmFile", "Measurement File")
+        measurement_file.f_name = str(load_file.resolve())
+        set_attr_if_exists(new_comp, "load_measurement", measurement_file)
+
+        profile_rows.append({
+            "load_name": load.loc_name,
+            "file": path_for_metadata(load_file),
+            "samples": sample_count,
+            "base_p_mw": base_p,
+            "base_q_mvar": base_q,
+        })
+
+    if not profile_rows:
+        raise RuntimeError("Ambient mode did not create any external load profiles.")
+    return profile_rows
+
+
+# ============================================================
+# EXPORT / CSV VALIDATION
 # ============================================================
 
 def set_comres_attr(obj, attr, value):
@@ -608,10 +757,6 @@ def set_comres_attr(obj, attr, value):
 
 
 def export_raw_results_fast_comres(app, elmres, scenario_dir):
-    """
-    Fast PowerFactory export of all selected ElmRes variables.
-    Creates raw_all_generators.csv.
-    """
     comres = get_from_study_case(app, "ComRes")
     raw_csv = scenario_dir / "raw_all_generators.csv"
 
@@ -620,29 +765,22 @@ def export_raw_results_fast_comres(app, elmres, scenario_dir):
 
     set_comres_attr(comres, "pResult", elmres)
     set_comres_attr(comres, "f_name", str(raw_csv))
-
-    # Common ComRes options
-    set_comres_attr(comres, "iopt_exp", 6)      # CSV
-    set_comres_attr(comres, "iopt_csel", 0)     # all selected variables
-    set_comres_attr(comres, "iopt_tsel", 0)     # all time steps
-    set_comres_attr(comres, "iopt_locn", 2)     # full path
-    set_comres_attr(comres, "ciopt_head", 1)    # include headers
+    set_comres_attr(comres, "iopt_exp", 6)
+    set_comres_attr(comres, "iopt_csel", 0)
+    set_comres_attr(comres, "iopt_tsel", 0)
+    set_comres_attr(comres, "iopt_locn", 2)
+    set_comres_attr(comres, "ciopt_head", 1)
 
     err = comres.Execute()
-
     if err:
         raise RuntimeError(f"ComRes export failed with error code {err}")
 
     app.PrintPlain("Fast raw ComRes export done.")
     print("Fast raw ComRes export done.", flush=True)
-
     return raw_csv
 
 
 def read_comres_csv_flexible(raw_csv):
-    """
-    Tries common ComRes CSV formats.
-    """
     if pd is None:
         raise RuntimeError("pandas is required to split ComRes CSV results.")
 
@@ -656,32 +794,25 @@ def read_comres_csv_flexible(raw_csv):
     ]
 
     last_error = None
-
     for kwargs in attempts:
         try:
             df = pd.read_csv(raw_csv, **kwargs)
-
             if df.shape[0] > 0 and df.shape[1] > 1:
                 return df
-
-        except Exception as e:
-            last_error = e
+        except Exception as exc:
+            last_error = exc
 
     raise RuntimeError(f"Could not read raw ComRes CSV: {last_error}")
 
 
 def normalize_col_name(col):
-    """
-    Converts normal or MultiIndex pandas column name to searchable string.
-    """
     if isinstance(col, tuple):
         parts = []
-        for x in col:
-            sx = str(x)
-            if sx.lower() != "nan" and "unnamed" not in sx.lower():
-                parts.append(sx)
+        for item in col:
+            text = str(item)
+            if text.lower() != "nan" and "unnamed" not in text.lower():
+                parts.append(text)
         return " ".join(parts)
-
     return str(col)
 
 
@@ -691,62 +822,39 @@ def compact_text(text):
 
 def find_time_column_pandas(df):
     for col in df.columns:
-        name = normalize_col_name(col).lower()
-        compact = compact_text(name)
-
+        compact = compact_text(normalize_col_name(col))
         if "tnow" in compact or "time" in compact or "b:tnow" in compact:
             return col
-
     return df.columns[0]
 
 
 def find_generator_variable_column(df, gen_name, variable):
-    """
-    Finds raw CSV column for one generator and one variable.
-    Handles common ComRes header styles.
-    """
     gen_key = compact_text(gen_name)
     var_key = compact_text(variable)
 
-    candidates = []
-
     for col in df.columns:
-        name = normalize_col_name(col)
-        compact = compact_text(name)
-
+        compact = compact_text(normalize_col_name(col))
         if gen_key in compact and var_key in compact:
-            candidates.append(col)
+            return col
 
-    if candidates:
-        return candidates[0]
-
-    # Fallback: variable appears and generator number appears separately.
-    # Example G 01 -> 01
     gen_digits = "".join(ch for ch in gen_name if ch.isdigit())
-
     if gen_digits:
         for col in df.columns:
-            name = normalize_col_name(col)
-            compact = compact_text(name)
-
+            compact = compact_text(normalize_col_name(col))
             if var_key in compact and gen_digits in compact:
                 return col
 
-    # Debug help
     sample_cols = [normalize_col_name(c) for c in list(df.columns)[:20]]
-
     raise RuntimeError(
-        f"Could not find column for generator '{gen_name}', variable '{variable}'.\n"
-        f"First columns seen:\n" + "\n".join(sample_cols)
+        f"Could not find column for generator '{gen_name}', variable '{variable}'.\nFirst columns seen:\n"
+        + "\n".join(sample_cols)
     )
 
 
 def parse_numeric_text(value):
     value = str(value).strip().replace(",", ".")
-
     if not value or value.lower() in ("nan", "none"):
         return ""
-
     try:
         return f"{float(value):.10g}"
     except ValueError:
@@ -761,24 +869,22 @@ def find_generator_variable_index(object_headers, variable_headers, gen_name, va
     for idx, (object_header, variable_header) in enumerate(zip(object_headers, variable_headers)):
         compact_object = compact_text(object_header)
         compact_variable = compact_text(variable_header)
-
         if var_key not in compact_variable:
             continue
-
         if gen_key in compact_object or (gen_digits and gen_digits in compact_object):
             return idx
 
     raise RuntimeError(f"Could not find raw CSV column for generator '{gen_name}', variable '{variable}'.")
 
 
-def split_raw_comres_standard_csv(raw_csv, generators, scenario_dir):
-    with open(raw_csv, newline="") as f:
-        reader = csv.reader(f, delimiter=";")
+def split_raw_comres_standard_csv(raw_csv, generators, scenario_dir, schema):
+    with open(raw_csv, newline="") as handle:
+        reader = csv.reader(handle, delimiter=";")
         try:
             object_headers = next(reader)
             variable_headers = next(reader)
-        except StopIteration as e:
-            raise RuntimeError(f"Raw ComRes CSV is missing headers: {raw_csv}") from e
+        except StopIteration as exc:
+            raise RuntimeError(f"Raw ComRes CSV is missing headers: {raw_csv}") from exc
 
         if len(object_headers) <= 1 or len(variable_headers) <= 1:
             raise RuntimeError("Raw ComRes CSV does not look like a semicolon-separated two-header export.")
@@ -793,37 +899,30 @@ def split_raw_comres_standard_csv(raw_csv, generators, scenario_dir):
         )
 
         generator_columns = []
-
         for gen in generators:
-            generator_columns.append(
-                [find_generator_variable_index(object_headers, variable_headers, gen.loc_name, var) for var in GEN_VARIABLES]
-            )
+            indices = [find_generator_variable_index(object_headers, variable_headers, gen.loc_name, var) for var in schema["variables"]]
+            generator_columns.append(indices)
 
         outputs = []
         writers = []
-
         try:
             for idx in range(1, len(generators) + 1):
                 out_csv = scenario_dir / f"g{idx}.csv"
                 out_file = open(out_csv, "w", newline="")
                 writer = csv.writer(out_file)
-                writer.writerow(CSV_HEADERS)
+                writer.writerow(schema["headers"])
                 outputs.append((out_csv, out_file))
                 writers.append(writer)
 
             row_counts = [0] * len(generators)
-
             for row in reader:
                 if not row:
                     continue
-
                 for gen_idx, column_indices in enumerate(generator_columns):
                     values = [parse_numeric_text(row[time_idx] if time_idx < len(row) else "")]
                     values.extend(parse_numeric_text(row[col_idx] if col_idx < len(row) else "") for col_idx in column_indices)
-
                     if any(value != "" for value in values):
                         row_counts[gen_idx] += 1
-
                     writers[gen_idx].writerow(values)
 
             for gen_idx, (gen, (out_csv, _)) in enumerate(zip(generators, outputs)):
@@ -836,133 +935,100 @@ def split_raw_comres_standard_csv(raw_csv, generators, scenario_dir):
 
 
 def to_numeric_dot_decimal(series):
-    """
-    Converts ComRes values to numeric floats regardless of comma/dot decimal export.
-    """
     if isinstance(series, pd.DataFrame):
         series = series.iloc[:, 0]
-
     series = series.astype(str).str.strip().str.replace(",", ".", regex=False)
-
     missing = series.str.lower().isin(["", "nan", "none"])
     series = series.mask(missing)
-
     return pd.to_numeric(series, errors="coerce")
 
 
-def split_raw_comres_to_generator_csvs(raw_csv, generators, scenario_dir):
-    """
-    Splits raw_all_generators.csv into g1.csv, g2.csv, ...
-    with clean headers requested by the user.
-    """
+def split_raw_comres_to_generator_csvs(raw_csv, generators, scenario_dir, schema):
     print("Splitting raw CSV into one file per generator...", flush=True)
 
     try:
-        split_raw_comres_standard_csv(raw_csv, generators, scenario_dir)
+        split_raw_comres_standard_csv(raw_csv, generators, scenario_dir, schema)
         return
-    except Exception as e:
-        print(f"Standard CSV split failed, trying pandas fallback: {e}", flush=True)
+    except Exception as exc:
+        print(f"Standard CSV split failed, trying pandas fallback: {exc}", flush=True)
 
     df = read_comres_csv_flexible(raw_csv)
     time_col = find_time_column_pandas(df)
 
     for idx, gen in enumerate(generators, start=1):
-        print(f"Splitting {gen.loc_name} -> g{idx}.csv", flush=True)
-
         output = pd.DataFrame()
-        output[CSV_HEADERS[0]] = to_numeric_dot_decimal(df[time_col])
-
-        for variable, clean_header in zip(GEN_VARIABLES, CSV_HEADERS[1:]):
+        output[schema["headers"][0]] = to_numeric_dot_decimal(df[time_col])
+        for variable, clean_header in zip(schema["variables"], schema["headers"][1:]):
             raw_col = find_generator_variable_column(df, gen.loc_name, variable)
             output[clean_header] = to_numeric_dot_decimal(df[raw_col])
 
         out_csv = scenario_dir / f"g{idx}.csv"
-
         if output.empty or output.dropna(how="all").empty:
             raise RuntimeError(f"Split produced no numeric rows for {gen.loc_name} -> {out_csv}")
-
         output.to_csv(out_csv, index=False, float_format="%.10g")
-
         print(f"Saved {out_csv}", flush=True)
-
-
-def export_results_fast_and_split(app, elmres, generators, scenario_dir):
-    raw_csv = export_raw_results_fast_comres(app, elmres, scenario_dir)
-    split_raw_comres_to_generator_csvs(raw_csv, generators, scenario_dir)
-    return validate_generator_csvs(scenario_dir, generators)
 
 
 def parse_csv_float(value, csv_path, row_number, column_name):
     text = str(value).strip().replace(",", ".")
     if not text:
         raise RuntimeError(f"Empty value in {csv_path}, row {row_number}, column '{column_name}'")
-
     try:
         return float(text)
-    except ValueError as e:
+    except ValueError as exc:
         raise RuntimeError(
             f"Non-numeric value in {csv_path}, row {row_number}, column '{column_name}': {value}"
-        ) from e
+        ) from exc
 
 
-def validate_generator_csvs(scenario_dir, generators):
+def validate_generator_csvs(scenario_dir, generators, schema):
     csv_files = []
+    headers = schema["headers"]
 
     for idx, gen in enumerate(generators, start=1):
         csv_path = scenario_dir / f"g{idx}.csv"
-
         if not csv_path.exists():
             raise RuntimeError(f"Missing generated CSV: {csv_path}")
 
-        with open(csv_path, newline="") as f:
-            reader = csv.reader(f)
+        with open(csv_path, newline="") as handle:
+            reader = csv.reader(handle)
             try:
-                headers = next(reader)
-            except StopIteration as e:
-                raise RuntimeError(f"Generated CSV is empty: {csv_path}") from e
+                found_headers = next(reader)
+            except StopIteration as exc:
+                raise RuntimeError(f"Generated CSV is empty: {csv_path}") from exc
 
-            if headers != CSV_HEADERS:
-                raise RuntimeError(
-                    f"Unexpected headers in {csv_path}.\n"
-                    f"Expected: {CSV_HEADERS}\n"
-                    f"Found: {headers}"
-                )
+            if found_headers != headers:
+                raise RuntimeError(f"Unexpected headers in {csv_path}.\nExpected: {headers}\nFound: {found_headers}")
 
             row_count = 0
             previous_time = None
-
             for row_number, row in enumerate(reader, start=2):
                 if not row or all(str(value).strip() == "" for value in row):
                     continue
-
-                if len(row) != len(CSV_HEADERS):
+                if len(row) != len(headers):
                     raise RuntimeError(
-                        f"Wrong number of columns in {csv_path}, row {row_number}. "
-                        f"Expected {len(CSV_HEADERS)}, found {len(row)}"
+                        f"Wrong number of columns in {csv_path}, row {row_number}. Expected {len(headers)}, found {len(row)}"
                     )
 
-                values = [
-                    parse_csv_float(value, csv_path, row_number, column_name)
-                    for value, column_name in zip(row, CSV_HEADERS)
-                ]
-
+                values = [parse_csv_float(value, csv_path, row_number, column_name) for value, column_name in zip(row, headers)]
                 current_time = values[0]
                 if previous_time is not None and current_time < previous_time:
                     raise RuntimeError(f"Time column is not monotonic in {csv_path}, row {row_number}")
-
                 previous_time = current_time
                 row_count += 1
 
         if row_count == 0:
             raise RuntimeError(f"Generated CSV has no numeric data rows: {csv_path}")
 
-        csv_files.append({
-            "generator": gen.loc_name,
-            "file": path_for_metadata(csv_path),
-            "rows": row_count,
-        })
+        csv_files.append({"generator": gen.loc_name, "file": path_for_metadata(csv_path), "rows": row_count})
 
     return csv_files
+
+
+def export_results_fast_and_split(app, elmres, generators, scenario_dir, schema):
+    raw_csv = export_raw_results_fast_comres(app, elmres, scenario_dir)
+    split_raw_comres_to_generator_csvs(raw_csv, generators, scenario_dir, schema)
+    return validate_generator_csvs(scenario_dir, generators, schema)
 
 
 # ============================================================
@@ -972,18 +1038,11 @@ def validate_generator_csvs(scenario_dir, generators):
 def print_debug_context(app):
     project = app.GetActiveProject()
     study_case = app.GetActiveStudyCase()
-
-    print("Active project:", project.loc_name if project else None, flush=True)
-    print("Active study case:", study_case.loc_name if study_case else None, flush=True)
-
     loads = app.GetCalcRelevantObjects("*.ElmLod")
     gens = app.GetCalcRelevantObjects("*.ElmSym")
 
-    # print("Number of ElmLod:", len(loads), flush=True)
-    # print("First loads:", [l.loc_name for l in loads[:10]], flush=True)
-
-    # print("Number of ElmSym:", len(gens), flush=True)
-    # print("First generators:", [g.loc_name for g in gens[:10]], flush=True)
+    print("Active project:", project.loc_name if project else None, flush=True)
+    print("Active study case:", study_case.loc_name if study_case else None, flush=True)
 
     app.PrintPlain(f"Active project: {project.loc_name if project else None}")
     app.PrintPlain(f"Active study case: {study_case.loc_name if study_case else None}")
@@ -992,65 +1051,44 @@ def print_debug_context(app):
 
     if project is None:
         raise RuntimeError("No active project.")
-
     if study_case is None:
         raise RuntimeError("No active study case.")
-
     if not loads:
         raise RuntimeError("No ElmLod loads found.")
-
     if not gens:
         raise RuntimeError("No ElmSym generators found.")
 
 
 # ============================================================
-# MAIN
+# SCENARIO RUNNERS
 # ============================================================
 
-def run_single_scenario(app, scenario, results_root, context_settings=None):
-    """
-    Runs exactly one scenario.
-    Guarantees one event per scenario because it calls clean_old_events()
-    before creating the scenario's load event.
-    """
+def write_scenario_json(scenario_dir, config):
+    with open(scenario_dir / "scenario.json", "w") as handle:
+        json.dump(config, handle, indent=2)
+
+
+def run_step_scenario(app, scenario, results_root, context_settings):
     load_name = scenario.get("load_name")
     dp_percent = float(scenario.get("dp_percent", 2.0))
     dq_percent = float(scenario.get("dq_percent", 0.0))
     sim_stop_time_s = float(scenario.get("sim_stop_time_s", SIM_STOP_TIME_S))
     event_time_s = float(scenario.get("event_time_s", EVENT_TIME_S))
     custom_name = scenario.get("name")
-    context_settings = context_settings or {}
+    schema = STEP_EVENT_RESULT_SCHEMA
 
     load = find_load(app, load_name, MIN_LOAD_MW)
     p_mw = get_load_p_mw(load)
-
-    scenario_name = make_scenario_name(
-        load=load,
-        dp_percent=dp_percent,
-        dq_percent=dq_percent,
-        sim_stop_time=sim_stop_time_s,
-        custom_name=custom_name,
-        event_time_s=event_time_s,
-    )
-
+    scenario_name = make_step_scenario_name(load, dp_percent, dq_percent, sim_stop_time_s, custom_name, event_time_s)
     scenario_dir = results_root / scenario_name
     scenario_dir.mkdir(parents=True, exist_ok=True)
 
-    app.PrintPlain("=" * 80)
-    app.PrintPlain(f"Running scenario: {scenario_name}")
-    app.PrintPlain(f"Selected load: {load.loc_name}, P={p_mw} MW")
-    app.PrintPlain(f"Scenario folder: {scenario_dir}")
-
-    print("=" * 80, flush=True)
-    print(f"Running scenario: {scenario_name}", flush=True)
-    print(f"Selected load: {load.loc_name}, P={p_mw} MW", flush=True)
-    print(f"Scenario folder: {scenario_dir}", flush=True)
-
     config = {
         "scenario_name": scenario_name,
-        "project_name": context_settings.get("project_name", PROJECT_NAME),
-        "study_case_name": context_settings.get("study_case_name", STUDY_CASE_NAME),
-        "grid_name": context_settings.get("grid_name", GRID_NAME),
+        "disturbance_type": "step_event",
+        "project_name": context_settings["project_name"],
+        "study_case_name": context_settings["study_case_name"],
+        "grid_name": context_settings.get("grid_name"),
         "load_name": load.loc_name,
         "load_initial_p_mw": p_mw,
         "min_load_mw": MIN_LOAD_MW,
@@ -1058,77 +1096,111 @@ def run_single_scenario(app, scenario, results_root, context_settings=None):
         "dq_percent": dq_percent,
         "event_time_s": event_time_s,
         "sim_stop_time_s": sim_stop_time_s,
-        "sim_step_ms": SIM_STEP_MS,
-        "csv_headers": CSV_HEADERS,
+        "sim_step_ms": context_settings["sim_step_ms"],
+        "csv_headers": schema["headers"],
         "generator_names_setting": GENERATOR_NAMES,
     }
 
     try:
-        # Critical: remove previous events so each scenario has exactly one event.
         clean_old_events(app)
-
-        event, event_attrs = create_load_event(
-            app=app,
-            load=load,
-            time_s=event_time_s,
-            dp_percent=dp_percent,
-            dq_percent=dq_percent,
-        )
-
+        event, event_attrs = create_load_event(app, load, event_time_s, dp_percent, dq_percent)
         config["event_name"] = event.loc_name
         config["event_attributes_used"] = event_attrs
 
         generators = find_generators(app)
         config["generators"] = [g.loc_name for g in generators]
+        elmres = setup_result_variables(app, generators, schema)
+        run_load_flow_initial_conditions_and_rms(app, sim_stop_time_s, context_settings["sim_step_ms"])
+        config["csv_files"] = export_results_fast_and_split(app, elmres, generators, scenario_dir, schema)
+        config["status"] = "OK"
+        write_scenario_json(scenario_dir, config)
+        return config
+    except Exception as exc:
+        config["status"] = "FAILED"
+        config["error"] = str(exc)
+        write_scenario_json(scenario_dir, config)
+        return config
 
-        elmres = setup_result_variables(app, generators)
 
-        run_load_flow_initial_conditions_and_rms(
+def parse_ambient_scenario_name(scenario_names):
+    if not scenario_names:
+        return None
+    if len(scenario_names) != 1:
+        raise SystemExit("--ambient accepts at most one optional --scenario value, used only as the ambient run folder label.")
+    value = scenario_names[0].strip()
+    if not value:
+        raise SystemExit("Ambient scenario label cannot be empty.")
+    return value
+
+
+def run_ambient_scenario(app, results_root, context_settings, ambient_name, sim_stop_time_s, sim_step_ms, magnitude_percent, low_pass_hz, random_seed):
+    schema = AMBIENT_RESULT_SCHEMA
+    scenario_name = make_ambient_scenario_name(sim_stop_time_s, sim_step_ms, magnitude_percent, random_seed, ambient_name)
+    scenario_dir = results_root / scenario_name
+    scenario_dir.mkdir(parents=True, exist_ok=True)
+
+    config = {
+        "scenario_name": scenario_name,
+        "disturbance_type": "ambient",
+        "project_name": context_settings["project_name"],
+        "study_case_name": context_settings["study_case_name"],
+        "grid_name": context_settings.get("grid_name"),
+        "sim_stop_time_s": sim_stop_time_s,
+        "sim_step_ms": sim_step_ms,
+        "csv_headers": schema["headers"],
+        "generator_names_setting": GENERATOR_NAMES,
+        "ambient_seed_effective": int(random_seed),
+        "ambient_settings": {
+            "magnitude_percent": magnitude_percent,
+            "low_pass_hz": low_pass_hz,
+            "random_seed": int(random_seed),
+            "export_modal_csvs": AMBIENT_EXPORT_MODAL_CSVS,
+        },
+    }
+
+    try:
+        clean_old_events(app)
+        config["ambient_load_profiles"] = create_ambient_load_profiles(
             app=app,
-            tstop=sim_stop_time_s,
-            step=SIM_STEP_MS,
+            scenario_dir=scenario_dir,
+            time_step_s=float(sim_step_ms) * 1e-3,
+            time_end_s=sim_stop_time_s,
+            magnitude_percent=magnitude_percent,
+            low_pass_hz=low_pass_hz,
+            random_seed=random_seed,
         )
 
-        config["csv_files"] = export_results_fast_and_split(app, elmres, generators, scenario_dir)
-
+        generators = find_generators(app)
+        config["generators"] = [g.loc_name for g in generators]
+        elmres = setup_result_variables(app, generators, schema)
+        configure_ambient_rms(app, sim_step_ms)
+        run_load_flow_initial_conditions_and_rms(app, sim_stop_time_s, sim_step_ms)
+        config["csv_files"] = export_results_fast_and_split(app, elmres, generators, scenario_dir, schema)
+        if AMBIENT_EXPORT_MODAL_CSVS:
+            config["modal_analysis_csvs"] = export_ambient_modal_analysis_csvs(app, scenario_dir)
         config["status"] = "OK"
-
-        with open(scenario_dir / "scenario.json", "w") as f:
-            json.dump(config, f, indent=2)
-
-        app.PrintPlain(f"Scenario done: {scenario_name}")
-        print(f"Scenario done: {scenario_name}", flush=True)
-
+        write_scenario_json(scenario_dir, config)
         return config
-
-    except Exception as e:
+    except Exception as exc:
         config["status"] = "FAILED"
-        config["error"] = str(e)
-
-        with open(scenario_dir / "scenario.json", "w") as f:
-            json.dump(config, f, indent=2)
-
-        app.PrintPlain(f"FAILED scenario {scenario_name}: {e}")
-        print(f"FAILED scenario {scenario_name}: {e}", flush=True)
-
+        config["error"] = str(exc)
+        write_scenario_json(scenario_dir, config)
         return config
 
+
+# ============================================================
+# CLI SCENARIO RESOLUTION
+# ============================================================
 
 def parse_inline_scenario(spec):
-    """
-    Parses CLI specs in the form load_name:dp[:dq[:duration[:event_time[:name]]]].
-    Examples: "Load 29:2", "Load 24:-5:2:60:0.5:my_case".
-    """
     parts = [part.strip() for part in spec.split(":")]
-
     if len(parts) not in (2, 3, 4, 5, 6) or not parts[0]:
         raise SystemExit(
-            f"Invalid scenario spec '{spec}'. Use load_name:dp[:dq[:duration[:event_time[:name]]]], "
-            "for example 'Load 29:2:0:60:0.5'."
+            f"Invalid scenario spec '{spec}'. Use load_name:dp[:dq[:duration[:event_time[:name]]]], for example 'Load 29:2:0:60:0.5'."
         )
 
     try:
-        scenario = {
+        return {
             "name": parts[5] if len(parts) == 6 and parts[5] else None,
             "load_name": normalize_load_name(parts[0]),
             "dp_percent": float(parts[1]),
@@ -1136,17 +1208,14 @@ def parse_inline_scenario(spec):
             "sim_stop_time_s": float(parts[3]) if len(parts) >= 4 and parts[3] else SIM_STOP_TIME_S,
             "event_time_s": float(parts[4]) if len(parts) >= 5 and parts[4] else EVENT_TIME_S,
         }
-    except ValueError as e:
-        raise SystemExit(f"Invalid numeric value in scenario spec '{spec}': {e}") from e
-
-    return scenario
+    except ValueError as exc:
+        raise SystemExit(f"Invalid numeric value in scenario spec '{spec}': {exc}") from exc
 
 
 def parse_defaulted_load_scenario(load_name):
     load_name = normalize_load_name(load_name)
     if not load_name:
         raise SystemExit("Empty load name is not allowed.")
-
     return {
         "name": None,
         "load_name": load_name,
@@ -1157,7 +1226,7 @@ def parse_defaulted_load_scenario(load_name):
     }
 
 
-def select_scenarios(names):
+def select_step_scenarios(names):
     selected = []
 
     if not names:
@@ -1172,33 +1241,22 @@ def select_scenarios(names):
         for name in names:
             if ":" in name:
                 selected.append(parse_inline_scenario(name))
-                continue
-
-            if name not in SCENARIOS_BY_NAME:
+            elif name not in SCENARIOS_BY_NAME:
                 selected.append(parse_defaulted_load_scenario(name))
-                continue
-
-            selected.append(SCENARIOS_BY_NAME[name])
+            else:
+                selected.append(SCENARIOS_BY_NAME[name])
 
     if not selected:
         raise SystemExit("No scenarios selected.")
-
     return selected
 
 
 def list_scenarios():
     seen = set()
-
     for scenario in SCENARIOS:
-        key = make_scenario_key(
-            scenario["load_name"],
-            scenario["dp_percent"],
-            scenario.get("dq_percent", 0.0),
-        )
-
+        key = make_scenario_key(scenario["load_name"], scenario["dp_percent"], scenario.get("dq_percent", 0.0))
         if key in seen:
             continue
-
         seen.add(key)
         folder_alias = make_scenario_folder_alias(
             scenario["load_name"],
@@ -1206,14 +1264,10 @@ def list_scenarios():
             scenario.get("dq_percent", 0.0),
             SIM_STOP_TIME_S,
         )
-        aliases = [scenario.get("key"), key, folder_alias]
-        aliases = [alias for alias in aliases if alias]
-
+        aliases = [alias for alias in [scenario.get("key"), key, folder_alias] if alias]
         print(
             f"{aliases[0]} ({', '.join(aliases[1:])}): "
-            f"load={scenario['load_name']}, "
-            f"dp={scenario['dp_percent']}, "
-            f"dq={scenario.get('dq_percent', 0.0)}"
+            f"load={scenario['load_name']}, dp={scenario['dp_percent']}, dq={scenario.get('dq_percent', 0.0)}"
         )
 
 
@@ -1221,11 +1275,11 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description=(
             "Generate IEEE39 CSV data from PowerFactory runs.\n\n"
-            "Use --scenario for both preset scenarios and ad-hoc custom loads."
+            "Default mode creates step-event scenarios. Use --ambient for ambient excitation data."
         ),
         epilog=dedent(
             """
-            Scenario input forms:
+            Step-event scenario input forms:
               1. Preset key: load29
               2. Multiple preset keys: load03 load24
               3. All presets: all
@@ -1235,129 +1289,115 @@ def parse_args():
             Examples:
               python IEEE39/generate_data.py --scenario load29
               python IEEE39/generate_data.py --scenario load03 load24
-              python IEEE39/generate_data.py --scenario "Load 20"
-              python IEEE39/generate_data.py --scenario "Load 20:2"
-              python IEEE39/generate_data.py --scenario "Load 20:2:0:60:0.5"
-              python IEEE39/generate_data.py --scenario "Load 20:2:0:60:0.5:load20_test"
               python IEEE39/generate_data.py --scenario "Load 20:2" --duration 60 --event-time 0.5
-
-            Notes:
-              - A bare unknown --scenario value like "Load 20" is treated as a custom load with defaults dp=2, dq=0, duration=50, event_time=0.
-              - Inline specs use the format load_name:dp[:dq[:duration[:event_time[:name]]]].
-              - The optional final 'name' field overrides only the scenario run folder name under the results root; it is not the same as --output-dir.
-              - If duration/event_time are given inside the inline spec, they override the global --duration/--event-time defaults.
+              python IEEE39/generate_data.py --ambient
+              python IEEE39/generate_data.py --ambient --scenario ambient_test
+              python IEEE39/generate_data.py --ambient --duration 900 --ambient-magnitude-percent 0.2
             """
         ),
         formatter_class=argparse.RawTextHelpFormatter,
     )
-    parser.add_argument(
-        "--scenario",
-        nargs="+",
-        default=None,
-        help=(
-            "Scenario selector. Accepts preset keys like 'load29', multiple keys like 'load03 load24',\n"
-            "'all', bare custom load names like 'Load 20', or inline custom specs like 'Load 20:2:0:60:0.5:load20_test'."
-        ),
-    )
-    parser.add_argument(
-        "--output-dir",
-        default=None,
-        help="Results directory relative to IEEE39, or an absolute path. Default: results.",
-    )
-    parser.add_argument("--project-name", default=PROJECT_NAME, help=f"PowerFactory project name. Default: {PROJECT_NAME}.")
-    parser.add_argument("--study-case", default=STUDY_CASE_NAME, help=f"PowerFactory study case name. Default: {STUDY_CASE_NAME}.")
-    parser.add_argument("--grid-name", default=GRID_NAME, help=f"PowerFactory grid name. Default: {GRID_NAME}.")
-    parser.add_argument(
-        "--duration",
-        type=float,
-        default=SIM_STOP_TIME_S,
-        help=(
-            f"Simulation stop time in seconds for presets and for custom scenarios that do not set duration inline. "
-            f"Default: {SIM_STOP_TIME_S:g}."
-        ),
-    )
-    parser.add_argument(
-        "--event-time",
-        type=float,
-        default=EVENT_TIME_S,
-        help=(
-            f"Load event time in seconds for presets and for custom scenarios that do not set event time inline. "
-            f"Default: {EVENT_TIME_S:g}."
-        ),
-    )
-    parser.add_argument(
-        "--list-scenarios",
-        action="store_true",
-        help="Print the available preset scenario keys and aliases, then exit.",
-    )
+    parser.add_argument("--scenario", nargs="+", default=None, help="Step-event scenarios, or a single ambient run label when used with --ambient.")
+    parser.add_argument("--ambient", action="store_true", help="Generate ambient excitation data instead of load-step event data.")
+    parser.add_argument("--output-dir", default=None, help="Results directory relative to IEEE39, or an absolute path. Default: results.")
+    parser.add_argument("--project-name", default=None, help="PowerFactory project name override.")
+    parser.add_argument("--study-case", default=None, help="PowerFactory study case name override.")
+    parser.add_argument("--grid-name", default=None, help="PowerFactory grid name override. Pass 'none' to disable grid activation.")
+    parser.add_argument("--duration", type=float, default=None, help="Simulation stop time in seconds.")
+    parser.add_argument("--event-time", type=float, default=EVENT_TIME_S, help=f"Load event time in seconds. Default: {EVENT_TIME_S:g}.")
+    parser.add_argument("--sim-step-ms", type=float, default=SIM_STEP_MS, help=f"Simulation step in milliseconds. Default: {SIM_STEP_MS:g}.")
+    parser.add_argument("--ambient-magnitude-percent", type=float, default=AMBIENT_DIST_MAG_PERCENT, help=f"Ambient load fluctuation magnitude in percent. Default: {AMBIENT_DIST_MAG_PERCENT:g}.")
+    parser.add_argument("--ambient-lowpass-hz", type=float, default=AMBIENT_LOW_PASS_HZ, help=f"Ambient low-pass cutoff in Hz. Default: {AMBIENT_LOW_PASS_HZ:g}.")
+    parser.add_argument("--ambient-seed", type=int, default=AMBIENT_RANDOM_SEED, help=f"Ambient random seed. Default: {AMBIENT_RANDOM_SEED}.")
+    parser.add_argument("--list-scenarios", action="store_true", help="Print the available preset step-event scenario keys and aliases, then exit.")
     return parser.parse_args()
 
 
-def run_all_scenarios(scenarios=None, output_dir=None, project_name=PROJECT_NAME, study_case_name=STUDY_CASE_NAME, grid_name=GRID_NAME):
-    if scenarios is None:
-        scenarios = SCENARIOS
+def resolve_optional_grid_name(raw_value, default_value):
+    if raw_value is None:
+        return default_value
+    if str(raw_value).strip().lower() == "none":
+        return None
+    return raw_value
 
+
+def resolve_context_from_args(args):
+    if args.ambient:
+        project_name = args.project_name or AMBIENT_PROJECT_NAME
+        study_case_name = args.study_case or AMBIENT_STUDY_CASE_NAME
+        grid_name = resolve_optional_grid_name(args.grid_name, AMBIENT_GRID_NAME)
+        duration = float(args.duration) if args.duration is not None else AMBIENT_SIM_STOP_TIME_S
+    else:
+        project_name = args.project_name or PROJECT_NAME
+        study_case_name = args.study_case or STUDY_CASE_NAME
+        grid_name = resolve_optional_grid_name(args.grid_name, GRID_NAME)
+        duration = float(args.duration) if args.duration is not None else SIM_STOP_TIME_S
+
+    return {
+        "project_name": project_name,
+        "study_case_name": study_case_name,
+        "grid_name": grid_name,
+        "duration": duration,
+        "sim_step_ms": float(args.sim_step_ms),
+    }
+
+
+def run_all_scenarios(args):
+    resolved = resolve_context_from_args(args)
     app = get_app()
-
-    project, study_case, grid = activate_context(
-        app,
-        project_name=project_name,
-        study_case_name=study_case_name,
-        grid_name=grid_name,
-    )
+    project, study_case, grid = activate_context(app, resolved["project_name"], resolved["study_case_name"], resolved["grid_name"])
     print_debug_context(app)
+
     context_settings = {
         "project_name": project.loc_name,
         "study_case_name": study_case.loc_name,
         "grid_name": grid.loc_name if grid is not None else None,
+        "sim_step_ms": resolved["sim_step_ms"],
     }
 
-    results_root = resolve_results_root(output_dir)
+    results_root = resolve_results_root(args.output_dir)
     results_root.mkdir(parents=True, exist_ok=True)
-
     total_start = time.time()
 
-    ok_count = 0
-    fail_count = 0
-
-    for i, scenario in enumerate(scenarios, start=1):
-        print(f"\nStarting scenario {i}/{len(scenarios)}", flush=True)
-        app.PrintPlain(f"Starting scenario {i}/{len(scenarios)}")
-
-        scenario_start = time.time()
-
-        result = run_single_scenario(
+    if args.ambient:
+        ambient_name = parse_ambient_scenario_name(args.scenario)
+        result = run_ambient_scenario(
             app=app,
-            scenario=scenario,
             results_root=results_root,
             context_settings=context_settings,
+            ambient_name=ambient_name,
+            sim_stop_time_s=resolved["duration"],
+            sim_step_ms=resolved["sim_step_ms"],
+            magnitude_percent=float(args.ambient_magnitude_percent),
+            low_pass_hz=float(args.ambient_lowpass_hz),
+            random_seed=int(args.ambient_seed),
         )
+        results = [result]
+    else:
+        selected_scenarios = [dict(scenario) for scenario in select_step_scenarios(args.scenario)]
+        for scenario in selected_scenarios:
+            scenario.setdefault("sim_stop_time_s", resolved["duration"])
+            scenario.setdefault("event_time_s", float(args.event_time))
 
-        scenario_end = time.time()
-        elapsed = scenario_end - scenario_start
+        results = []
+        for index, scenario in enumerate(selected_scenarios, start=1):
+            print(f"\nStarting scenario {index}/{len(selected_scenarios)}", flush=True)
+            app.PrintPlain(f"Starting scenario {index}/{len(selected_scenarios)}")
+            scenario_start = time.time()
+            result = run_step_scenario(app, scenario, results_root, context_settings)
+            elapsed = time.time() - scenario_start
+            print(f"Scenario {index}/{len(selected_scenarios)} finished in {elapsed // 60:.0f} min {elapsed % 60:.1f} sec", flush=True)
+            results.append(result)
 
-        print(
-            f"Scenario {i}/{len(scenarios)} finished in "
-            f"{elapsed // 60:.0f} min {elapsed % 60:.1f} sec",
-            flush=True,
-        )
-
-        if result.get("status") == "OK":
-            ok_count += 1
-        else:
-            fail_count += 1
-
-    total_end = time.time()
-    total_elapsed = total_end - total_start
+    ok_count = sum(1 for result in results if result.get("status") == "OK")
+    fail_count = len(results) - ok_count
+    total_elapsed = time.time() - total_start
 
     print("=" * 80, flush=True)
-    print(f"All scenarios finished.", flush=True)
+    print("All scenarios finished.", flush=True)
     print(f"OK: {ok_count}", flush=True)
     print(f"FAILED: {fail_count}", flush=True)
-    print(
-        f"Total execution time: {total_elapsed // 60:.0f} min {total_elapsed % 60:.1f} sec",
-        flush=True,
-    )
+    print(f"Total execution time: {total_elapsed // 60:.0f} min {total_elapsed % 60:.1f} sec", flush=True)
 
     app.PrintPlain("=" * 80)
     app.PrintPlain("All scenarios finished.")
@@ -1372,16 +1412,6 @@ if __name__ == "__main__":
         raise SystemExit(0)
 
     start_time = time.time()
-    selected_scenarios = [dict(scenario) for scenario in select_scenarios(args.scenario)]
-    for scenario in selected_scenarios:
-        scenario.setdefault("sim_stop_time_s", float(args.duration))
-        scenario.setdefault("event_time_s", float(args.event_time))
-    run_all_scenarios(
-        selected_scenarios,
-        args.output_dir,
-        project_name=args.project_name,
-        study_case_name=args.study_case,
-        grid_name=args.grid_name,
-    )
+    run_all_scenarios(args)
     end_time = time.time()
-    print("-"*30, f"Execution Time: {(end_time - start_time)//60} minutes and {(end_time - start_time)%60} seconds", "-"*30)
+    print("-" * 30, f"Execution Time: {(end_time - start_time) // 60} minutes and {(end_time - start_time) % 60} seconds", "-" * 30)
