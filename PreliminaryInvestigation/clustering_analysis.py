@@ -3,7 +3,7 @@ import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from sklearn.cluster import KMeans
+from sklearn.cluster import KMeans, OPTICS
 from sklearn.metrics import silhouette_score, silhouette_samples
 from sklearn.preprocessing import StandardScaler
 from matplotlib.lines import Line2D
@@ -35,10 +35,21 @@ REFERENCE_MODES = {
     "Intra-area 1": {"Frequency": 1.083, "Damping": -0.603},
     "Intra-area 2": {"Frequency": 1.119, "Damping": -0.631},
 }
+MAX_FULL_CLUSTER_LEGEND = 12
 
 
 def _label_colors(labels):
     return [CLUSTER_COLORS[int(lbl) % len(CLUSTER_COLORS)] for lbl in labels]
+
+
+def _label_colors_with_noise(labels):
+    colors = []
+    for label in labels:
+        if int(label) < 0:
+            colors.append("#9e9e9e")
+        else:
+            colors.append(CLUSTER_COLORS[int(label) % len(CLUSTER_COLORS)])
+    return colors
 
 
 def _apply_axis_style(ax, grid_alpha=GRID_ALPHA_MAIN):
@@ -56,6 +67,32 @@ def _prepare_output_dirs(base_output):
 
 
 def _cluster_legend_handles(k, representative_label=None):
+    if k > MAX_FULL_CLUSTER_LEGEND:
+        handles = [
+            Line2D(
+                [0], [0],
+                marker='o',
+                color='w',
+                markerfacecolor=CLUSTER_COLORS[0],
+                markeredgecolor='k',
+                markersize=10,
+                label=f"{k} Clusters",
+            )
+        ]
+        if representative_label is not None:
+            handles.append(
+                Line2D(
+                    [0], [0],
+                    marker='x',
+                    color=ACCENT_RED,
+                    linestyle='None',
+                    markeredgewidth=3,
+                    markersize=11,
+                    label=representative_label,
+                )
+            )
+        return handles
+
     handles = [
         Line2D(
             [0], [0],
@@ -131,6 +168,60 @@ def _overlay_reference_modes(ax, reference_modes):
         )
 
 
+def _quantile_bounds(values, lower_q=0.02, upper_q=0.98):
+    arr = np.asarray(values, dtype=float)
+    arr = arr[np.isfinite(arr)]
+    if arr.size == 0:
+        return None, None
+    return float(np.quantile(arr, lower_q)), float(np.quantile(arr, upper_q))
+
+
+def _set_modal_axis_limits(ax, df, reference_modes=None, representatives=None):
+    damping_values = list(df["Damping"].to_numpy(dtype=float))
+    freq_values = list(df["Frequency"].to_numpy(dtype=float))
+
+    if representatives is not None and len(representatives) > 0:
+        reps = np.asarray(representatives, dtype=float)
+        freq_values.extend(reps[:, 0].tolist())
+        damping_values.extend(reps[:, 1].tolist())
+
+    if reference_modes:
+        for mode_data in reference_modes.values():
+            freq_values.append(float(mode_data["Frequency"]))
+            damping_values.append(float(mode_data["Damping"]))
+
+    damp_low, damp_high = _quantile_bounds(damping_values, lower_q=0.02, upper_q=0.98)
+    freq_low, freq_high = _quantile_bounds(freq_values, lower_q=0.02, upper_q=0.98)
+    if damp_low is None or freq_low is None:
+        return
+
+    ref_damping = [float(mode["Damping"]) for mode in (reference_modes or {}).values()]
+    ref_freq = [float(mode["Frequency"]) for mode in (reference_modes or {}).values()]
+    if ref_damping:
+        damp_low = min(damp_low, min(ref_damping))
+        damp_high = max(damp_high, max(ref_damping))
+    if ref_freq:
+        freq_low = min(freq_low, min(ref_freq))
+        freq_high = max(freq_high, max(ref_freq))
+
+    damp_span = max(0.02, damp_high - damp_low)
+    freq_span = max(0.1, freq_high - freq_low)
+    x_pad = max(0.015, 0.12 * damp_span)
+    y_pad = max(0.05, 0.08 * freq_span)
+
+    x_min = damp_low - x_pad
+    x_max = min(0.02, damp_high + (0.5 * x_pad))
+    if x_max <= x_min:
+        x_max = x_min + max(0.05, damp_span)
+    y_min = max(FREQ_MIN - 0.02, freq_low - y_pad)
+    y_max = min(FREQ_MAX + 0.02, freq_high + y_pad)
+    if y_max <= y_min:
+        y_max = y_min + max(0.2, freq_span)
+
+    ax.set_xlim(x_min, x_max)
+    ax.set_ylim(y_min, y_max)
+
+
 def _plot_selected_cluster_map(ax, df, labels, representatives, representative_label, title, reference_modes=None):
     point_colors = _label_colors(labels)
     ax.scatter(
@@ -146,6 +237,7 @@ def _plot_selected_cluster_map(ax, df, labels, representatives, representative_l
     ax.set_title(title, fontweight='bold')
     ax.set_xlabel("Damping (Sigma) [rad/s]")
     ax.set_ylabel("Frequency [Hz]")
+    _set_modal_axis_limits(ax, df, reference_modes=reference_modes, representatives=representatives)
     handles = _cluster_legend_handles(len(representatives), representative_label=representative_label) + _reference_mode_handles(reference_modes)
     ax.legend(handles=handles, loc='upper left')
     _apply_axis_style(ax, GRID_ALPHA_SUB)
@@ -300,6 +392,10 @@ def _save_reference_mad_outputs(df, output_path, reference_modes=None):
 
     assigned_df = _assign_reference_modes(df, reference_modes=reference_modes)
     assigned_df.to_csv(
+        os.path.join(ref_dir, "mode_estimates_with_reference_assignment.csv"),
+        index=False
+    )
+    assigned_df.to_csv(
         os.path.join(ref_dir, "mp_estimates_with_reference_assignment.csv"),
         index=False
     )
@@ -444,6 +540,7 @@ def run_kmeans_modal_analysis(results_path, output_path, reference_modes=None):
         )
         handles = _cluster_legend_handles(k, representative_label='Centroids') + _reference_mode_handles(reference_modes)
         ax.legend(handles=handles, loc='upper left')
+        _set_modal_axis_limits(ax, df, reference_modes=reference_modes, representatives=centers)
         _apply_axis_style(ax)
         _save_figure(fig, base_output, f"kmeans_modal_map_k{k}")
         plt.close(fig)
@@ -493,6 +590,7 @@ def run_kmeans_modal_analysis(results_path, output_path, reference_modes=None):
             fontweight='semibold'
         )
         _apply_axis_style(ax, GRID_ALPHA_SUB)
+        _set_modal_axis_limits(ax, df, reference_modes=reference_modes, representatives=centers)
 
         if idx >= 2:
             ax.set_xlabel("Damping (Sigma) [rad/s]")
@@ -615,6 +713,7 @@ def run_kmedoids_modal_analysis(results_path, output_path, reference_modes=None)
         )
         handles = _cluster_legend_handles(k, representative_label='Medoids') + _reference_mode_handles(reference_modes)
         ax.legend(handles=handles, loc='upper left')
+        _set_modal_axis_limits(ax, df, reference_modes=reference_modes, representatives=medoids)
         _apply_axis_style(ax)
         _save_figure(fig, base_output, f"kmedoids_modal_map_k{k}")
         plt.close(fig)
@@ -664,6 +763,7 @@ def run_kmedoids_modal_analysis(results_path, output_path, reference_modes=None)
             fontweight='semibold'
         )
         _apply_axis_style(ax, GRID_ALPHA_SUB)
+        _set_modal_axis_limits(ax, df, reference_modes=reference_modes, representatives=medoids)
 
         if idx >= 2:
             ax.set_xlabel("Damping (Sigma) [rad/s]")
@@ -727,6 +827,171 @@ def run_kmedoids_modal_analysis(results_path, output_path, reference_modes=None)
     metrics_df["k_selected_by_max_chord"] = metrics_df["k"] == k_opt
     metrics_df.to_csv(os.path.join(base_output, "kmedoids_metrics_summary.csv"), index=False)
     pd.DataFrame(cluster_stats).to_csv(os.path.join(base_output, "cluster_medoids_sizes.csv"), index=False)
+
+
+def run_optics_modal_analysis(results_path, output_path, reference_modes=None):
+    base_output = os.path.join(output_path, "optics")
+    _prepare_output_dirs(base_output)
+
+    df = _load_screened_data(results_path, output_path)
+    if df is None:
+        return
+
+    if len(df) < 3:
+        print("Not enough samples for OPTICS clustering.")
+        return
+
+    X = df[["Frequency", "Damping"]].values
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
+
+    max_min_samples = min(10, len(df) - 1)
+    min_min_samples = 5
+    if max_min_samples < min_min_samples:
+        print("Not enough samples for OPTICS clustering.")
+        return
+
+    min_samples_values = np.arange(min_min_samples, max_min_samples + 1)
+    stored_results = {}
+    metrics_rows = []
+
+    for min_samples in min_samples_values:
+        optics = OPTICS(min_samples=int(min_samples), cluster_method="xi", xi=0.05)
+        labels = optics.fit_predict(X_scaled)
+        unique_labels = sorted(lbl for lbl in np.unique(labels) if int(lbl) >= 0)
+        noise_count = int(np.sum(labels == -1))
+        n_clusters = int(len(unique_labels))
+
+        representatives = []
+        cluster_stats = []
+        for cluster_label in unique_labels:
+            cluster_points = df.loc[labels == cluster_label, ["Frequency", "Damping"]].to_numpy(dtype=float)
+            representative = np.mean(cluster_points, axis=0)
+            representatives.append(representative)
+            cluster_stats.append({
+                "min_samples": int(min_samples),
+                "Cluster": int(cluster_label + 1),
+                "Frequency": float(representative[0]),
+                "Damping": float(representative[1]),
+                "Size": int(np.sum(labels == cluster_label)),
+            })
+
+        representatives = np.array(representatives, dtype=float) if representatives else np.empty((0, 2), dtype=float)
+        stored_results[int(min_samples)] = {
+            "labels": labels,
+            "representatives": representatives,
+            "n_clusters": n_clusters,
+            "noise_count": noise_count,
+            "cluster_stats": cluster_stats,
+        }
+
+        metrics_rows.append({
+            "min_samples": int(min_samples),
+            "Clusters": n_clusters,
+            "NoisePoints": noise_count,
+            "AssignedPoints": int(len(df) - noise_count),
+            "AssignedRatio": float((len(df) - noise_count) / len(df)),
+            "Fragmentation": float(n_clusters / max(len(df) - noise_count, 1)),
+        })
+
+        fig, ax = plt.subplots(figsize=(10, 7))
+        point_colors = _label_colors_with_noise(labels)
+        ax.scatter(
+            df["Damping"], df["Frequency"],
+            c=point_colors, alpha=POINT_ALPHA,
+            edgecolors='k', linewidths=0.8, s=POINT_SIZE
+        )
+        if len(representatives) > 0:
+            ax.scatter(
+                representatives[:, 1], representatives[:, 0],
+                c=ACCENT_RED, marker='x',
+                s=REP_SIZE, linewidths=4, label='Cluster Means'
+            )
+        _overlay_reference_modes(ax, reference_modes)
+        ax.axvline(0, color=ACCENT_RED, linestyle='--', alpha=0.35, linewidth=2)
+        ax.set_xlabel("Damping (Sigma) [rad/s]")
+        ax.set_ylabel("Frequency [Hz]")
+        ax.set_title(
+            f"Modal Clustering with OPTICS ($min\\_samples={min_samples}$)\nClusters: {n_clusters} | Noise: {noise_count}",
+            fontweight='bold'
+        )
+        handles = []
+        if n_clusters > 0:
+            handles += _cluster_legend_handles(n_clusters, representative_label='Cluster Means')
+        handles += _reference_mode_handles(reference_modes)
+        if handles:
+            ax.legend(handles=handles, loc='upper left')
+        _set_modal_axis_limits(ax, df, reference_modes=reference_modes, representatives=representatives)
+        _apply_axis_style(ax)
+        _save_figure(fig, base_output, f"optics_modal_map_min_samples_{min_samples}")
+        plt.close(fig)
+
+    metrics_df = pd.DataFrame(metrics_rows)
+    if metrics_df.empty:
+        return
+
+    eligible_mask = metrics_df["AssignedRatio"] >= 0.5
+    candidate_df = metrics_df[eligible_mask].copy()
+    if candidate_df.empty:
+        candidate_df = metrics_df.copy()
+
+    candidate_df = candidate_df.sort_values(
+        ["Fragmentation", "NoisePoints", "Clusters", "min_samples"],
+        ascending=[True, True, True, False],
+        kind="stable",
+    )
+    best_idx = int(candidate_df.index[0])
+    best_min_samples = int(metrics_df.loc[best_idx, "min_samples"])
+    metrics_df["selected"] = metrics_df["min_samples"] == best_min_samples
+    metrics_df.to_csv(os.path.join(base_output, "optics_metrics_summary.csv"), index=False)
+
+    selected = stored_results[best_min_samples]
+    cluster_rows = selected["cluster_stats"]
+    pd.DataFrame(cluster_rows).to_csv(os.path.join(base_output, "cluster_representatives_sizes.csv"), index=False)
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.plot(metrics_df["min_samples"], metrics_df["Clusters"], marker='o', color=LINE_BLUE, linewidth=3, markersize=10, label='Clusters')
+    ax.plot(metrics_df["min_samples"], metrics_df["NoisePoints"], marker='s', color=LINE_GREEN, linewidth=3, markersize=10, label='Noise points')
+    chosen_row = metrics_df[metrics_df["selected"]].iloc[0]
+    ax.scatter(chosen_row["min_samples"], chosen_row["Clusters"], color=ACCENT_RED, s=180, edgecolors='k', zorder=5)
+    ax.set_xlabel("OPTICS min_samples")
+    ax.set_ylabel("Count")
+    ax.set_title("OPTICS Parameter Sweep", fontweight='bold')
+    ax.legend(loc='best')
+    _apply_axis_style(ax)
+    _save_figure(fig, base_output, "optics_parameter_sweep")
+    plt.close(fig)
+
+    fig, ax = plt.subplots(figsize=(10, 7))
+    point_colors = _label_colors_with_noise(selected["labels"])
+    ax.scatter(
+        df["Damping"], df["Frequency"],
+        c=point_colors, alpha=POINT_ALPHA,
+        edgecolors='k', linewidths=0.8, s=POINT_SIZE
+    )
+    if len(selected["representatives"]) > 0:
+        ax.scatter(
+            selected["representatives"][:, 1], selected["representatives"][:, 0],
+            c=ACCENT_RED, marker='x', s=REP_SIZE, linewidths=4, label='Cluster Means'
+        )
+    _overlay_reference_modes(ax, reference_modes)
+    ax.axvline(0, color=ACCENT_RED, linestyle='--', alpha=0.35, linewidth=2)
+    ax.set_xlabel("Damping (Sigma) [rad/s]")
+    ax.set_ylabel("Frequency [Hz]")
+    ax.set_title(
+        f"Selected OPTICS Cluster Map ($min\\_samples={best_min_samples}$)\nClusters: {selected['n_clusters']} | Noise: {selected['noise_count']}",
+        fontweight='bold'
+    )
+    handles = []
+    if selected["n_clusters"] > 0:
+        handles += _cluster_legend_handles(selected["n_clusters"], representative_label='Cluster Means')
+    handles += _reference_mode_handles(reference_modes)
+    if handles:
+        ax.legend(handles=handles, loc='upper left')
+    _set_modal_axis_limits(ax, df, reference_modes=reference_modes, representatives=selected["representatives"])
+    _apply_axis_style(ax)
+    _save_figure(fig, base_output, "optics_selected_cluster_map")
+    plt.close(fig)
 
 
 def run_silhouette_analysis(results_path, output_path, reference_modes=None):
@@ -853,6 +1118,7 @@ def run_silhouette_analysis(results_path, output_path, reference_modes=None):
         )
         ax2.set_xlabel("Damping (Sigma) [rad/s]")
         ax2.set_ylabel("Frequency [Hz]")
+        _set_modal_axis_limits(ax2, df, reference_modes=reference_modes, representatives=representatives)
         _apply_axis_style(ax2, GRID_ALPHA_SUB)
 
         handles = _cluster_legend_handles(k_opt, representative_label=rep_label) + _reference_mode_handles(reference_modes)

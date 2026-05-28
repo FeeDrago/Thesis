@@ -32,10 +32,12 @@ def build_arg_parser():
               python IEEE39/analyze_ieee39.py --scenario load29 --time-cross global --time-cross-reference g2:Current --plots
               python IEEE39/analyze_ieee39.py --scenario load29 --fixed-orders 2 4 6 8 --taus 1 0.1 0.01
               python IEEE39/analyze_ieee39.py --scenario Load29_Pplus2_50s --skip-matrix-pencil --analysis-dir analysis/Load29_Pplus2_50s_0_to_end_reset
+              python IEEE39/analyze_ieee39.py --scenario ambient_seed1997 --data-dir results/Ambient_Mag0.1_T600s_dt10ms_seed1997 --output-dir analysis/ambient_seed1997 --analysis-method n4sid --n4sid-orders 10 20 30 40 50 --ambient-downsample-hz 5 --ambient-lpf-hz 2 --clustering --clustering-methods kmeans kmedoids optics
 
             Notes:
               - --scenario is required for actual analysis runs; the script no longer defaults silently to 'all'.
               - If --data-dir is used, --scenario becomes just a label for the run.
+              - --analysis-method auto dispatches to ambient N4SID when scenario.json says disturbance_type=ambient; otherwise it uses Matrix Pencil.
               - Fixed Matrix Pencil orders can be overridden with --fixed-orders; default: 2 4 6 8.
               - Adaptive tau values can be overridden with --taus; default: 1 0.1 0.01.
               - Without --output-dir, the analysis folder name is extended automatically with the selected time-window mode.
@@ -62,9 +64,11 @@ def build_arg_parser():
     parser.add_argument("--clustering", dest="skip_clustering", action="store_false", help="Enable clustering output. Default scope: by control area.")
     parser.add_argument("--clustering-scope", choices=["both", "global", "areas", "none"], default="areas", help="Choose clustering output scope. Default: areas.")
     parser.add_argument("--skip-matrix-pencil", action="store_true", help="Reuse an existing results.csv instead of recomputing Matrix Pencil poles.")
+    parser.add_argument("--skip-n4sid", action="store_true", help="Reuse existing ambient N4SID sweep results instead of recomputing them.")
     parser.add_argument("--analysis-dir", default=None, help="Existing analysis directory to reuse with --skip-matrix-pencil. Relative paths are resolved from IEEE39.")
     parser.add_argument("--skip-plots", dest="skip_plots", action="store_true", help="Skip IEEE39 plot outputs, including modal maps, reconstructions, and thesis-used summary figures (default).")
     parser.add_argument("--plots", dest="skip_plots", action="store_false", help="Enable IEEE39 modal maps, reconstructions, and thesis-used summary figures.")
+    parser.add_argument("--analysis-method", choices=["auto", "matrix-pencil", "n4sid"], default="auto", help="Select analysis backend. 'auto' uses ambient N4SID when scenario.json disturbance_type is 'ambient'; otherwise Matrix Pencil.")
     parser.add_argument("--data-dir", default=None, help="Explicit input data directory relative to IEEE39, or an absolute path. Use with exactly one --scenario.")
     parser.add_argument("--output-dir", default=None, help="Explicit output directory relative to IEEE39, or an absolute path. Use with exactly one --scenario.")
     parser.add_argument("--time-start", type=float, default=None, help="Inclusive analysis start time in seconds. Default: 0.")
@@ -76,6 +80,12 @@ def build_arg_parser():
     parser.add_argument("--signals", nargs="+", default=None, help="Optional signal subset by label or CSV column, e.g. Voltage 'Active Power' or 's:P1 in MW'.")
     parser.add_argument("--fixed-orders", nargs="+", type=int, default=None, help="Override the fixed Matrix Pencil orders. Default: 2 4 6 8.")
     parser.add_argument("--taus", nargs="+", type=float, default=None, help="Override the tau values used for adaptive order selection. Default: 1 0.1 0.01.")
+    parser.add_argument("--n4sid-orders", nargs="+", type=int, default=None, help="Ambient N4SID model orders. Default: built-in ambient order sweep.")
+    parser.add_argument("--ambient-downsample-hz", type=float, default=None, help="Ambient preprocessing downsample rate in Hz. Default: 5.")
+    parser.add_argument("--ambient-lpf-hz", type=float, default=None, help="Ambient preprocessing low-pass cutoff in Hz. Default: 2.")
+    parser.add_argument("--ambient-no-detrend", action="store_true", help="Disable ambient detrending. Default ambient preprocessing detrends first.")
+    parser.add_argument("--ambient-reference-modes-json", default=None, help="Optional JSON file overriding the built-in ambient reference modes.")
+    parser.add_argument("--clustering-methods", nargs="+", choices=["kmeans", "kmedoids", "optics"], default=None, help="Ambient clustering methods. Default: kmeans kmedoids optics.")
     return parser
 
 
@@ -97,6 +107,8 @@ def early_validate_cli_args(args):
             "--skip-matrix-pencil requires --analysis-dir so the script knows which existing analysis folder and results.csv to reuse. "
             "Example: --scenario Load29_Pplus2_50s --skip-matrix-pencil --analysis-dir analysis/Load29_Pplus2_50s_0_to_end_reset"
         )
+    if args.skip_matrix_pencil and args.skip_n4sid:
+        raise SystemExit("Use either --skip-matrix-pencil or --skip-n4sid, not both.")
 
 
 if any(arg in ("-h", "--help") for arg in sys.argv[1:]):
@@ -110,6 +122,12 @@ import matplotlib.pyplot as plt
 from scipy.signal import detrend
 
 from analysis_evaluator import update_analysis_config_with_evaluation
+from ambient_n4sid_analysis import (
+    AMBIENT_DEFAULT_SIGNALS,
+    load_existing_ambient_results_for_scenario,
+    preprocess_ambient_signal,
+    run_ambient_n4sid_for_scenario,
+)
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -237,6 +255,17 @@ def _default_clustering_config(enabled=False, scope="areas"):
     if scope == "both":
         return {"global": True, "by_control_area": True}
     return {"global": False, "by_control_area": True}
+
+
+def _ambient_cli_overrides_requested(args):
+    return any([
+        args.n4sid_orders is not None,
+        args.ambient_downsample_hz is not None,
+        args.ambient_lpf_hz is not None,
+        bool(args.ambient_no_detrend),
+        args.ambient_reference_modes_json is not None,
+        args.clustering_methods is not None,
+    ])
 
 
 def _base_scenario_defaults():
@@ -744,7 +773,7 @@ def _build_analysis_config(
     }
 
 
-def _run_clustering_pipeline(results_path, output_path, reference_modes=None):
+def _run_clustering_pipeline(results_path, output_path, reference_modes=None, methods=None, include_silhouette=True):
     from clustering_analysis import (
         _load_screened_data,
         _save_reference_mad_outputs,
@@ -754,6 +783,7 @@ def _run_clustering_pipeline(results_path, output_path, reference_modes=None):
     )
 
     pipeline_start = time.perf_counter()
+    requested_methods = list(methods or ["kmeans", "kmedoids"])
 
     screen_start = time.perf_counter()
     df_for_mad = _load_screened_data(str(results_path), str(output_path))
@@ -765,26 +795,29 @@ def _run_clustering_pipeline(results_path, output_path, reference_modes=None):
         _save_reference_mad_outputs(df_for_mad, str(output_path), reference_modes=reference_modes)
         reference_elapsed = time.perf_counter() - reference_start
 
-    kmeans_start = time.perf_counter()
-    run_kmeans_modal_analysis(str(results_path), str(output_path), reference_modes=reference_modes)
-    kmeans_elapsed = time.perf_counter() - kmeans_start
-
-    kmedoids_start = time.perf_counter()
-    run_kmedoids_modal_analysis(str(results_path), str(output_path), reference_modes=reference_modes)
-    kmedoids_elapsed = time.perf_counter() - kmedoids_start
-
-    silhouette_start = time.perf_counter()
-    run_silhouette_analysis(str(results_path), str(output_path), reference_modes=reference_modes)
-    silhouette_elapsed = time.perf_counter() - silhouette_start
-
-    return {
+    timings = {
         "screen_and_load": _timing_entry(screen_elapsed),
         "reference_mad": _timing_entry(reference_elapsed, skipped=df_for_mad is None),
-        "kmeans": _timing_entry(kmeans_elapsed),
-        "kmedoids": _timing_entry(kmedoids_elapsed),
-        "silhouette": _timing_entry(silhouette_elapsed),
-        "total": _timing_entry(time.perf_counter() - pipeline_start),
     }
+    runners = {
+        "kmeans": run_kmeans_modal_analysis,
+        "kmedoids": run_kmedoids_modal_analysis,
+    }
+    for method in requested_methods:
+        method_start = time.perf_counter()
+        runners[method](str(results_path), str(output_path), reference_modes=reference_modes)
+        timings[method] = _timing_entry(time.perf_counter() - method_start)
+
+    silhouette_skipped = True
+    silhouette_elapsed = 0.0
+    if include_silhouette and {"kmeans", "kmedoids"}.issubset(set(requested_methods)):
+        silhouette_start = time.perf_counter()
+        run_silhouette_analysis(str(results_path), str(output_path), reference_modes=reference_modes)
+        silhouette_elapsed = time.perf_counter() - silhouette_start
+        silhouette_skipped = False
+    timings["silhouette"] = _timing_entry(silhouette_elapsed, skipped=silhouette_skipped)
+    timings["total"] = _timing_entry(time.perf_counter() - pipeline_start)
+    return timings
 
 
 def _load_scenario_json(data_dir):
@@ -793,6 +826,31 @@ def _load_scenario_json(data_dir):
         return None
 
     return _load_json(scenario_json)
+
+
+def _scenario_disturbance_type(scenario):
+    data_dir = _resolve_path(scenario["data_dir"])
+    generated_config = _load_scenario_json(data_dir)
+    disturbance_type = None if generated_config is None else generated_config.get("disturbance_type")
+    if disturbance_type is None:
+        return None
+    return str(disturbance_type).strip().lower()
+
+
+def _resolve_analysis_method(name, scenario, args):
+    disturbance_type = _scenario_disturbance_type(scenario)
+    requested = str(args.analysis_method).strip().lower()
+    if requested == "auto":
+        method = "n4sid" if disturbance_type == "ambient" else "matrix-pencil"
+    else:
+        method = requested
+
+    if method == "n4sid" and disturbance_type != "ambient":
+        raise SystemExit(
+            f"Scenario '{name}' does not declare disturbance_type='ambient' in scenario.json, so --analysis-method n4sid is not allowed."
+        )
+
+    return method, disturbance_type
 
 
 def _scenario_generators_from_json(config):
@@ -876,6 +934,30 @@ def _resolve_time_cross_reference(raw_value, scenario):
 
 
 def _preprocess_signal(df, column_name, scenario, gen, signal_label=None):
+    if scenario.get("analysis_method") == "n4sid":
+        ambient_cfg = scenario.get("ambient_preprocessing", {})
+        t_selected, y_selected, preprocess_meta = preprocess_ambient_signal(
+            df=df,
+            column_name=column_name,
+            time_mask_config=scenario.get("time_mask") or {},
+            detrend_enabled=bool(ambient_cfg.get("detrend", True)),
+            downsample_hz=float(ambient_cfg.get("downsample_hz", 5.0)),
+            lowpass_hz=float(ambient_cfg.get("low_pass_hz", 2.0)),
+        )
+        if t_selected is None or y_selected is None or preprocess_meta is None:
+            return None, None, None
+        start_abs_s = float(preprocess_meta.get("time_start_s", t_selected[0]))
+        end_abs_s = float(preprocess_meta.get("time_end_s", t_selected[-1]))
+        if (scenario.get("time_mask") or {}).get("reset_time", True):
+            t_selected = t_selected - t_selected[0]
+        return t_selected, y_selected, {
+            "first_zero_cross_s": None,
+            "effective_start_s": start_abs_s,
+            "effective_end_s": end_abs_s,
+            "selected_samples": int(preprocess_meta.get("selected_samples", t_selected.size)),
+            "time_cross_mode": None,
+        }
+
     time_cross = _time_cross_config(scenario)
     time_mask = scenario.get("time_mask") or {}
     end_s = _time_mask_bound(time_mask, "end_inclusive", "end")
@@ -960,6 +1042,8 @@ def _reconstruct_signal(t, modes):
 
 
 def _result_diagnostic_methods(scenario):
+    if scenario.get("analysis_method") == "n4sid":
+        return [f"Order {int(order)}" for order in scenario.get("n4sid_orders", [])]
     fixed_orders = [f"Order {int(order)}" for order in scenario.get("fixed_orders", [])]
     taus = [f"Tau {tau}" for tau in scenario.get("taus", [])]
     return fixed_orders + taus
@@ -970,6 +1054,8 @@ def _scenario_method_order(scenario):
 
 
 def _scenario_reconstruction_rows(scenario):
+    if scenario.get("analysis_method") == "n4sid":
+        return [(f"Order {int(order)}", None) for order in scenario.get("n4sid_orders", [])]
     fixed_orders = [f"Order {int(order)}" for order in scenario.get("fixed_orders", [])]
     taus = [f"Tau {tau}" for tau in scenario.get("taus", [])]
     row_count = max(len(fixed_orders), len(taus))
@@ -1873,40 +1959,114 @@ def main():
         print("=" * 80, flush=True)
         print(f"Analyzing scenario: {name}", flush=True)
         scenario_start = time.time()
+        analysis_method, disturbance_type = _resolve_analysis_method(name, scenario, args)
 
-        if args.skip_matrix_pencil:
-            output_dir, results_path, df_results, analysis_config = load_existing_results_for_scenario(name, scenario, args)
+        if analysis_method == "n4sid":
+            if args.skip_matrix_pencil:
+                raise SystemExit("--skip-matrix-pencil cannot be used with ambient N4SID analysis.")
+            if args.time_cross is not None:
+                raise SystemExit("--time-cross is only supported for Matrix Pencil analysis, not ambient N4SID.")
+            if args.signals is None:
+                scenario["columns"] = dict(AMBIENT_DEFAULT_SIGNALS)
+                scenario["signal_subset"] = list(AMBIENT_DEFAULT_SIGNALS.values())
+            if not args.skip_plots:
+                print(f"Ambient N4SID will generate modal maps and reconstruction plots per sweep for '{name}'.", flush=True)
+
+            if args.skip_n4sid:
+                output_dir, results_path, df_results, analysis_config = load_existing_ambient_results_for_scenario(name, scenario)
+            else:
+                output_dir, results_path, df_results, analysis_config = run_ambient_n4sid_for_scenario(name, scenario, args)
+            sweep_evaluations = []
+            sweep_plotting_seconds = 0.0
+            sweep_report_seconds = 0.0
+            for sweep in analysis_config.get("sweeps", []):
+                sweep_dir = _resolve_path(sweep["output_dir"])
+                sweep_results_path = _resolve_path(sweep["results_csv"])
+                sweep_df = pd.read_csv(sweep_results_path)
+                sweep_config = _load_json(sweep_dir / "analysis_config.json")
+                sweep_scenario = {
+                    "analysis_method": "n4sid",
+                    "data_dir": analysis_config["data_dir"],
+                    "output_dir": sweep["output_dir"],
+                    "output_dir_explicit": True,
+                    "time_mask": sweep_config.get("time_mask", {}),
+                    "columns": sweep_config.get("columns", {}),
+                    "generators": sweep_config.get("generators_used", []),
+                    "n4sid_orders": sweep_config.get("n4sid_orders", []),
+                    "ambient_preprocessing": sweep_config.get("ambient_preprocessing", {}),
+                }
+
+                report_start = time.perf_counter()
+                report = generate_ieee39_comprehensive_report(sweep_df, sweep_scenario)
+                report_elapsed = time.perf_counter() - report_start
+                sweep_report_seconds += report_elapsed
+
+                plotting_elapsed = 0.0
+                if not args.skip_plots:
+                    plotting_start = time.perf_counter()
+                    generate_ieee39_plots(sweep_df, report, sweep_scenario)
+                    plotting_elapsed = time.perf_counter() - plotting_start
+                    sweep_plotting_seconds += plotting_elapsed
+
+                sweep_config.setdefault("timings", {})["comprehensive_report"] = _timing_entry(report_elapsed)
+                sweep_config["timings"]["plotting"] = _timing_entry(plotting_elapsed, skipped=args.skip_plots)
+                _save_json(sweep_dir / "analysis_config.json", sweep_config)
+
+                evaluation_payload = update_analysis_config_with_evaluation(sweep_dir)
+                sweep_config["evaluation"] = evaluation_payload
+                _save_json(sweep_dir / "analysis_config.json", sweep_config)
+                sweep_evaluations.append({
+                    "name": sweep.get("name"),
+                    "output_dir": sweep.get("output_dir"),
+                    "evaluation_summary": evaluation_payload.get("summary", {}),
+                })
+
+            analysis_config.setdefault("timings", {})["comprehensive_report"] = _timing_entry(sweep_report_seconds)
+            analysis_config["timings"]["plotting"] = _timing_entry(sweep_plotting_seconds, skipped=args.skip_plots)
+            analysis_config["evaluation"] = {"sweeps": sweep_evaluations}
         else:
-            output_dir, results_path, df_results, analysis_config = run_matrix_pencil_for_scenario(name, scenario)
+            if disturbance_type == "ambient" and _ambient_cli_overrides_requested(args):
+                print(
+                    f"Ignoring ambient-only CLI flags for '{name}' because --analysis-method resolved to matrix-pencil.",
+                    flush=True,
+                )
 
-        report_start = time.perf_counter()
-        report = generate_ieee39_comprehensive_report(df_results, scenario)
-        report_elapsed = time.perf_counter() - report_start
-        analysis_config.setdefault("timings", {})["comprehensive_report"] = _timing_entry(report_elapsed)
+            if args.skip_matrix_pencil:
+                output_dir, results_path, df_results, analysis_config = load_existing_results_for_scenario(name, scenario, args)
+            else:
+                output_dir, results_path, df_results, analysis_config = run_matrix_pencil_for_scenario(name, scenario)
 
-        plotting_elapsed = 0.0
-        if not args.skip_plots:
-            plotting_start = time.perf_counter()
-            generate_ieee39_plots(df_results, report, scenario)
-            plotting_elapsed = time.perf_counter() - plotting_start
-        analysis_config["timings"]["plotting"] = _timing_entry(plotting_elapsed, skipped=args.skip_plots)
+            report_start = time.perf_counter()
+            report = generate_ieee39_comprehensive_report(df_results, scenario)
+            report_elapsed = time.perf_counter() - report_start
+            analysis_config.setdefault("timings", {})["comprehensive_report"] = _timing_entry(report_elapsed)
 
-        clustering_enabled = scenario.get("clustering", {}).get("global", False) or scenario.get("clustering", {}).get("by_control_area", False)
-        clustering_elapsed = 0.0
-        clustering_details = {}
-        if scenario.get("clustering", {}).get("global", False) or scenario.get("clustering", {}).get("by_control_area", False):
-            clustering_start = time.perf_counter()
-            clustering_details = run_clustering_for_scenario(output_dir, results_path, df_results, scenario)
-            clustering_elapsed = time.perf_counter() - clustering_start
-        analysis_config["timings"]["clustering"] = _timing_entry(clustering_elapsed, skipped=not clustering_enabled)
-        analysis_config["timings"]["clustering_details"] = clustering_details
+            plotting_elapsed = 0.0
+            if not args.skip_plots:
+                plotting_start = time.perf_counter()
+                generate_ieee39_plots(df_results, report, scenario)
+                plotting_elapsed = time.perf_counter() - plotting_start
+            analysis_config["timings"]["plotting"] = _timing_entry(plotting_elapsed, skipped=args.skip_plots)
+
+            clustering_enabled = scenario.get("clustering", {}).get("global", False) or scenario.get("clustering", {}).get("by_control_area", False)
+            clustering_elapsed = 0.0
+            clustering_details = {}
+            if scenario.get("clustering", {}).get("global", False) or scenario.get("clustering", {}).get("by_control_area", False):
+                clustering_start = time.perf_counter()
+                clustering_details = run_clustering_for_scenario(output_dir, results_path, df_results, scenario)
+                clustering_elapsed = time.perf_counter() - clustering_start
+            analysis_config["timings"]["clustering"] = _timing_entry(clustering_elapsed, skipped=not clustering_enabled)
+            analysis_config["timings"]["clustering_details"] = clustering_details
+
+        analysis_config["analysis_method"] = analysis_method
 
         scenario_elapsed = time.time() - scenario_start
         analysis_config["timings"]["scenario_total"] = _timing_entry(scenario_elapsed)
         _save_json(output_dir / "analysis_config.json", analysis_config)
 
-        evaluation_payload = update_analysis_config_with_evaluation(output_dir)
-        analysis_config["evaluation"] = evaluation_payload
+        if analysis_method != "n4sid":
+            evaluation_payload = update_analysis_config_with_evaluation(output_dir)
+            analysis_config["evaluation"] = evaluation_payload
         _save_json(output_dir / "analysis_config.json", analysis_config)
 
         print(

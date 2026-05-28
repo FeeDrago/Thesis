@@ -255,8 +255,7 @@ def main():
     for folder in folders:
         config_path = folder / "analysis_config.json"
         results_path = folder / "results.csv"
-        report_path = folder / "stats" / "comprehensive_report.csv"
-        if not config_path.exists() or not results_path.exists() or not report_path.exists():
+        if not config_path.exists() or not results_path.exists():
             continue
         payload = _ensure_payload(folder)
         if _include_payload(payload, args):

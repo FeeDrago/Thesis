@@ -20,6 +20,8 @@ SIGNAL_LABELS = {
     "Active Power": r"$\Delta P$ [MW]",
     "Reactive Power": r"$\Delta Q$ [Mvar]",
 }
+MODAL_SYMLOG_LINTHRESH = 0.1
+MODAL_SYMLOG_LINSCALE = 1.0
 
 
 def generator_display_name(gen):
@@ -83,6 +85,30 @@ def reconstruction_grid_figure(row_count, row_height=4.8, min_height=6.0):
     return plt.figure(figsize=(16, max(min_height, row_height * max(1, row_count))))
 
 
+def _set_modal_axis_view(ax, damping_values, frequency_values):
+    damping_values = np.asarray(damping_values, dtype=float)
+    frequency_values = np.asarray(frequency_values, dtype=float)
+    damping_values = damping_values[np.isfinite(damping_values)]
+    frequency_values = frequency_values[np.isfinite(frequency_values)]
+    if damping_values.size == 0 or frequency_values.size == 0:
+        return
+
+    x_min = float(np.min(damping_values))
+    x_max = float(np.max(damping_values))
+    y_min = float(np.min(frequency_values))
+    y_max = float(np.max(frequency_values))
+
+    x_span = max(0.05, abs(x_min - x_max))
+    y_span = max(0.1, abs(y_min - y_max))
+    x_pad_left = max(0.05, 0.06 * x_span)
+    x_pad_right = max(0.02, 0.02 * x_span)
+    y_pad = max(0.05, 0.05 * y_span)
+
+    ax.set_xscale("symlog", linthresh=MODAL_SYMLOG_LINTHRESH, linscale=MODAL_SYMLOG_LINSCALE)
+    ax.set_xlim(x_min - x_pad_left, max(0.02, x_max + x_pad_right))
+    ax.set_ylim(max(0.0, y_min - y_pad), y_max + y_pad)
+
+
 def plot_modal_signal_grid(df_results, gen, signals, output_dir, filename, title, colors=None):
     colors = colors or SIGNAL_COLORS
     fig = modal_grid_figure(len(signals), ncols=2)
@@ -105,6 +131,7 @@ def plot_modal_signal_grid(df_results, gen, signals, output_dir, filename, title
             ax.set_xlabel(MODAL_X_LABEL)
         if idx % 2 == 0 or len(signals) == 1:
             ax.set_ylabel(MODAL_Y_LABEL)
+        _set_modal_axis_view(ax, signal_data["Damping"], signal_data["Frequency"])
         style_axis(ax)
 
     fig.tight_layout(rect=[0, 0, 1, 0.96])
@@ -137,6 +164,7 @@ def plot_modal_generator_grid(df_results, generators, signals, output_dir, filen
             ax.set_xlabel(MODAL_X_LABEL)
         if idx % 2 == 0 or len(generators) == 1:
             ax.set_ylabel(MODAL_Y_LABEL)
+        _set_modal_axis_view(ax, gen_data["Damping"], gen_data["Frequency"])
         style_axis(ax)
 
     handles = [
@@ -179,6 +207,7 @@ def plot_modal_combined_map(df_results, output_dir, filename, title, signals, ge
     plt.xlabel(MODAL_X_LABEL)
     plt.ylabel(MODAL_Y_LABEL)
     plt.legend()
+    _set_modal_axis_view(plt.gca(), plot_df["Damping"], plot_df["Frequency"])
     style_axis(plt.gca())
     save_current_figure(output_dir, filename, fig)
     plt.close(fig)

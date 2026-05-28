@@ -96,7 +96,7 @@
 - `modal/participation_factors.csv`
 - `modal/state_index.csv`
 
-**Ambient και Analyze:** Προς το παρόν το `ambient` mode χρησιμοποιείται μόνο για παραγωγή dataset. Το υπάρχον `IEEE39/analyze_ieee39.py` και το Matrix Pencil workflow αφορούν το step-event flow. Για ambient identification προβλέπεται να χρησιμοποιηθεί αργότερα `N4SID`, όχι το τωρινό Matrix Pencil pipeline.
+**Ambient και Analyze:** Το `IEEE39/analyze_ieee39.py` υποστηρίζει πλέον και ambient identification με `N4SID`. Το default `--analysis-method auto` ελέγχει το `scenario.json` του input folder: αν βρει `disturbance_type = "ambient"`, τρέχει ambient `N4SID`, ενώ για τα υπόλοιπα datasets παραμένει στο υπάρχον Matrix Pencil workflow. Μπορεί επίσης να δοθεί ρητά `--analysis-method n4sid` μόνο για ambient datasets.
 
 **Ανάλυση Δεδομένων:** Το αρχείο `IEEE39/analyze_ieee39.py` διαβάζει τα `g*.csv` από το `IEEE39/results` και γράφει τα αποτελέσματα στο `IEEE39/analysis`. Το `--scenario` είναι υποχρεωτικό για κανονικό run. Το `--scenario` δέχεται τρεις μορφές input: preset aliases όπως `load29`, πολλαπλά aliases όπως `load03 load24`, ή το ειδικό `all`, ακριβές folder name από το `IEEE39/results`, π.χ. `Load29_Pplus2_50s`, και custom run label όταν χρησιμοποιείται μαζί με `--data-dir`. Τα preset keys όπως `load29` δείχνουν στα προκαθορισμένα `Pplus2` source folders, άρα το `load29` αντιστοιχεί στο input `IEEE39/results/Load29_Pplus2_50s`. Για διαφορετικά paths μπορεί να δοθεί ρητά input και output, για παράδειγμα `python IEEE39/analyze_ieee39.py --scenario load29_p4 --data-dir results/Load29_Pplus4_50s --output-dir analysis/Load29_Pplus4_50s`. Όταν χρησιμοποιείται `--data-dir`, το όνομα που δίνεται στο `--scenario` είναι μόνο label για το run. Στο `analyze_ieee39.py`, τα `--data-dir`, `--output-dir` και `--analysis-dir` δέχονται relative paths relative προς τον φάκελο `IEEE39`, ή absolute paths.
 
@@ -111,6 +111,50 @@
 **Orders, Taus και Help:** Τα fixed Matrix Pencil orders μπορούν να αλλαχθούν από command line με `--fixed-orders`, ενώ τα adaptive tau values με `--taus`. Παράδειγμα: `python IEEE39/analyze_ieee39.py --scenario load29 --fixed-orders 2 4 6 8 10 --taus 1 0.5 0.1 0.01`. Αν δεν δοθούν overrides, χρησιμοποιούνται τα defaults `fixed_orders=[2, 4, 6, 8]` και `taus=[1, 0.1, 0.01]`. Για πλήρη λίστα επιλογών και examples, χρησιμοποιήστε `python IEEE39/analyze_ieee39.py --help`.
 
 **Clustering:** Το clustering είναι default off σε όλα τα analyze modes. Όταν ενεργοποιείται με `--clustering`, από προεπιλογή τρέχει μόνο ανά περιοχή ελέγχου, δηλαδή πρακτικά σαν `--clustering --clustering-scope areas`. Η επιλογή γίνεται με `--clustering-scope areas`, `--clustering-scope both`, `--clustering-scope global`, ή `--clustering-scope none`. Για παράδειγμα, `python IEEE39/analyze_ieee39.py --scenario load29 --skip-matrix-pencil --clustering --clustering-scope both` χρησιμοποιεί υπάρχον `results.csv` και παράγει clustering και συνολικά και ανά περιοχή ελέγχου.
+
+Στο ambient `N4SID` path, το clustering δουλεύει πάνω στο aggregated mode table του κάθε sweep και υποστηρίζει `kmeans`, `kmedoids` και `optics`. Προς το παρόν το `optics` τρέχει μόνο στο ambient path, όχι στα κλασικά Matrix Pencil analyses.
+
+**Ambient Analyze Output Layout:** Αν το input είναι ambient dataset, το default output root είναι `IEEE39/analysis/<ambient_results_folder_name>`. Κάτω από αυτό το folder, το ambient analyze γράφει αυτή τη στιγμή ξεχωριστά subfolders για κάθε order sweep:
+
+- `orders1` για `range(2, 30, 2)`
+- `orders2` για `range(10, 45, 5)`
+
+Δηλαδή, για input folder όπως `IEEE39/results/Ambient_Mag0.1_T600s_dt10ms_seed1997`, το default output είναι:
+
+- `IEEE39/analysis/Ambient_Mag0.1_T600s_dt10ms_seed1997/orders1`
+- `IEEE39/analysis/Ambient_Mag0.1_T600s_dt10ms_seed1997/orders2`
+
+Στο root `IEEE39/analysis/Ambient_Mag.../` γράφεται και ένα συνοπτικό `analysis_config.json` που περιγράφει τα sweeps και δείχνει στα subfolders τους.
+
+**Ambient Analyze Defaults:** Για ambient datasets, αν δεν δοθούν CLI overrides, το analyze χρησιμοποιεί:
+
+- σήματα `Voltage` και `Current`
+- preprocessing: `detrend -> downsample στα 5 Hz -> low-pass στα 2 Hz`
+- order sweeps:
+  - `orders1 = range(2, 30, 2)`
+  - `orders2 = range(10, 45, 5)`
+- clustering methods: `kmeans`, `kmedoids`, `optics`
+
+Κάθε sweep γράφει το δικό του:
+
+- `results.csv`
+- `order_summary.csv`
+- `analysis_config.json`
+- `clustering/`
+
+**Ambient Analyze CLI:** Ενδεικτικές εντολές:
+
+- `python IEEE39/analyze_ieee39.py --scenario Ambient_Mag0.1_T600s_dt10ms_seed1997`
+- `python IEEE39/analyze_ieee39.py --scenario ambient_seed1997 --data-dir results/Ambient_Mag0.1_T600s_dt10ms_seed1997`
+- `python IEEE39/analyze_ieee39.py --scenario ambient_seed1997 --data-dir results/Ambient_Mag0.1_T600s_dt10ms_seed1997 --analysis-method n4sid --clustering`
+
+Αν θέλετε αντί για τα δύο default sweeps να τρέξει μόνο ένα custom sweep, χρησιμοποιήστε `--n4sid-orders`. Σε αυτή την περίπτωση το ambient output γράφεται σε subfolder `custom_orders`, για παράδειγμα:
+
+- `python IEEE39/analyze_ieee39.py --scenario ambient_seed1997 --data-dir results/Ambient_Mag0.1_T600s_dt10ms_seed1997 --analysis-method n4sid --n4sid-orders 10 20 30 40 50`
+
+και τα outputs θα γραφτούν στο:
+
+- `IEEE39/analysis/Ambient_Mag0.1_T600s_dt10ms_seed1997/custom_orders`
 
 **Στατιστικά & Διαγράμματα:** Το `comprehensive_report.csv` παράγεται πάντα στο `IEEE39/analysis/<scenario>/stats/comprehensive_report.csv`, ακόμη και όταν χρησιμοποιείται `--skip-matrix-pencil` με ήδη υπάρχον `results.csv`. Όταν ενεργοποιείται το `--plots`, το IEEE39 παράγει όχι μόνο modal maps και reconstruction grids, αλλά και τα thesis-used summary figures που αντιστοιχούν στο preliminary workflow, όπως bubble map (`stats/pdf/5_bubble_map.pdf`) και best reconstruction `2x2` ανά γεννήτρια (`stats/pdf/10_best_reconstruction_g*_2x2.pdf`). Για το `load29`, με fixed default window, τα modal maps θα βρίσκονται στο `IEEE39/analysis/Load29_Pplus2_50s_0_to_end_reset/plots/modal_maps`, τα reconstruction grids στο `IEEE39/analysis/Load29_Pplus2_50s_0_to_end_reset/plots/reconstruction_grids`, και τα summary stats plots στο `IEEE39/analysis/Load29_Pplus2_50s_0_to_end_reset/stats/pdf`. Αν χρησιμοποιούνται subsets με `--generators` ή `--signals`, το `comprehensive_report.csv` και τα αντίστοιχα plots περιέχουν μόνο το subset που ζητήθηκε.
 
