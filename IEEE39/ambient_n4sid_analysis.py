@@ -29,16 +29,25 @@ AMBIENT_DEFAULT_LPF_HZ = 2.0
 AMBIENT_DEFAULT_DETREND = True
 AMBIENT_DEFAULT_CLUSTERING_METHODS = ["kmeans", "kmedoids", "optics"]
 AMBIENT_DEFAULT_CLUSTERING_SCOPE = {"global": False, "by_control_area": True}
+AMBIENT_DEFAULT_OPTICS_SETTINGS = {
+    "premerge_enabled": True,
+    "premerge_scope": "Gen+Signal",
+    "merge_radius_scaled": 0.20,
+    "merge_min_distinct_orders": 2,
+    "min_samples_min": 5,
+    "min_samples_max": 20,
+    "xi": 0.05,
+}
 AMBIENT_REFERENCE_MODES = {
-    "Mode 1": {"Frequency": 0.6062, "Damping": -0.0800, "Damping_Factor": 0.0210, "Generator_Involvement": "1-9 vs. 10"},
-    "Mode 2": {"Frequency": 0.9497, "Damping": -0.1065, "Damping_Factor": 0.0178, "Generator_Involvement": "1,8 and 9 vs. 4,5,6 and 7"},
-    "Mode 3": {"Frequency": 1.0312, "Damping": -0.2558, "Damping_Factor": 0.0395, "Generator_Involvement": "2 and 3 vs. 4 and 5"},
-    "Mode 4": {"Frequency": 1.1211, "Damping": -0.3373, "Damping_Factor": 0.0478, "Generator_Involvement": "2 and 3 vs. 6 and 7"},
-    "Mode 5": {"Frequency": 1.3155, "Damping": -0.4033, "Damping_Factor": 0.0487, "Generator_Involvement": "2 vs. 3"},
-    "Mode 6": {"Frequency": 1.2851, "Damping": -0.3458, "Damping_Factor": 0.0428, "Generator_Involvement": "1 vs. 8 and 9"},
-    "Mode 7": {"Frequency": 1.4953, "Damping": -0.7033, "Damping_Factor": 0.0747, "Generator_Involvement": "4 vs. 5"},
-    "Mode 8": {"Frequency": 1.5202, "Damping": -0.6010, "Damping_Factor": 0.0628, "Generator_Involvement": "5 and 7 vs. 4 and 6"},
-    "Mode 9": {"Frequency": 1.5468, "Damping": -0.6376, "Damping_Factor": 0.0655, "Generator_Involvement": "1 vs. 8"},
+    "Mode 1": {"Frequency": 0.6062, "Damping": -0.0800, "Damping_Factor": 0.0210, "Generator_Involvement": "1-9 vs. 10", "relevant_areas": [1, 2, 3]},
+    "Mode 2": {"Frequency": 0.9497, "Damping": -0.1065, "Damping_Factor": 0.0178, "Generator_Involvement": "1,8 and 9 vs. 4,5,6 and 7", "relevant_areas": [1, 2]},
+    "Mode 3": {"Frequency": 1.0312, "Damping": -0.2558, "Damping_Factor": 0.0395, "Generator_Involvement": "2 and 3 vs. 4 and 5", "relevant_areas": [2, 3]},
+    "Mode 4": {"Frequency": 1.1211, "Damping": -0.3373, "Damping_Factor": 0.0478, "Generator_Involvement": "2 and 3 vs. 6 and 7", "relevant_areas": [2, 3]},
+    "Mode 5": {"Frequency": 1.3155, "Damping": -0.4033, "Damping_Factor": 0.0487, "Generator_Involvement": "2 vs. 3", "relevant_areas": [2]},
+    "Mode 6": {"Frequency": 1.2851, "Damping": -0.3458, "Damping_Factor": 0.0428, "Generator_Involvement": "1 vs. 8 and 9", "relevant_areas": [1]},
+    "Mode 7": {"Frequency": 1.4953, "Damping": -0.7033, "Damping_Factor": 0.0747, "Generator_Involvement": "4 vs. 5", "relevant_areas": [3]},
+    "Mode 8": {"Frequency": 1.5202, "Damping": -0.6010, "Damping_Factor": 0.0628, "Generator_Involvement": "5 and 7 vs. 4 and 6", "relevant_areas": [3]},
+    "Mode 9": {"Frequency": 1.5468, "Damping": -0.6376, "Damping_Factor": 0.0655, "Generator_Involvement": "1 vs. 8", "relevant_areas": [1]},
 }
 CONTROL_AREAS = {
     "area_1": ["g1", "g8", "g9", "g10"],
@@ -116,6 +125,16 @@ def _timing_entry(seconds, skipped=False):
     }
 
 
+def _resolve_clustering_scope(scope_name):
+    if scope_name == "none":
+        return {"global": False, "by_control_area": False}
+    if scope_name == "global":
+        return {"global": True, "by_control_area": False}
+    if scope_name == "both":
+        return {"global": True, "by_control_area": True}
+    return {"global": False, "by_control_area": True}
+
+
 def _resolve_path(path_value):
     path = Path(path_value)
     if path.is_absolute():
@@ -148,20 +167,75 @@ def _time_mask(time_values, mask_config):
     return mask
 
 
-def _load_reference_modes(reference_modes_json):
-    if reference_modes_json is None:
-        return "built_in", dict(AMBIENT_REFERENCE_MODES)
+def _parse_area_names_to_indices(area_names):
+    indices = []
+    for area_name in area_names:
+        text = str(area_name).strip()
+        if not text:
+            continue
+        try:
+            indices.append(int(text.split("_")[-1]))
+        except (TypeError, ValueError):
+            continue
+    return indices
 
-    path = _resolve_path(reference_modes_json)
-    payload = _load_json(path)
-    if not isinstance(payload, dict) or not payload:
-        raise SystemExit(f"Ambient reference modes file must be a non-empty JSON object: {path}")
-    for mode_name, mode_data in payload.items():
-        if not isinstance(mode_data, dict):
-            raise SystemExit(f"Ambient reference mode '{mode_name}' must map to an object.")
-        if "Frequency" not in mode_data or "Damping" not in mode_data:
-            raise SystemExit(f"Ambient reference mode '{mode_name}' must include Frequency and Damping.")
-    return _path_for_metadata(path), payload
+
+def _load_generated_reference_modes(data_dir):
+    modal_csv = Path(data_dir) / "modal" / "electromechanical_modes_stable_oscillatory.csv"
+    if not modal_csv.exists():
+        return None
+
+    df = pd.read_csv(modal_csv)
+    if df.empty:
+        return None
+
+    required_columns = {"ModeIndex", "FrequencyHz", "Damping"}
+    missing = required_columns.difference(df.columns)
+    if missing:
+        raise SystemExit(
+            f"Generated electromechanical modes file is missing required columns {sorted(missing)}: {modal_csv}"
+        )
+
+    reference_modes = {}
+    for _, row in df.iterrows():
+        try:
+            mode_index = int(row["ModeIndex"])
+            frequency = float(row["FrequencyHz"])
+            damping = float(row["Damping"])
+        except (TypeError, ValueError):
+            continue
+
+        mode_name = f"Mode {mode_index}"
+        participating_generators = [
+            entry.strip() for entry in str(row.get("ParticipatingGenerators", "")).split(";")
+            if entry and entry.strip()
+        ]
+        participating_areas = [
+            entry.strip() for entry in str(row.get("ParticipatingAreas", "")).split(";")
+            if entry and entry.strip()
+        ]
+        reference_modes[mode_name] = {
+            "Frequency": frequency,
+            "Damping": damping,
+            "ModeIndex": mode_index,
+            "RealPart": None if pd.isna(row.get("RealPart")) else float(row.get("RealPart")),
+            "ImagPart": None if pd.isna(row.get("ImagPart")) else float(row.get("ImagPart")),
+            "PhiSpeedRatio": None if pd.isna(row.get("PhiSpeedRatio")) else float(row.get("PhiSpeedRatio")),
+            "Generator_Involvement": str(row.get("ParticipatingGenerators", "")).strip(),
+            "relevant_generators": participating_generators,
+            "relevant_areas": _parse_area_names_to_indices(participating_areas),
+        }
+
+    return _path_for_metadata(modal_csv), reference_modes if reference_modes else None
+
+
+def _load_reference_modes(data_dir):
+    generated = _load_generated_reference_modes(data_dir)
+    if generated is not None:
+        source, reference_modes = generated
+        if reference_modes:
+            return source, reference_modes
+    return "built_in", dict(AMBIENT_REFERENCE_MODES)
 
 
 def _reference_modes_for_control_area(reference_modes, area_name):
@@ -421,7 +495,7 @@ def identify_n4sid_modes(t, y, dt_s, order):
     return modes, summary
 
 
-def _run_clustering_pipeline(results_path, output_path, reference_modes, methods):
+def _run_clustering_pipeline(results_path, output_path, reference_modes, methods, optics_settings=None):
     from clustering_analysis import (
         _load_screened_data,
         _save_reference_mad_outputs,
@@ -450,30 +524,40 @@ def _run_clustering_pipeline(results_path, output_path, reference_modes, methods
     }
     for method in requested_methods:
         started = time.perf_counter()
-        runners[method](str(results_path), str(output_path), reference_modes=reference_modes)
+        if method == "optics":
+            runners[method](
+                str(results_path),
+                str(output_path),
+                reference_modes=reference_modes,
+                optics_settings=optics_settings,
+            )
+        else:
+            runners[method](str(results_path), str(output_path), reference_modes=reference_modes)
         timings[method] = _timing_entry(time.perf_counter() - started)
 
     timings["total"] = _timing_entry(sum(entry["seconds"] for entry in timings.values()))
     return timings
 
 
-def run_ambient_clustering_for_results(output_dir, results_path, df_results, reference_modes, methods):
+def run_ambient_clustering_for_results(output_dir, results_path, df_results, reference_modes, methods, optics_settings=None, clustering_scope=None):
     if df_results.empty:
         print(f"No ambient N4SID results for {output_dir}; skipping clustering.")
         return {}
 
     timings = {}
+    scope = dict(clustering_scope or AMBIENT_DEFAULT_CLUSTERING_SCOPE)
 
-    if AMBIENT_DEFAULT_CLUSTERING_SCOPE["global"]:
+    if scope.get("global", False):
         global_out = output_dir / "clustering" / "global"
         timings["global"] = _run_clustering_pipeline(
             results_path=results_path,
             output_path=global_out,
             reference_modes=reference_modes,
             methods=methods,
+            optics_settings=optics_settings,
         )
 
-    if AMBIENT_DEFAULT_CLUSTERING_SCOPE["by_control_area"]:
+    if scope.get("by_control_area", False):
         area_root = output_dir / "clustering" / "by_control_area"
         area_timings = {}
         for area_name, gens in CONTROL_AREAS.items():
@@ -493,6 +577,7 @@ def run_ambient_clustering_for_results(output_dir, results_path, df_results, ref
                 output_path=area_out,
                 reference_modes=area_reference_modes,
                 methods=methods,
+                optics_settings=optics_settings,
             )
 
         _save_combined_reference_mad_summary(area_root, reference_modes)
@@ -513,11 +598,16 @@ def resolve_ambient_settings(scenario, args):
         if not group["orders"]:
             raise SystemExit(f"Ambient N4SID order group '{group['name']}' is empty.")
 
-    reference_source, reference_modes = _load_reference_modes(args.ambient_reference_modes_json)
+    reference_source, reference_modes = _load_reference_modes(scenario["data_dir"])
     clustering_methods = list(args.clustering_methods) if args.clustering_methods is not None else list(AMBIENT_DEFAULT_CLUSTERING_METHODS)
     signals = dict(scenario.get("columns") or AMBIENT_DEFAULT_SIGNALS)
     if not signals:
         raise SystemExit("Ambient N4SID requires at least one signal.")
+
+    optics_settings = dict(AMBIENT_DEFAULT_OPTICS_SETTINGS)
+    if args.merge_radius is not None:
+        optics_settings["merge_radius_scaled"] = float(args.merge_radius)
+    clustering_scope = _resolve_clustering_scope(getattr(args, "clustering_scope", "areas"))
 
     return {
         "analysis_method": "n4sid",
@@ -528,6 +618,8 @@ def resolve_ambient_settings(scenario, args):
             "low_pass_hz": float(args.ambient_lpf_hz) if args.ambient_lpf_hz is not None else float(AMBIENT_DEFAULT_LPF_HZ),
         },
         "clustering_methods": clustering_methods,
+        "clustering_scope": clustering_scope,
+        "optics_settings": optics_settings,
         "reference_modes_source": reference_source,
         "reference_modes": reference_modes,
         "signals": signals,
@@ -653,7 +745,8 @@ def run_ambient_n4sid_for_scenario(name, scenario, args):
         df_order_summary.to_csv(order_summary_path, index=False)
 
         clustering_details = {}
-        clustering_enabled = not bool(getattr(args, "skip_clustering", True))
+        skip_clustering_value = getattr(args, "skip_clustering", None)
+        clustering_enabled = not bool(skip_clustering_value) if skip_clustering_value is not None else True
         if clustering_enabled:
             clustering_details = run_ambient_clustering_for_results(
                 output_dir=output_dir,
@@ -661,6 +754,8 @@ def run_ambient_n4sid_for_scenario(name, scenario, args):
                 df_results=df_results,
                 reference_modes=settings["reference_modes"],
                 methods=settings["clustering_methods"],
+                optics_settings=settings["optics_settings"],
+                clustering_scope=settings["clustering_scope"],
             )
         clustering_total_seconds = 0.0
         if clustering_enabled:
@@ -698,7 +793,8 @@ def run_ambient_n4sid_for_scenario(name, scenario, args):
                 "signals": list(signals.values()),
             },
             "clustering_methods": settings["clustering_methods"],
-            "clustering_scope": dict(AMBIENT_DEFAULT_CLUSTERING_SCOPE),
+            "clustering_scope": dict(settings["clustering_scope"]),
+            "optics_settings": settings["optics_settings"],
             "reference_modes_source": settings["reference_modes_source"],
             "reference_modes": settings["reference_modes"],
             "signal_summaries": signal_summary_rows,
@@ -740,7 +836,8 @@ def run_ambient_n4sid_for_scenario(name, scenario, args):
             "signals": list(signals.values()),
         },
         "clustering_methods": settings["clustering_methods"],
-        "clustering_scope": dict(AMBIENT_DEFAULT_CLUSTERING_SCOPE),
+        "clustering_scope": dict(settings["clustering_scope"]),
+        "optics_settings": settings["optics_settings"],
         "reference_modes_source": settings["reference_modes_source"],
         "reference_modes": settings["reference_modes"],
         "sweeps": sweep_summaries,

@@ -2,6 +2,7 @@ from pathlib import Path
 import argparse
 import csv
 import json
+import math
 import re
 import time
 from textwrap import dedent
@@ -43,6 +44,24 @@ AMBIENT_DIST_MAG_PERCENT = 0.1
 AMBIENT_LOW_PASS_HZ = 5.0
 AMBIENT_RANDOM_SEED = 1997
 AMBIENT_EXPORT_MODAL_CSVS = True
+ELECTROMECHANICAL_PRIMARY_GENERATOR_RATIO = 0.10
+CONTROL_AREAS = {
+    "area_1": {"g1", "g8", "g9", "g10"},
+    "area_2": {"g2", "g3"},
+    "area_3": {"g4", "g5", "g6", "g7"},
+}
+ELECTROMECHANICAL_MACHINE_STATES = {
+    "phi": "Rotor position d-axis referred to the reference bus voltage",
+    "speed": "Speed",
+    "psi1d": "Flux in 1d-damper winding",
+    "psi1q": "Flux in 1q-damper winding",
+    "psi2q": "Flux in 2q-damper winding",
+    "psifd": "Field (excitation) flux",
+    "ps1d": "Flux in 1d-damper winding",
+    "ps1q": "Flux in 1q-damper winding",
+    "ps2q": "Flux in 2q-damper winding",
+    "psfid": "Field (excitation) flux",
+}
 
 MIN_LOAD_MW = 100.0
 
@@ -585,12 +604,14 @@ def reset_calculation_if_possible(app):
         pass
 
 
-def convert_text_matrix_to_csv(src_path, dest_path):
+def convert_text_matrix_to_csv(src_path, dest_path, header=None):
     src_path = Path(src_path)
     dest_path = Path(dest_path)
 
     with src_path.open("r", encoding="utf-8", errors="replace") as src_handle, dest_path.open("w", newline="", encoding="utf-8") as dest_handle:
         writer = csv.writer(dest_handle)
+        if header:
+            writer.writerow(list(header))
         for raw_line in src_handle:
             line = raw_line.strip()
             if not line:
@@ -607,6 +628,239 @@ def convert_text_matrix_to_csv(src_path, dest_path):
 
             if fields:
                 writer.writerow(fields)
+
+
+def _normalize_state_variable(value):
+    return str(value).replace('"', "").strip().lower()
+
+
+def _extract_generator_name_from_model(model_name):
+    match = re.search(r"\\G\s*(\d+)\.ElmSym$", str(model_name).strip(), flags=re.IGNORECASE)
+    if not match:
+        return None
+    return f"g{int(match.group(1))}"
+
+
+def _generator_to_area(generator_name):
+    for area_name, generators in CONTROL_AREAS.items():
+        if generator_name in generators:
+            return area_name
+    return None
+
+
+def summarize_ambient_electromechanical_modes(modal_dir):
+    modal_dir = Path(modal_dir)
+    eigenvalues_path = modal_dir / "eigenvalues.csv"
+    participation_path = modal_dir / "participation_factors.csv"
+    state_index_path = modal_dir / "state_index.csv"
+
+    summary_path = modal_dir / "electromechanical_modes.csv"
+    filtered_summary_path = modal_dir / "electromechanical_modes_stable_oscillatory.csv"
+    detail_path = modal_dir / "electromechanical_mode_generator_participation.csv"
+
+    if not (eigenvalues_path.exists() and participation_path.exists() and state_index_path.exists()):
+        raise RuntimeError("Ambient modal export is incomplete; cannot summarize electromechanical modes.")
+
+    generator_state_lookup = {}
+    with state_index_path.open(newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        for row in reader:
+            try:
+                state_index = int(str(row.get("Matrix column index", "")).strip())
+            except ValueError:
+                continue
+
+            model_name = str(row.get("Model name", "")).strip()
+            generator_name = _extract_generator_name_from_model(model_name)
+            if generator_name is None:
+                continue
+
+            state_variable = _normalize_state_variable(row.get("State variable", ""))
+            if state_variable not in ELECTROMECHANICAL_MACHINE_STATES:
+                continue
+
+            generator_state_lookup[state_index] = {
+                "generator": generator_name,
+                "area": _generator_to_area(generator_name),
+                "state_variable": state_variable,
+                "model_name": model_name,
+            }
+
+    mode_generator_participation = {}
+    mode_state_participation = {}
+    detail_rows = []
+    with participation_path.open(newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        for row in reader:
+            try:
+                state_index = int(str(row.get("StateIndex", "")).strip())
+                mode_index = int(str(row.get("ModeIndex", "")).strip())
+                real_part = float(str(row.get("RealPart", "")).strip())
+                imag_part = float(str(row.get("ImagPart", "")).strip())
+            except ValueError:
+                continue
+
+            state_meta = generator_state_lookup.get(state_index)
+            if state_meta is None:
+                continue
+
+            magnitude = math.hypot(real_part, imag_part)
+            generator_name = state_meta["generator"]
+            state_variable = state_meta["state_variable"]
+
+            mode_generator_participation.setdefault(mode_index, {})
+            mode_generator_participation[mode_index][generator_name] = (
+                mode_generator_participation[mode_index].get(generator_name, 0.0) + magnitude
+            )
+
+            mode_state_participation.setdefault(mode_index, {})
+            mode_state_participation[mode_index][state_variable] = (
+                mode_state_participation[mode_index].get(state_variable, 0.0) + magnitude
+            )
+
+            detail_rows.append({
+                "ModeIndex": mode_index,
+                "StateIndex": state_index,
+                "Generator": generator_name,
+                "Area": state_meta["area"],
+                "StateVariable": state_variable,
+                "StateDescription": ELECTROMECHANICAL_MACHINE_STATES.get(state_variable, ""),
+                "ModelName": state_meta["model_name"],
+                "RealPart": real_part,
+                "ImagPart": imag_part,
+                "ParticipationMagnitude": magnitude,
+            })
+
+    summary_rows = []
+    with eigenvalues_path.open(newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        for row in reader:
+            try:
+                mode_index = int(str(row.get("ModeIndex", "")).strip())
+                multiplicity = int(str(row.get("Multiplicity", "")).strip())
+                real_part = float(str(row.get("RealPart", "")).strip())
+                imag_part = float(str(row.get("ImagPart", "")).strip())
+            except ValueError:
+                continue
+
+            generator_scores = mode_generator_participation.get(mode_index, {})
+            state_scores = mode_state_participation.get(mode_index, {})
+
+            total_machine_participation = float(sum(state_scores.values()))
+            phi_participation = float(state_scores.get("phi", 0.0))
+            speed_participation = float(state_scores.get("speed", 0.0))
+            phi_speed_participation = phi_participation + speed_participation
+            other_machine_participation = max(0.0, total_machine_participation - phi_speed_participation)
+            phi_speed_ratio = (
+                float(phi_speed_participation / total_machine_participation)
+                if total_machine_participation > 0.0 else 0.0
+            )
+
+            ranked_states = sorted(state_scores.items(), key=lambda item: (-item[1], item[0]))
+            top_state_names = [name for name, value in ranked_states[:2] if value > 0.0]
+            dominant_generators = sorted(generator_scores.items(), key=lambda item: (-item[1], item[0]))
+            all_participating_generators = [name for name, value in dominant_generators if value > 0.0]
+            top_generator_participation = float(dominant_generators[0][1]) if dominant_generators else 0.0
+            primary_threshold = ELECTROMECHANICAL_PRIMARY_GENERATOR_RATIO * top_generator_participation
+            participating_generators = [
+                name for name, value in dominant_generators
+                if value > 0.0 and (top_generator_participation <= 0.0 or value >= primary_threshold)
+            ]
+            participating_areas = []
+            seen_areas = set()
+            for generator_name in participating_generators:
+                area_name = _generator_to_area(generator_name)
+                if area_name and area_name not in seen_areas:
+                    participating_areas.append(area_name)
+                    seen_areas.add(area_name)
+
+            is_electromechanical = (
+                total_machine_participation > 0.0 and
+                {"phi", "speed"}.issubset(set(top_state_names)) and
+                phi_speed_participation > other_machine_participation
+            )
+
+            summary_rows.append({
+                "ModeIndex": mode_index,
+                "Multiplicity": multiplicity,
+                "RealPart": real_part,
+                "ImagPart": imag_part,
+                "FrequencyHz": abs(imag_part) / (2.0 * math.pi),
+                "Damping": real_part,
+                "IsElectromechanical": bool(is_electromechanical),
+                "DominantStateVariables": "; ".join(top_state_names),
+                "PhiParticipation": phi_participation,
+                "SpeedParticipation": speed_participation,
+                "PhiSpeedParticipation": phi_speed_participation,
+                "OtherMachineStateParticipation": other_machine_participation,
+                "TotalMachineParticipation": total_machine_participation,
+                "PhiSpeedRatio": phi_speed_ratio,
+                "ParticipatingGenerators": "; ".join(participating_generators),
+                "AllParticipatingGenerators": "; ".join(all_participating_generators),
+                "ParticipatingAreas": "; ".join(participating_areas),
+                "TopGenerator": dominant_generators[0][0] if dominant_generators else None,
+                "TopGeneratorParticipation": top_generator_participation,
+                "PrimaryGeneratorThresholdRatio": ELECTROMECHANICAL_PRIMARY_GENERATOR_RATIO,
+            })
+
+    summary_fieldnames = [
+        "ModeIndex",
+        "Multiplicity",
+        "RealPart",
+        "ImagPart",
+        "FrequencyHz",
+        "Damping",
+        "IsElectromechanical",
+        "DominantStateVariables",
+        "PhiParticipation",
+        "SpeedParticipation",
+        "PhiSpeedParticipation",
+        "OtherMachineStateParticipation",
+        "TotalMachineParticipation",
+        "PhiSpeedRatio",
+        "ParticipatingGenerators",
+        "AllParticipatingGenerators",
+        "ParticipatingAreas",
+        "TopGenerator",
+        "TopGeneratorParticipation",
+        "PrimaryGeneratorThresholdRatio",
+    ]
+    with summary_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=summary_fieldnames)
+        writer.writeheader()
+        writer.writerows(summary_rows)
+
+    filtered_summary_rows = [
+        row for row in summary_rows
+        if bool(row["IsElectromechanical"]) and float(row["RealPart"]) < 0.0 and float(row["ImagPart"]) > 0.0
+    ]
+    with filtered_summary_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=summary_fieldnames)
+        writer.writeheader()
+        writer.writerows(filtered_summary_rows)
+
+    detail_fieldnames = [
+        "ModeIndex",
+        "StateIndex",
+        "Generator",
+        "Area",
+        "StateVariable",
+        "StateDescription",
+        "ModelName",
+        "RealPart",
+        "ImagPart",
+        "ParticipationMagnitude",
+    ]
+    with detail_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=detail_fieldnames)
+        writer.writeheader()
+        writer.writerows(detail_rows)
+
+    return [
+        {"name": summary_path.name, "file": path_for_metadata(summary_path)},
+        {"name": filtered_summary_path.name, "file": path_for_metadata(filtered_summary_path)},
+        {"name": detail_path.name, "file": path_for_metadata(detail_path)},
+    ]
 
 
 def export_ambient_modal_analysis_csvs(app, scenario_dir):
@@ -629,18 +883,28 @@ def export_ambient_modal_analysis_csvs(app, scenario_dir):
         raise RuntimeError(f"Ambient modal analysis export failed with error code {err}")
 
     raw_to_csv = {
-        "EVals.mtl": "eigenvalues.csv",
-        "PartFacs.mtl": "participation_factors.csv",
-        "VariableToIdx_Amat.txt": "state_index.csv",
+        "EVals.mtl": {
+            "csv_name": "eigenvalues.csv",
+            "header": ["ModeIndex", "Multiplicity", "RealPart", "ImagPart"],
+        },
+        "PartFacs.mtl": {
+            "csv_name": "participation_factors.csv",
+            "header": ["StateIndex", "ModeIndex", "RealPart", "ImagPart"],
+        },
+        "VariableToIdx_Amat.txt": {
+            "csv_name": "state_index.csv",
+            "header": None,
+        },
     }
     exported = []
 
-    for raw_name, csv_name in raw_to_csv.items():
+    for raw_name, export_spec in raw_to_csv.items():
         raw_path = modal_dir / raw_name
         if not raw_path.exists():
             raise RuntimeError(f"Expected ambient modal artifact was not created: {raw_path}")
+        csv_name = export_spec["csv_name"]
         csv_path = modal_dir / csv_name
-        convert_text_matrix_to_csv(raw_path, csv_path)
+        convert_text_matrix_to_csv(raw_path, csv_path, header=export_spec.get("header"))
         try:
             raw_path.unlink()
         except OSError:
@@ -654,6 +918,8 @@ def export_ambient_modal_analysis_csvs(app, scenario_dir):
                 unused_path.unlink()
             except OSError:
                 pass
+
+    exported.extend(summarize_ambient_electromechanical_modes(modal_dir))
 
     reset_calculation_if_possible(app)
     return exported

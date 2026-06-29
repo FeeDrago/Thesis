@@ -43,7 +43,8 @@ def build_arg_parser():
               - Without --output-dir, the analysis folder name is extended automatically with the selected time-window mode.
               - --scenario load29 runs a fresh Matrix Pencil analysis on IEEE39/results/Load29_Pplus2_50s and writes to a derived folder under IEEE39/analysis.
               - --skip-matrix-pencil requires --analysis-dir and reuses that folder's existing results.csv; it still regenerates reports, optional plots, and optional clustering.
-              - Clustering is off by default. When enabled with --clustering, the default scope is by control area.
+              - Matrix Pencil analysis enables clustering and plots by default, both with by-control-area scope for clustering.
+              - Ambient N4SID analysis enables clustering by default with by-control-area scope, while plots remain opt-in with --plots.
             """
         ),
         formatter_class=argparse.RawTextHelpFormatter,
@@ -59,15 +60,15 @@ def build_arg_parser():
     )
     parser.add_argument("--list-scenarios", action="store_true", help="Print the available preset scenario aliases and exit.")
     parser.add_argument("--list-analysis", action="store_true", help="Print existing IEEE39 analysis folders and exit.")
-    parser.set_defaults(skip_clustering=True, skip_plots=True)
-    parser.add_argument("--skip-clustering", dest="skip_clustering", action="store_true", help="Skip clustering output (default).")
-    parser.add_argument("--clustering", dest="skip_clustering", action="store_false", help="Enable clustering output. Default scope: by control area.")
+    parser.set_defaults(skip_clustering=None, skip_plots=None)
+    parser.add_argument("--skip-clustering", dest="skip_clustering", action="store_true", help="Skip clustering output.")
+    parser.add_argument("--clustering", dest="skip_clustering", action="store_false", help="Enable clustering output. Matrix Pencil default: on and by control area. Ambient default: on and by control area.")
     parser.add_argument("--clustering-scope", choices=["both", "global", "areas", "none"], default="areas", help="Choose clustering output scope. Default: areas.")
     parser.add_argument("--skip-matrix-pencil", action="store_true", help="Reuse an existing results.csv instead of recomputing Matrix Pencil poles.")
     parser.add_argument("--skip-n4sid", action="store_true", help="Reuse existing ambient N4SID sweep results instead of recomputing them.")
     parser.add_argument("--analysis-dir", default=None, help="Existing analysis directory to reuse with --skip-matrix-pencil. Relative paths are resolved from IEEE39.")
-    parser.add_argument("--skip-plots", dest="skip_plots", action="store_true", help="Skip IEEE39 plot outputs, including modal maps, reconstructions, and thesis-used summary figures (default).")
-    parser.add_argument("--plots", dest="skip_plots", action="store_false", help="Enable IEEE39 modal maps, reconstructions, and thesis-used summary figures.")
+    parser.add_argument("--skip-plots", dest="skip_plots", action="store_true", help="Skip IEEE39 plot outputs, including modal maps, reconstructions, and thesis-used summary figures.")
+    parser.add_argument("--plots", dest="skip_plots", action="store_false", help="Enable IEEE39 modal maps, reconstructions, and thesis-used summary figures. Matrix Pencil default: on. Ambient default: off.")
     parser.add_argument("--analysis-method", choices=["auto", "matrix-pencil", "n4sid"], default="auto", help="Select analysis backend. 'auto' uses ambient N4SID when scenario.json disturbance_type is 'ambient'; otherwise Matrix Pencil.")
     parser.add_argument("--data-dir", default=None, help="Explicit input data directory relative to IEEE39, or an absolute path. Use with exactly one --scenario.")
     parser.add_argument("--output-dir", default=None, help="Explicit output directory relative to IEEE39, or an absolute path. Use with exactly one --scenario.")
@@ -84,7 +85,7 @@ def build_arg_parser():
     parser.add_argument("--ambient-downsample-hz", type=float, default=None, help="Ambient preprocessing downsample rate in Hz. Default: 5.")
     parser.add_argument("--ambient-lpf-hz", type=float, default=None, help="Ambient preprocessing low-pass cutoff in Hz. Default: 2.")
     parser.add_argument("--ambient-no-detrend", action="store_true", help="Disable ambient detrending. Default ambient preprocessing detrends first.")
-    parser.add_argument("--ambient-reference-modes-json", default=None, help="Optional JSON file overriding the built-in ambient reference modes.")
+    parser.add_argument("--merge-radius", type=float, default=None, help="Ambient OPTICS pre-merge radius in standardized (Frequency, Damping) space. Default: 0.2. Only valid for ambient analysis.")
     parser.add_argument("--clustering-methods", nargs="+", choices=["kmeans", "kmedoids", "optics"], default=None, help="Ambient clustering methods. Default: kmeans kmedoids optics.")
     return parser
 
@@ -263,7 +264,7 @@ def _ambient_cli_overrides_requested(args):
         args.ambient_downsample_hz is not None,
         args.ambient_lpf_hz is not None,
         bool(args.ambient_no_detrend),
-        args.ambient_reference_modes_json is not None,
+        args.merge_radius is not None,
         args.clustering_methods is not None,
     ])
 
@@ -1935,7 +1936,7 @@ def apply_cli_overrides(selected, args):
         time_mask["reset_time"] = not args.no_reset_time
         scenario["time_mask"] = time_mask
 
-        if args.skip_clustering:
+        if args.skip_clustering is not False:
             scenario["clustering"] = _default_clustering_config(enabled=False)
         else:
             scenario["clustering"] = _default_clustering_config(enabled=True, scope=args.clustering_scope)
@@ -1960,6 +1961,16 @@ def main():
         print(f"Analyzing scenario: {name}", flush=True)
         scenario_start = time.time()
         analysis_method, disturbance_type = _resolve_analysis_method(name, scenario, args)
+        effective_skip_plots = bool(args.skip_plots) if args.skip_plots is not None else (analysis_method == "n4sid")
+        clustering_scope = args.clustering_scope
+        if args.skip_clustering is True:
+            effective_clustering = _default_clustering_config(enabled=False)
+        elif args.skip_clustering is False:
+            effective_clustering = _default_clustering_config(enabled=True, scope=clustering_scope)
+        else:
+            effective_clustering = _default_clustering_config(enabled=True, scope="areas")
+        if analysis_method != "n4sid":
+            scenario["clustering"] = effective_clustering
 
         if analysis_method == "n4sid":
             if args.skip_matrix_pencil:
@@ -1969,7 +1980,7 @@ def main():
             if args.signals is None:
                 scenario["columns"] = dict(AMBIENT_DEFAULT_SIGNALS)
                 scenario["signal_subset"] = list(AMBIENT_DEFAULT_SIGNALS.values())
-            if not args.skip_plots:
+            if not effective_skip_plots:
                 print(f"Ambient N4SID will generate modal maps and reconstruction plots per sweep for '{name}'.", flush=True)
 
             if args.skip_n4sid:
@@ -2002,14 +2013,14 @@ def main():
                 sweep_report_seconds += report_elapsed
 
                 plotting_elapsed = 0.0
-                if not args.skip_plots:
+                if not effective_skip_plots:
                     plotting_start = time.perf_counter()
                     generate_ieee39_plots(sweep_df, report, sweep_scenario)
                     plotting_elapsed = time.perf_counter() - plotting_start
                     sweep_plotting_seconds += plotting_elapsed
 
                 sweep_config.setdefault("timings", {})["comprehensive_report"] = _timing_entry(report_elapsed)
-                sweep_config["timings"]["plotting"] = _timing_entry(plotting_elapsed, skipped=args.skip_plots)
+                sweep_config["timings"]["plotting"] = _timing_entry(plotting_elapsed, skipped=effective_skip_plots)
                 _save_json(sweep_dir / "analysis_config.json", sweep_config)
 
                 evaluation_payload = update_analysis_config_with_evaluation(sweep_dir)
@@ -2022,9 +2033,11 @@ def main():
                 })
 
             analysis_config.setdefault("timings", {})["comprehensive_report"] = _timing_entry(sweep_report_seconds)
-            analysis_config["timings"]["plotting"] = _timing_entry(sweep_plotting_seconds, skipped=args.skip_plots)
+            analysis_config["timings"]["plotting"] = _timing_entry(sweep_plotting_seconds, skipped=effective_skip_plots)
             analysis_config["evaluation"] = {"sweeps": sweep_evaluations}
         else:
+            if args.merge_radius is not None:
+                raise SystemExit("--merge-radius is only supported for ambient N4SID analysis.")
             if disturbance_type == "ambient" and _ambient_cli_overrides_requested(args):
                 print(
                     f"Ignoring ambient-only CLI flags for '{name}' because --analysis-method resolved to matrix-pencil.",
@@ -2042,11 +2055,11 @@ def main():
             analysis_config.setdefault("timings", {})["comprehensive_report"] = _timing_entry(report_elapsed)
 
             plotting_elapsed = 0.0
-            if not args.skip_plots:
+            if not effective_skip_plots:
                 plotting_start = time.perf_counter()
                 generate_ieee39_plots(df_results, report, scenario)
                 plotting_elapsed = time.perf_counter() - plotting_start
-            analysis_config["timings"]["plotting"] = _timing_entry(plotting_elapsed, skipped=args.skip_plots)
+            analysis_config["timings"]["plotting"] = _timing_entry(plotting_elapsed, skipped=effective_skip_plots)
 
             clustering_enabled = scenario.get("clustering", {}).get("global", False) or scenario.get("clustering", {}).get("by_control_area", False)
             clustering_elapsed = 0.0
