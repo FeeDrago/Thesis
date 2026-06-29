@@ -21,8 +21,8 @@ AMBIENT_DEFAULT_SIGNALS = {
     "s:cur1 in p.u.": "Current",
 }
 AMBIENT_DEFAULT_ORDER_GROUPS = [
-    {"name": "orders1", "orders": list(range(2, 30, 2))},
-    {"name": "orders2", "orders": list(range(10, 45, 5))},
+    {"name": "orders1", "orders": list(range(2, 32, 2))},
+    {"name": "orders2", "orders": list(range(10, 50, 5))},
 ]
 AMBIENT_DEFAULT_DOWNSAMPLE_HZ = 5.0
 AMBIENT_DEFAULT_LPF_HZ = 2.0
@@ -181,7 +181,7 @@ def _parse_area_names_to_indices(area_names):
 
 
 def _load_generated_reference_modes(data_dir):
-    modal_csv = Path(data_dir) / "modal" / "electromechanical_modes_stable_oscillatory.csv"
+    modal_csv = _resolve_path(data_dir) / "modal" / "electromechanical_modes_stable_oscillatory.csv"
     if not modal_csv.exists():
         return None
 

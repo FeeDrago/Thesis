@@ -233,6 +233,11 @@ IEEE39/analysis/
 # IEEE39 local diagnostics and repro artifacts
 IEEE39/investigations/pf_drift_2026_05_22/
 
+# IEEE39 ambient report: keep only source TeX and compiled PDF.
+IEEE39/ambient_report/*
+!IEEE39/ambient_report/ambient_report.tex
+!IEEE39/ambient_report/ambient_report.pdf
+
 # Preliminary Investigation: keep source/data inputs, ignore generated PDFs/PNGs.
 PreliminaryInvestigation/**/*.pdf
 PreliminaryInvestigation/**/*.png

@@ -44,7 +44,7 @@ def build_arg_parser():
               - --scenario load29 runs a fresh Matrix Pencil analysis on IEEE39/results/Load29_Pplus2_50s and writes to a derived folder under IEEE39/analysis.
               - --skip-matrix-pencil requires --analysis-dir and reuses that folder's existing results.csv; it still regenerates reports, optional plots, and optional clustering.
               - Matrix Pencil analysis enables clustering and plots by default, both with by-control-area scope for clustering.
-              - Ambient N4SID analysis enables clustering by default with by-control-area scope, while plots remain opt-in with --plots.
+              - Ambient N4SID analysis enables clustering and plots by default, both with by-control-area scope for clustering.
             """
         ),
         formatter_class=argparse.RawTextHelpFormatter,
@@ -68,7 +68,7 @@ def build_arg_parser():
     parser.add_argument("--skip-n4sid", action="store_true", help="Reuse existing ambient N4SID sweep results instead of recomputing them.")
     parser.add_argument("--analysis-dir", default=None, help="Existing analysis directory to reuse with --skip-matrix-pencil. Relative paths are resolved from IEEE39.")
     parser.add_argument("--skip-plots", dest="skip_plots", action="store_true", help="Skip IEEE39 plot outputs, including modal maps, reconstructions, and thesis-used summary figures.")
-    parser.add_argument("--plots", dest="skip_plots", action="store_false", help="Enable IEEE39 modal maps, reconstructions, and thesis-used summary figures. Matrix Pencil default: on. Ambient default: off.")
+    parser.add_argument("--plots", dest="skip_plots", action="store_false", help="Enable IEEE39 modal maps, reconstructions, and thesis-used summary figures. Matrix Pencil default: on. Ambient default: on.")
     parser.add_argument("--analysis-method", choices=["auto", "matrix-pencil", "n4sid"], default="auto", help="Select analysis backend. 'auto' uses ambient N4SID when scenario.json disturbance_type is 'ambient'; otherwise Matrix Pencil.")
     parser.add_argument("--data-dir", default=None, help="Explicit input data directory relative to IEEE39, or an absolute path. Use with exactly one --scenario.")
     parser.add_argument("--output-dir", default=None, help="Explicit output directory relative to IEEE39, or an absolute path. Use with exactly one --scenario.")
@@ -1961,7 +1961,7 @@ def main():
         print(f"Analyzing scenario: {name}", flush=True)
         scenario_start = time.time()
         analysis_method, disturbance_type = _resolve_analysis_method(name, scenario, args)
-        effective_skip_plots = bool(args.skip_plots) if args.skip_plots is not None else (analysis_method == "n4sid")
+        effective_skip_plots = bool(args.skip_plots) if args.skip_plots is not None else False
         clustering_scope = args.clustering_scope
         if args.skip_clustering is True:
             effective_clustering = _default_clustering_config(enabled=False)

@@ -648,6 +648,30 @@ def _generator_to_area(generator_name):
     return None
 
 
+def _build_report_generators(dominant_generators):
+    if not dominant_generators:
+        return [], None
+
+    top_generator_participation = float(dominant_generators[0][1])
+    primary_threshold = ELECTROMECHANICAL_PRIMARY_GENERATOR_RATIO * top_generator_participation
+    report_generators = [
+        name for name, value in dominant_generators
+        if value > 0.0 and (top_generator_participation <= 0.0 or value >= primary_threshold)
+    ]
+
+    second_generator_ratio = None
+    if len(report_generators) < 2 and len(dominant_generators) >= 2:
+        second_name, second_value = dominant_generators[1]
+        if second_value > 0.0:
+            report_generators.append(second_name)
+            second_generator_ratio = (
+                float(second_value / top_generator_participation)
+                if top_generator_participation > 0.0 else None
+            )
+
+    return report_generators, second_generator_ratio
+
+
 def summarize_ambient_electromechanical_modes(modal_dir):
     modal_dir = Path(modal_dir)
     eigenvalues_path = modal_dir / "eigenvalues.csv"
@@ -766,6 +790,7 @@ def summarize_ambient_electromechanical_modes(modal_dir):
                 name for name, value in dominant_generators
                 if value > 0.0 and (top_generator_participation <= 0.0 or value >= primary_threshold)
             ]
+            report_generators, second_generator_ratio = _build_report_generators(dominant_generators)
             participating_areas = []
             seen_areas = set()
             for generator_name in participating_generators:
@@ -773,6 +798,13 @@ def summarize_ambient_electromechanical_modes(modal_dir):
                 if area_name and area_name not in seen_areas:
                     participating_areas.append(area_name)
                     seen_areas.add(area_name)
+            report_areas = []
+            seen_report_areas = set()
+            for generator_name in report_generators:
+                area_name = _generator_to_area(generator_name)
+                if area_name and area_name not in seen_report_areas:
+                    report_areas.append(area_name)
+                    seen_report_areas.add(area_name)
 
             is_electromechanical = (
                 total_machine_participation > 0.0 and
@@ -796,8 +828,11 @@ def summarize_ambient_electromechanical_modes(modal_dir):
                 "TotalMachineParticipation": total_machine_participation,
                 "PhiSpeedRatio": phi_speed_ratio,
                 "ParticipatingGenerators": "; ".join(participating_generators),
+                "MainGenerators": "; ".join(report_generators),
+                "SecondGeneratorRatioToTop": second_generator_ratio,
                 "AllParticipatingGenerators": "; ".join(all_participating_generators),
                 "ParticipatingAreas": "; ".join(participating_areas),
+                "MainGeneratorAreas": "; ".join(report_areas),
                 "TopGenerator": dominant_generators[0][0] if dominant_generators else None,
                 "TopGeneratorParticipation": top_generator_participation,
                 "PrimaryGeneratorThresholdRatio": ELECTROMECHANICAL_PRIMARY_GENERATOR_RATIO,
@@ -819,8 +854,11 @@ def summarize_ambient_electromechanical_modes(modal_dir):
         "TotalMachineParticipation",
         "PhiSpeedRatio",
         "ParticipatingGenerators",
+        "MainGenerators",
+        "SecondGeneratorRatioToTop",
         "AllParticipatingGenerators",
         "ParticipatingAreas",
+        "MainGeneratorAreas",
         "TopGenerator",
         "TopGeneratorParticipation",
         "PrimaryGeneratorThresholdRatio",
