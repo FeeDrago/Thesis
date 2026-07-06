@@ -4,6 +4,8 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from matplotlib.ticker import FuncFormatter
+from matplotlib.ticker import FixedLocator
 
 from plot_style import save_pdf, style_axis, SIGNAL_COLORS
 
@@ -20,8 +22,7 @@ SIGNAL_LABELS = {
     "Active Power": r"$\Delta P$ [MW]",
     "Reactive Power": r"$\Delta Q$ [Mvar]",
 }
-MODAL_SYMLOG_LINTHRESH = 0.1
-MODAL_SYMLOG_LINSCALE = 1.0
+MODAL_X_TICK_FORMATTER = FuncFormatter(lambda x, pos: f"{x:.2f}")
 
 
 def generator_display_name(gen):
@@ -85,7 +86,7 @@ def reconstruction_grid_figure(row_count, row_height=4.8, min_height=6.0):
     return plt.figure(figsize=(16, max(min_height, row_height * max(1, row_count))))
 
 
-def _set_modal_axis_view(ax, damping_values, frequency_values):
+def _set_modal_axis_view(ax, damping_values, frequency_values, clamp_positive_max=True):
     damping_values = np.asarray(damping_values, dtype=float)
     frequency_values = np.asarray(frequency_values, dtype=float)
     damping_values = damping_values[np.isfinite(damping_values)]
@@ -104,8 +105,9 @@ def _set_modal_axis_view(ax, damping_values, frequency_values):
     x_pad_right = max(0.02, 0.02 * x_span)
     y_pad = max(0.05, 0.05 * y_span)
 
-    ax.set_xscale("symlog", linthresh=MODAL_SYMLOG_LINTHRESH, linscale=MODAL_SYMLOG_LINSCALE)
-    ax.set_xlim(x_min - x_pad_left, max(0.02, x_max + x_pad_right))
+    ax.xaxis.set_major_formatter(MODAL_X_TICK_FORMATTER)
+    x_right = max(0.02, x_max + x_pad_right) if clamp_positive_max else max(0.005, x_max)
+    ax.set_xlim(x_min - x_pad_left, x_right)
     ax.set_ylim(max(0.0, y_min - y_pad), y_max + y_pad)
 
 
@@ -139,7 +141,19 @@ def plot_modal_signal_grid(df_results, gen, signals, output_dir, filename, title
     plt.close(fig)
 
 
-def plot_modal_generator_grid(df_results, generators, signals, output_dir, filename, title, colors=None):
+def plot_modal_generator_grid(
+    df_results,
+    generators,
+    signals,
+    output_dir,
+    filename,
+    title,
+    colors=None,
+    clamp_positive_max=True,
+    fixed_xlim=None,
+    fixed_ylim=None,
+    show_zero_line=True,
+):
     colors = colors or SIGNAL_COLORS
     fig = modal_grid_figure(len(generators), ncols=2, row_height=4.8)
     axes, nrows = create_adaptive_grid(fig, len(generators), ncols=2, sharex=True, sharey=True)
@@ -158,13 +172,25 @@ def plot_modal_generator_grid(df_results, generators, signals, output_dir, filen
                 edgecolors="k",
                 s=60,
             )
-        ax.axvline(0, color="red", linestyle="-", alpha=0.3)
+        if show_zero_line:
+            ax.axvline(0, color="red", linestyle="-", alpha=0.75, linewidth=1.8)
         ax.set_title(generator_modal_label(gen), fontweight="semibold")
         if idx // 2 == nrows - 1:
             ax.set_xlabel(MODAL_X_LABEL)
         if idx % 2 == 0 or len(generators) == 1:
             ax.set_ylabel(MODAL_Y_LABEL)
-        _set_modal_axis_view(ax, gen_data["Damping"], gen_data["Frequency"])
+        _set_modal_axis_view(
+            ax,
+            gen_data["Damping"],
+            gen_data["Frequency"],
+            clamp_positive_max=clamp_positive_max,
+        )
+        if fixed_xlim is not None:
+            ax.set_xlim(*fixed_xlim)
+        if fixed_ylim is not None:
+            ax.set_ylim(*fixed_ylim)
+        if fixed_xlim == (-1.0, 0.02):
+            ax.xaxis.set_major_locator(FixedLocator([-1.0, -0.75, -0.5, -0.25, 0.0]))
         style_axis(ax)
 
     handles = [
@@ -177,7 +203,50 @@ def plot_modal_generator_grid(df_results, generators, signals, output_dir, filen
     plt.close(fig)
 
 
-def plot_modal_combined_map(df_results, output_dir, filename, title, signals, gen=None, colors=None, figsize=(10, 6)):
+def plot_modal_combined_map(
+    df_results,
+    output_dir,
+    filename,
+    title,
+    signals,
+    gen=None,
+    colors=None,
+    figsize=(10, 6),
+    fixed_xlim=None,
+    fixed_ylim=None,
+    show_zero_line=True,
+    fixed_xticks=None,
+):
+    return _plot_modal_combined_map(
+        df_results=df_results,
+        output_dir=output_dir,
+        filename=filename,
+        title=title,
+        signals=signals,
+        gen=gen,
+        colors=colors,
+        figsize=figsize,
+        fixed_xlim=fixed_xlim,
+        fixed_ylim=fixed_ylim,
+        show_zero_line=show_zero_line,
+        fixed_xticks=fixed_xticks,
+    )
+
+
+def _plot_modal_combined_map(
+    df_results,
+    output_dir,
+    filename,
+    title,
+    signals,
+    gen=None,
+    colors=None,
+    figsize=(10, 6),
+    fixed_xlim=None,
+    fixed_ylim=None,
+    show_zero_line=True,
+    fixed_xticks=None,
+):
     colors = colors or SIGNAL_COLORS
     if gen is None:
         plot_df = df_results
@@ -202,13 +271,21 @@ def plot_modal_combined_map(df_results, output_dir, filename, title, signals, ge
             s=60,
         )
 
-    plt.axvline(0, color="red", linestyle="-", alpha=0.3)
+    if show_zero_line:
+        plt.axvline(0, color="red", linestyle="-", alpha=0.75, linewidth=1.8)
     plt.title(title, fontweight="bold")
     plt.xlabel(MODAL_X_LABEL)
     plt.ylabel(MODAL_Y_LABEL)
     plt.legend()
-    _set_modal_axis_view(plt.gca(), plot_df["Damping"], plot_df["Frequency"])
-    style_axis(plt.gca())
+    ax = plt.gca()
+    _set_modal_axis_view(ax, plot_df["Damping"], plot_df["Frequency"])
+    if fixed_xlim is not None:
+        ax.set_xlim(*fixed_xlim)
+    if fixed_ylim is not None:
+        ax.set_ylim(*fixed_ylim)
+    if fixed_xticks is not None:
+        ax.xaxis.set_major_locator(FixedLocator(fixed_xticks))
+    style_axis(ax)
     save_current_figure(output_dir, filename, fig)
     plt.close(fig)
 

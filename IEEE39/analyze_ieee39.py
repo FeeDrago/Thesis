@@ -125,6 +125,7 @@ from scipy.signal import detrend
 from analysis_evaluator import update_analysis_config_with_evaluation
 from ambient_n4sid_analysis import (
     AMBIENT_DEFAULT_SIGNALS,
+    _load_reference_modes as _load_ambient_reference_modes,
     load_existing_ambient_results_for_scenario,
     preprocess_ambient_signal,
     run_ambient_n4sid_for_scenario,
@@ -231,6 +232,27 @@ def _reference_modes_for_control_area(area_name):
         for mode_name, mode_data in IEEE39_REFERENCE_MODES.items()
         if area_idx in mode_data.get("relevant_areas", [])
     }
+
+
+def _reference_modes_for_control_area_from_set(reference_modes, area_name):
+    try:
+        area_idx = int(str(area_name).split("_")[-1])
+    except (TypeError, ValueError):
+        return dict(reference_modes)
+
+    return {
+        mode_name: dict(mode_data)
+        for mode_name, mode_data in reference_modes.items()
+        if area_idx in mode_data.get("relevant_areas", [])
+    }
+
+
+def _resolve_reference_modes_for_scenario(scenario):
+    if str(scenario.get("analysis_method", "")).strip().lower() == "n4sid":
+        _, reference_modes = _load_ambient_reference_modes(scenario["data_dir"])
+        if reference_modes:
+            return reference_modes
+    return dict(IEEE39_REFERENCE_MODES)
 
 DEFAULT_SCENARIO_PATHS = {
     "load29": {
@@ -1278,6 +1300,10 @@ def _generate_ieee39_modal_grid_plots(df_results, modal_maps_dir, generators, co
         filename="All_Generators_Grid",
         title="System-Wide Modal Identification (All Generators)",
         colors=SIGNAL_COLORS.copy(),
+        clamp_positive_max=False,
+        fixed_xlim=(-1.0, 0.02),
+        fixed_ylim=(0.0, 1.60),
+        show_zero_line=True,
     )
 
 
@@ -1379,8 +1405,21 @@ def generate_ieee39_plots(df_results, report, scenario):
             gen=gen,
             colors=SIGNAL_COLORS.copy(),
             figsize=(10, 6),
+            fixed_xlim=(-1.0, 0.02),
+            fixed_ylim=(0.0, 2.05),
+            show_zero_line=True,
+            fixed_xticks=[-1.0, -0.75, -0.5, -0.25, 0.0],
         )
 
+    plot_modal_combined_map(
+        df_results=df_results,
+        output_dir=modal_maps_dir,
+        filename="system_modal_map_full",
+        title="System-Wide Modal Map",
+        signals=list(columns.values()),
+        colors=SIGNAL_COLORS.copy(),
+        figsize=(11, 7),
+    )
     plot_modal_combined_map(
         df_results=df_results,
         output_dir=modal_maps_dir,
@@ -1389,6 +1428,10 @@ def generate_ieee39_plots(df_results, report, scenario):
         signals=list(columns.values()),
         colors=SIGNAL_COLORS.copy(),
         figsize=(11, 7),
+        fixed_xlim=(-1.0, 0.02),
+        fixed_ylim=(0.0, 2.05),
+        show_zero_line=True,
+        fixed_xticks=[-1.0, -0.75, -0.5, -0.25, 0.0],
     )
 
     inv_columns = {label: csv_col for csv_col, label in columns.items()}
@@ -1598,10 +1641,11 @@ def run_clustering_for_scenario(output_dir, results_path, df_results, scenario):
         return {}
 
     timings = {}
+    reference_modes = _resolve_reference_modes_for_scenario(scenario)
 
     if clustering_config.get("global", True):
         global_out = output_dir / "clustering" / "global"
-        timings["global"] = _run_clustering_pipeline(results_path, global_out, reference_modes=IEEE39_REFERENCE_MODES)
+        timings["global"] = _run_clustering_pipeline(results_path, global_out, reference_modes=reference_modes)
 
     if clustering_config.get("by_control_area", True):
         area_root = output_dir / "clustering" / "by_control_area"
@@ -1610,7 +1654,7 @@ def run_clustering_for_scenario(output_dir, results_path, df_results, scenario):
             area_out = area_root / area_name
             area_out.mkdir(parents=True, exist_ok=True)
             area_df = df_results[df_results["Gen"].isin(gens)].copy()
-            area_reference_modes = _reference_modes_for_control_area(area_name)
+            area_reference_modes = _reference_modes_for_control_area_from_set(reference_modes, area_name)
             if area_df.empty:
                 print(f"No data for {area_name}; skipping.")
                 area_timings[area_name] = {"total": _timing_entry(0.0, skipped=True)}
@@ -1626,7 +1670,7 @@ def run_clustering_for_scenario(output_dir, results_path, df_results, scenario):
                 reference_modes=area_reference_modes,
             )
 
-        _save_ieee39_combined_reference_mad_summary(area_root, IEEE39_REFERENCE_MODES)
+        _save_ieee39_combined_reference_mad_summary(area_root, reference_modes)
 
         timings["by_control_area"] = area_timings
 
@@ -1990,6 +2034,7 @@ def main():
             sweep_evaluations = []
             sweep_plotting_seconds = 0.0
             sweep_report_seconds = 0.0
+            sweep_clustering_seconds = 0.0
             for sweep in analysis_config.get("sweeps", []):
                 sweep_dir = _resolve_path(sweep["output_dir"])
                 sweep_results_path = _resolve_path(sweep["results_csv"])
@@ -2005,6 +2050,7 @@ def main():
                     "generators": sweep_config.get("generators_used", []),
                     "n4sid_orders": sweep_config.get("n4sid_orders", []),
                     "ambient_preprocessing": sweep_config.get("ambient_preprocessing", {}),
+                    "clustering": effective_clustering,
                 }
 
                 report_start = time.perf_counter()
@@ -2019,8 +2065,28 @@ def main():
                     plotting_elapsed = time.perf_counter() - plotting_start
                     sweep_plotting_seconds += plotting_elapsed
 
+                clustering_elapsed = 0.0
+                clustering_details = {}
+                refresh_existing_ambient_clustering = bool(args.skip_n4sid)
+                if refresh_existing_ambient_clustering and any(effective_clustering.values()):
+                    clustering_start = time.perf_counter()
+                    clustering_details = run_clustering_for_scenario(
+                        sweep_dir,
+                        sweep_results_path,
+                        sweep_df,
+                        sweep_scenario,
+                    )
+                    clustering_elapsed = time.perf_counter() - clustering_start
+                    sweep_clustering_seconds += clustering_elapsed
+
                 sweep_config.setdefault("timings", {})["comprehensive_report"] = _timing_entry(report_elapsed)
                 sweep_config["timings"]["plotting"] = _timing_entry(plotting_elapsed, skipped=effective_skip_plots)
+                sweep_config["timings"]["clustering"] = _timing_entry(
+                    clustering_elapsed,
+                    skipped=not (refresh_existing_ambient_clustering and any(effective_clustering.values())),
+                )
+                if clustering_details:
+                    sweep_config["clustering"] = clustering_details
                 _save_json(sweep_dir / "analysis_config.json", sweep_config)
 
                 evaluation_payload = update_analysis_config_with_evaluation(sweep_dir)
@@ -2034,6 +2100,10 @@ def main():
 
             analysis_config.setdefault("timings", {})["comprehensive_report"] = _timing_entry(sweep_report_seconds)
             analysis_config["timings"]["plotting"] = _timing_entry(sweep_plotting_seconds, skipped=effective_skip_plots)
+            analysis_config["timings"]["clustering"] = _timing_entry(
+                sweep_clustering_seconds,
+                skipped=not (bool(args.skip_n4sid) and any(effective_clustering.values())),
+            )
             analysis_config["evaluation"] = {"sweeps": sweep_evaluations}
         else:
             if args.merge_radius is not None:

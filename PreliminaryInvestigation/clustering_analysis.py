@@ -200,7 +200,7 @@ def _quantile_bounds(values, lower_q=0.02, upper_q=0.98):
     return float(np.quantile(arr, lower_q)), float(np.quantile(arr, upper_q))
 
 
-def _set_modal_axis_limits(ax, df, reference_modes=None, representatives=None):
+def _set_modal_axis_limits(ax, df, reference_modes=None, representatives=None, include_all_points=False):
     damping_values = list(df["Damping"].to_numpy(dtype=float))
     freq_values = list(df["Frequency"].to_numpy(dtype=float))
 
@@ -214,8 +214,14 @@ def _set_modal_axis_limits(ax, df, reference_modes=None, representatives=None):
             freq_values.append(float(mode_data["Frequency"]))
             damping_values.append(float(mode_data["Damping"]))
 
-    damp_low, damp_high = _quantile_bounds(damping_values, lower_q=0.02, upper_q=0.98)
-    freq_low, freq_high = _quantile_bounds(freq_values, lower_q=0.02, upper_q=0.98)
+    if include_all_points:
+        damp_low = float(np.min(damping_values))
+        damp_high = float(np.max(damping_values))
+        freq_low = float(np.min(freq_values))
+        freq_high = float(np.max(freq_values))
+    else:
+        damp_low, damp_high = _quantile_bounds(damping_values, lower_q=0.02, upper_q=0.98)
+        freq_low, freq_high = _quantile_bounds(freq_values, lower_q=0.02, upper_q=0.98)
     if damp_low is None or freq_low is None:
         return
 
@@ -246,7 +252,16 @@ def _set_modal_axis_limits(ax, df, reference_modes=None, representatives=None):
     ax.set_ylim(y_min, y_max)
 
 
-def _plot_selected_cluster_map(ax, df, labels, representatives, representative_label, title, reference_modes=None):
+def _plot_selected_cluster_map(
+    ax,
+    df,
+    labels,
+    representatives,
+    representative_label,
+    title,
+    reference_modes=None,
+    show_legend=True,
+):
     point_colors = _label_colors(labels)
     ax.scatter(
         df['Damping'], df['Frequency'], c=point_colors,
@@ -261,9 +276,21 @@ def _plot_selected_cluster_map(ax, df, labels, representatives, representative_l
     ax.set_title(title, fontweight='bold')
     ax.set_xlabel("Damping (Sigma) [rad/s]")
     ax.set_ylabel("Frequency [Hz]")
-    _set_modal_axis_limits(ax, df, reference_modes=reference_modes, representatives=representatives)
-    handles = _cluster_legend_handles(len(representatives), representative_label=representative_label) + _reference_mode_handles(reference_modes)
-    ax.legend(handles=handles, loc='upper left')
+    _set_modal_axis_limits(
+        ax,
+        df,
+        reference_modes=reference_modes,
+        representatives=representatives,
+        include_all_points=True,
+    )
+    if show_legend:
+        handles = _cluster_legend_handles(len(representatives), representative_label=representative_label) + _reference_mode_handles(reference_modes)
+        ax.legend(
+            handles=handles,
+            loc='upper center',
+            bbox_to_anchor=(0.5, -0.22),
+            ncol=min(4, len(handles)),
+        )
     _apply_axis_style(ax, GRID_ALPHA_SUB)
 
 
@@ -283,6 +310,8 @@ def _resolve_optics_settings(optics_settings=None):
     settings["xi"] = float(settings["xi"])
     settings["premerge_enabled"] = bool(settings["premerge_enabled"])
     settings["premerge_scope"] = str(settings["premerge_scope"])
+    settings["render_all_min_samples_maps"] = bool(settings.get("render_all_min_samples_maps", True))
+    settings["render_parameter_sweep_plot"] = bool(settings.get("render_parameter_sweep_plot", True))
     return settings
 
 
@@ -742,7 +771,7 @@ def run_kmeans_modal_analysis(results_path, output_path, reference_modes=None):
                 'Size': int(np.sum(labels == c))
             })
 
-        fig, ax = plt.subplots(figsize=(10, 7))
+        fig, ax = plt.subplots(figsize=(11.5, 8.8))
         point_colors = _label_colors(labels)
         ax.scatter(
             df['Damping'], df['Frequency'], c=point_colors,
@@ -762,9 +791,21 @@ def run_kmeans_modal_analysis(results_path, output_path, reference_modes=None):
             fontweight='bold'
         )
         handles = _cluster_legend_handles(k, representative_label='Centroids') + _reference_mode_handles(reference_modes)
-        ax.legend(handles=handles, loc='upper left')
-        _set_modal_axis_limits(ax, df, reference_modes=reference_modes, representatives=centers)
+        fig.legend(
+            handles=handles,
+            loc='lower center',
+            bbox_to_anchor=(0.5, 0.015),
+            ncol=min(5, len(handles)),
+        )
+        _set_modal_axis_limits(
+            ax,
+            df,
+            reference_modes=reference_modes,
+            representatives=centers,
+            include_all_points=True,
+        )
         _apply_axis_style(ax)
+        fig.subplots_adjust(left=0.11, right=0.97, top=0.88, bottom=0.26)
         _save_figure(fig, base_output, f"kmeans_modal_map_k{k}")
         plt.close(fig)
 
@@ -821,8 +862,8 @@ def run_kmeans_modal_analysis(results_path, output_path, reference_modes=None):
             ax.set_ylabel("Frequency [Hz]")
 
     handles = _cluster_legend_handles(max(grid_ks), representative_label="Centroids") + _reference_mode_handles(reference_modes)
-    fig.legend(handles=handles, loc='lower center', bbox_to_anchor=(0.5, -0.02), ncol=min(4, len(handles)))
-    fig.tight_layout(rect=[0, 0.12, 1, 0.95])
+    fig.legend(handles=handles, loc='lower center', bbox_to_anchor=(0.5, -0.05), ncol=min(4, len(handles)))
+    fig.tight_layout(rect=[0, 0.16, 1, 0.95])
     _save_figure(fig, base_output, "kmeans_optimization_grid")
     plt.close(fig)
 
@@ -842,7 +883,18 @@ def run_kmeans_modal_analysis(results_path, output_path, reference_modes=None):
     plt.close(fig)
 
     labels_opt, centers_opt, inertia_opt = stored_results[k_opt]
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 8), gridspec_kw={"width_ratios": [1.0, 1.1]})
+    fig = plt.figure(figsize=(19, 9.5))
+    gs = fig.add_gridspec(
+        1, 2,
+        width_ratios=[1.0, 1.35],
+        left=0.06,
+        right=0.98,
+        top=0.88,
+        bottom=0.24,
+        wspace=0.20,
+    )
+    ax1 = fig.add_subplot(gs[0, 0])
+    ax2 = fig.add_subplot(gs[0, 1])
     ax1.plot(k_values, wcss, marker='o', color=LINE_BLUE, linewidth=3, markersize=10)
     ax1.scatter(
         k_opt, wcss[k_opt_idx], color=ACCENT_RED, marker='o', s=200,
@@ -863,9 +915,16 @@ def run_kmeans_modal_analysis(results_path, output_path, reference_modes=None):
         'Centroids',
         f"$k$-Means Cluster Map ($k={k_opt}$)\nWCSS: {inertia_opt:.2f}",
         reference_modes=reference_modes,
+        show_legend=False,
     )
 
-    fig.tight_layout()
+    handles = _cluster_legend_handles(k_opt, representative_label='Centroids') + _reference_mode_handles(reference_modes)
+    fig.legend(
+        handles=handles,
+        loc='lower center',
+        bbox_to_anchor=(0.5, 0.07),
+        ncol=min(5, len(handles)),
+    )
     _save_figure(fig, base_output, "elbow_selected_kmeans")
     plt.close(fig)
 
@@ -913,7 +972,7 @@ def run_kmedoids_modal_analysis(results_path, output_path, reference_modes=None)
                 'Size': int(np.sum(labels == c))
             })
 
-        fig, ax = plt.subplots(figsize=(10, 7))
+        fig, ax = plt.subplots(figsize=(11.5, 8.8))
         point_colors = _label_colors(labels)
         ax.scatter(
             df['Damping'], df['Frequency'],
@@ -935,9 +994,21 @@ def run_kmedoids_modal_analysis(results_path, output_path, reference_modes=None)
             fontweight='bold'
         )
         handles = _cluster_legend_handles(k, representative_label='Medoids') + _reference_mode_handles(reference_modes)
-        ax.legend(handles=handles, loc='upper left')
-        _set_modal_axis_limits(ax, df, reference_modes=reference_modes, representatives=medoids)
+        fig.legend(
+            handles=handles,
+            loc='lower center',
+            bbox_to_anchor=(0.5, 0.015),
+            ncol=min(5, len(handles)),
+        )
+        _set_modal_axis_limits(
+            ax,
+            df,
+            reference_modes=reference_modes,
+            representatives=medoids,
+            include_all_points=True,
+        )
         _apply_axis_style(ax)
+        fig.subplots_adjust(left=0.11, right=0.97, top=0.88, bottom=0.26)
         _save_figure(fig, base_output, f"kmedoids_modal_map_k{k}")
         plt.close(fig)
 
@@ -997,10 +1068,10 @@ def run_kmedoids_modal_analysis(results_path, output_path, reference_modes=None)
     fig.legend(
         handles=handles,
         loc='lower center',
-        bbox_to_anchor=(0.5, -0.02),
+        bbox_to_anchor=(0.5, -0.05),
         ncol=min(4, len(handles)),
     )
-    fig.tight_layout(rect=[0, 0.12, 1, 0.95])
+    fig.tight_layout(rect=[0, 0.16, 1, 0.95])
     _save_figure(fig, base_output, "kmedoids_optimization_grid")
     plt.close(fig)
 
@@ -1020,7 +1091,18 @@ def run_kmedoids_modal_analysis(results_path, output_path, reference_modes=None)
     plt.close(fig)
 
     labels_opt, medoids_opt, cost_opt = stored_results[k_opt]
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 8), gridspec_kw={"width_ratios": [1.0, 1.1]})
+    fig = plt.figure(figsize=(19, 9.5))
+    gs = fig.add_gridspec(
+        1, 2,
+        width_ratios=[1.0, 1.35],
+        left=0.06,
+        right=0.98,
+        top=0.88,
+        bottom=0.24,
+        wspace=0.20,
+    )
+    ax1 = fig.add_subplot(gs[0, 0])
+    ax2 = fig.add_subplot(gs[0, 1])
     ax1.plot(k_values, costs, marker='o', color=LINE_BLUE, linewidth=3, markersize=10)
     ax1.scatter(
         k_opt, costs[k_opt_idx], color=ACCENT_RED, marker='o', s=200,
@@ -1041,9 +1123,16 @@ def run_kmedoids_modal_analysis(results_path, output_path, reference_modes=None)
         'Medoids',
         f"$k$-Medoids Cluster Map ($k={k_opt}$)\nCost: {cost_opt:.2f}",
         reference_modes=reference_modes,
+        show_legend=False,
     )
 
-    fig.tight_layout()
+    handles = _cluster_legend_handles(k_opt, representative_label='Medoids') + _reference_mode_handles(reference_modes)
+    fig.legend(
+        handles=handles,
+        loc='lower center',
+        bbox_to_anchor=(0.5, 0.07),
+        ncol=min(5, len(handles)),
+    )
     _save_figure(fig, base_output, "elbow_selected_kmedoids")
     plt.close(fig)
 
@@ -1136,37 +1225,50 @@ def run_optics_modal_analysis(results_path, output_path, reference_modes=None, o
             "MergeMinDistinctOrders": int(resolved_optics_settings["merge_min_distinct_orders"]),
         })
 
-        fig, ax = plt.subplots(figsize=(10, 7))
-        point_colors = _label_colors_with_noise(labels)
-        ax.scatter(
-            optics_df["Damping"], optics_df["Frequency"],
-            c=point_colors, alpha=POINT_ALPHA,
-            edgecolors='k', linewidths=0.8, s=POINT_SIZE
-        )
-        if len(representatives) > 0:
+        if bool(resolved_optics_settings.get("render_all_min_samples_maps", True)):
+            fig, ax = plt.subplots(figsize=(11.5, 8.8))
+            point_colors = _label_colors_with_noise(labels)
             ax.scatter(
-                representatives[:, 1], representatives[:, 0],
-                c=ACCENT_RED, marker='x',
-                s=REP_SIZE, linewidths=4, label='Cluster Means'
+                optics_df["Damping"], optics_df["Frequency"],
+                c=point_colors, alpha=POINT_ALPHA,
+                edgecolors='k', linewidths=0.8, s=POINT_SIZE
             )
-        _overlay_reference_modes(ax, reference_modes)
-        ax.axvline(0, color=ACCENT_RED, linestyle='--', alpha=0.35, linewidth=2)
-        ax.set_xlabel("Damping (Sigma) [rad/s]")
-        ax.set_ylabel("Frequency [Hz]")
-        ax.set_title(
-            f"Modal Clustering with OPTICS ($min\\_samples={min_samples}$)\nClusters: {n_clusters} | Noise: {noise_count}",
-            fontweight='bold'
-        )
-        handles = _noise_point_handle()
-        if n_clusters > 0:
-            handles += _cluster_legend_handles(n_clusters, representative_label='Cluster Means')
-        handles += _reference_mode_handles(reference_modes)
-        if handles:
-            ax.legend(handles=handles, loc='upper left')
-        _set_modal_axis_limits(ax, optics_df, reference_modes=reference_modes, representatives=representatives)
-        _apply_axis_style(ax)
-        _save_figure(fig, base_output, f"optics_modal_map_min_samples_{min_samples}")
-        plt.close(fig)
+            if len(representatives) > 0:
+                ax.scatter(
+                    representatives[:, 1], representatives[:, 0],
+                    c=ACCENT_RED, marker='x',
+                    s=REP_SIZE, linewidths=4, label='Cluster Means'
+                )
+            _overlay_reference_modes(ax, reference_modes)
+            ax.axvline(0, color=ACCENT_RED, linestyle='--', alpha=0.35, linewidth=2)
+            ax.set_xlabel("Damping (Sigma) [rad/s]")
+            ax.set_ylabel("Frequency [Hz]")
+            ax.set_title(
+                f"Modal Clustering with OPTICS ($min\\_samples={min_samples}$)\nClusters: {n_clusters} | Noise: {noise_count}",
+                fontweight='bold'
+            )
+            handles = _noise_point_handle()
+            if n_clusters > 0:
+                handles += _cluster_legend_handles(n_clusters, representative_label='Cluster Means')
+            handles += _reference_mode_handles(reference_modes)
+            if handles:
+                fig.legend(
+                    handles=handles,
+                    loc='lower center',
+                    bbox_to_anchor=(0.5, 0.015),
+                    ncol=min(5, len(handles)),
+                )
+            _set_modal_axis_limits(
+                ax,
+                optics_df,
+                reference_modes=reference_modes,
+                representatives=representatives if len(representatives) > 0 else None,
+                include_all_points=True,
+            )
+            _apply_axis_style(ax)
+            fig.subplots_adjust(left=0.11, right=0.97, top=0.88, bottom=0.26)
+            _save_figure(fig, base_output, f"optics_modal_map_min_samples_{min_samples}")
+            plt.close(fig)
 
     metrics_df = pd.DataFrame(metrics_rows)
     if metrics_df.empty:
@@ -1191,18 +1293,19 @@ def run_optics_modal_analysis(results_path, output_path, reference_modes=None, o
     cluster_rows = selected["cluster_stats"]
     pd.DataFrame(cluster_rows).to_csv(os.path.join(base_output, "cluster_representatives_sizes.csv"), index=False)
 
-    fig, ax = plt.subplots(figsize=(10, 6))
-    ax.plot(metrics_df["min_samples"], metrics_df["Clusters"], marker='o', color=LINE_BLUE, linewidth=3, markersize=10, label='Clusters')
-    ax.plot(metrics_df["min_samples"], metrics_df["NoisePoints"], marker='s', color=LINE_GREEN, linewidth=3, markersize=10, label='Noise points')
-    chosen_row = metrics_df[metrics_df["selected"]].iloc[0]
-    ax.scatter(chosen_row["min_samples"], chosen_row["Clusters"], color=ACCENT_RED, s=180, edgecolors='k', zorder=5)
-    ax.set_xlabel("OPTICS min_samples")
-    ax.set_ylabel("Count")
-    ax.set_title("OPTICS Parameter Sweep", fontweight='bold')
-    ax.legend(loc='best')
-    _apply_axis_style(ax)
-    _save_figure(fig, base_output, "optics_parameter_sweep")
-    plt.close(fig)
+    if bool(resolved_optics_settings.get("render_parameter_sweep_plot", True)):
+        fig, ax = plt.subplots(figsize=(10, 6))
+        ax.plot(metrics_df["min_samples"], metrics_df["Clusters"], marker='o', color=LINE_BLUE, linewidth=3, markersize=10, label='Clusters')
+        ax.plot(metrics_df["min_samples"], metrics_df["NoisePoints"], marker='s', color=LINE_GREEN, linewidth=3, markersize=10, label='Noise points')
+        chosen_row = metrics_df[metrics_df["selected"]].iloc[0]
+        ax.scatter(chosen_row["min_samples"], chosen_row["Clusters"], color=ACCENT_RED, s=180, edgecolors='k', zorder=5)
+        ax.set_xlabel("OPTICS min_samples")
+        ax.set_ylabel("Count")
+        ax.set_title("OPTICS Parameter Sweep", fontweight='bold')
+        ax.legend(loc='best')
+        _apply_axis_style(ax)
+        _save_figure(fig, base_output, "optics_parameter_sweep")
+        plt.close(fig)
 
     fig, ax = plt.subplots(figsize=(10, 7))
     point_colors = _label_colors_with_noise(selected["labels"])

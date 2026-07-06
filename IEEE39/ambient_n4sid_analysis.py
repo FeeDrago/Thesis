@@ -197,7 +197,7 @@ def _load_generated_reference_modes(data_dir):
         )
 
     reference_modes = {}
-    for _, row in df.iterrows():
+    for sequential_index, (_, row) in enumerate(df.iterrows(), start=1):
         try:
             mode_index = int(row["ModeIndex"])
             frequency = float(row["FrequencyHz"])
@@ -205,7 +205,7 @@ def _load_generated_reference_modes(data_dir):
         except (TypeError, ValueError):
             continue
 
-        mode_name = f"Mode {mode_index}"
+        mode_name = f"Mode {sequential_index}"
         participating_generators = [
             entry.strip() for entry in str(row.get("ParticipatingGenerators", "")).split(";")
             if entry and entry.strip()
@@ -217,7 +217,8 @@ def _load_generated_reference_modes(data_dir):
         reference_modes[mode_name] = {
             "Frequency": frequency,
             "Damping": damping,
-            "ModeIndex": mode_index,
+            "ModeIndex": sequential_index,
+            "PowerFactoryModeIndex": mode_index,
             "RealPart": None if pd.isna(row.get("RealPart")) else float(row.get("RealPart")),
             "ImagPart": None if pd.isna(row.get("ImagPart")) else float(row.get("ImagPart")),
             "PhiSpeedRatio": None if pd.isna(row.get("PhiSpeedRatio")) else float(row.get("PhiSpeedRatio")),
@@ -502,6 +503,7 @@ def _run_clustering_pipeline(results_path, output_path, reference_modes, methods
         run_kmeans_modal_analysis,
         run_kmedoids_modal_analysis,
         run_optics_modal_analysis,
+        run_silhouette_analysis,
     )
 
     requested_methods = list(methods or [])
@@ -534,6 +536,15 @@ def _run_clustering_pipeline(results_path, output_path, reference_modes, methods
         else:
             runners[method](str(results_path), str(output_path), reference_modes=reference_modes)
         timings[method] = _timing_entry(time.perf_counter() - started)
+
+    silhouette_skipped = True
+    silhouette_elapsed = 0.0
+    if {"kmeans", "kmedoids"}.issubset(set(requested_methods)):
+        silhouette_start = time.perf_counter()
+        run_silhouette_analysis(str(results_path), str(output_path), reference_modes=reference_modes)
+        silhouette_elapsed = time.perf_counter() - silhouette_start
+        silhouette_skipped = False
+    timings["silhouette"] = _timing_entry(silhouette_elapsed, skipped=silhouette_skipped)
 
     timings["total"] = _timing_entry(sum(entry["seconds"] for entry in timings.values()))
     return timings
@@ -858,6 +869,7 @@ def load_existing_ambient_results_for_scenario(name, scenario):
         )
 
     analysis_config = _load_json(config_path)
+    reference_source, reference_modes = _load_reference_modes(scenario["data_dir"])
     sweeps = analysis_config.get("sweeps") or []
     if not sweeps:
         raise SystemExit(
@@ -873,4 +885,17 @@ def load_existing_ambient_results_for_scenario(name, scenario):
 
     analysis_config.setdefault("timings", {})
     analysis_config["timings"]["n4sid"] = _timing_entry(0.0, skipped=True)
+    analysis_config["reference_modes_source"] = reference_source
+    analysis_config["reference_modes"] = reference_modes
+    _save_json(config_path, analysis_config)
+
+    for sweep in sweeps:
+        sweep_config_path = _resolve_path(sweep["output_dir"]) / "analysis_config.json"
+        if not sweep_config_path.exists():
+            continue
+        sweep_config = _load_json(sweep_config_path)
+        sweep_config["reference_modes_source"] = reference_source
+        sweep_config["reference_modes"] = reference_modes
+        _save_json(sweep_config_path, sweep_config)
+
     return base_output_dir, None, pd.DataFrame(), analysis_config
