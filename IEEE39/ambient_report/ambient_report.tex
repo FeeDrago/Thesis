@@ -54,13 +54,14 @@ Ambient Analysis, N4SID, Modal Identification, IEEE 39-Bus System, PowerFactory,
 
 Η μελέτη επικεντρώενται στην παραγωγή modal εκτιμήσεων από προεπεξεργασμένες χρονοσειρές τάσης και ρεύματος ($V$, $I$). Παράλληλα, αξιοποιείται ξεχωριστή modal εξαγωγή από το \textit{PowerFactory}, ώστε να προκύπτουν modes αναφοράς ειδικά για το ίδιο ambient dataset. Με τον τρόπο αυτό, η αξιολόγηση δεν περιορίζεται σε γενικές βιβλιογραφικές τιμές, αλλά συνδέεται με το modal περιεχόμενο του ίδιου του σεναρίου προσομοίωσης.
 
-PLACEHOLDER \cite{digsilent39}
 
-\section{Διαδικασία Παραγωγής Δεδομένων}
- Για την παραγωγή των ambient δεδομένων εκτελέστηκε δυναμική προσομοίωση του \textit{IEEE 39-Bus System} στο περιβάλλον \textit{PowerFactory}. Σε αντίθεση με τα σενάρια \textit{ringdown}, δεν εφαρμόστηκε μία  μεγάλη διαταραχή, αλλά στοχαστική διέγερση σε όλα τα φορτία του συστήματος. Συγκεκριμένα, για κάθε φορτίο παράχθηκαν δύο ανεξάρτητες χρονοσειρές  θορύβου, μία για την ενεργό ισχύ $P$ και μία για την άεργο ισχύ $Q$, οι οποίες προστέθηκαν γύρω από το σημείο λειτουργίας κάθε φορτίου. Το πλάτος των διακυμάνσεων ορίστηκε ίσο με $0.1\%$ της αντίστοιχης βασικής τιμής του φορτίου, ενώ ο παραγόμενος λευκός θόρυβος φιλτραρίστηκε με συχνότητα αποκοπής $5$~Hz, ώστε η διέγερση να παραμένει στην περιοχή ενδιαφέροντος των ηλεκτρομηχανικών ταλαντώσεων. Η συνολική διάρκεια της προσομοίωσης ορίστηκε στα $600$~s, με χρονικό βήμα ολοκλήρωσης $0.01$~s. Τέλος, από την προσομοίωση εξήχθησαν σε μορφή αρχείων CSV οι μεταβλητές τάσης ($V$) και ρεύματος ($I$)  για καθεμία από τις γεννήτριες του συστήματος.
 
-\section{Προεπεξεργασία Σημάτων}
-Πριν την εφαρμογή του αλγορίθμου N4SID, τα πρωτογενή δεδομένα του \textit{PowerFactory} υποβλήθηκαν σε απαραίτητη ψηφιακή επεξεργασία (μέσω της γλώσσας Python), προκειμένου να εξασφαλιστεί η αξιοπιστία της ταυτοποίησης. Τα στάδια της προεπεξεργασίας περιελάμβαναν:
+\section{Παραγωγή Δεδομένων και Ροή Ανάλυσης}
+\subsection{Παραγωγή Ambient Δεδομένων}
+ Για την παραγωγή των ambient δεδομένων εκτελέστηκε δυναμική προσομοίωση του \textit{IEEE 39-Bus System} στο περιβάλλον \textit{PowerFactory}. Συγκεκριμένα εφαρμόστηκε  στοχαστική διέγερση σε όλα τα φορτία του συστήματος. Συγκεκριμένα, για κάθε φορτίο παράχθηκαν δύο ανεξάρτητες χρονοσειρές  θορύβου, μία για την ενεργό ισχύ $P$ και μία για την άεργο ισχύ $Q$, οι οποίες προστέθηκαν γύρω από το σημείο λειτουργίας κάθε φορτίου. Το πλάτος των διακυμάνσεων ορίστηκε ίσο με $0.1\%$ της αντίστοιχης βασικής τιμής του φορτίου, ενώ ο παραγόμενος λευκός θόρυβος φιλτραρίστηκε με συχνότητα αποκοπής $5$~Hz, ώστε η διέγερση να παραμένει στην περιοχή ενδιαφέροντος των ηλεκτρομηχανικών ταλαντώσεων. Η συνολική διάρκεια της προσομοίωσης ορίστηκε στα $600$~s, με χρονικό βήμα ολοκλήρωσης $0.01$~s. Τέλος, από την προσομοίωση εξήχθησαν σε μορφή αρχείων CSV οι μεταβλητές τάσης ($V$) και ρεύματος ($I$)  για καθεμία από τις γεννήτριες του συστήματος.
+
+\subsection{Προεπεξεργασία Σημάτων}
+Πριν την εφαρμογή του αλγορίθμου \textit{N4SID}, τα πρωτογενή δεδομένα του \textit{PowerFactory} υποβλήθηκαν σε απαραίτητη ψηφιακή επεξεργασία (μέσω της γλώσσας Python), προκειμένου να εξασφαλιστεί η αξιοπιστία της ταυτοποίησης. Τα στάδια της προεπεξεργασίας περιελάμβαναν:
 
 \begin{enumerate}
     \item \textbf{Αφαίρεση Γραμμικής Τάσης (\textit{Detrending}):} Αφαιρέθηκε η βέλτιστη γραμμική τάση του σήματος, ώστε να περιοριστεί η επίδραση της μόνιμης συνιστώσας. 
@@ -68,7 +69,7 @@ PLACEHOLDER \cite{digsilent39}
     \item \textbf{Φιλτράρισμα (\textit{Filtering}):} Εφαρμόστηκε βαθυπερατό φίλτρο (\textit{Low-Pass}) με συχνότητα αποκοπής $f_{c} = 2$ Hz για την απομάκρυνση υψίσυχνου θορύβου και συνιστωσών εκτός του πεδίου ενδιαφέροντος.
 \end{enumerate}
 
-\section{Ροή Ανάλυσης Ambient N4SID}
+\subsection{Ροή Ανάλυσης Ambient N4SID}
   Στη συνέχεια, ο \textit{N4SID} εφαρμόζεται επαναληπτικά για διαφορετικές τάξεις μοντέλου. Συγκεκριμένα χρησιμοποιούνται δύο sweeps: το \texttt{orders1}, με τάξεις
   \[
   n \in \{2,4,6,\dots,30\},
@@ -88,7 +89,12 @@ PLACEHOLDER \cite{digsilent39}
 
 Πιο συγκεκριμένα, εξετάστηκαν οι καταστάσεις που αντιστοιχούν στις σύγχρονες γεννήτριες του συστήματος και δόθηκε έμφαση κυρίως σε μεταβλητές που συνδέονται άμεσα με την ηλεκτρομηχανική συμπεριφορά, όπως η γωνία δρομέα ($\delta$) και η ταχύτητα περιστροφής ($\omega$). Σε κάθε εξαγόμενη ιδιοτιμή υπολογίστηκε η συνολική συμμετοχή των αντίστοισχων καταστάσεων, ώστε να ξεχωρίσουν οι ηλεκτρομηχανικοί ρυθμοί.
 
-Τέλος, για κάθε τέτοιο ρυθμό καταγράφηκαν η συχνότητα, η απόσβεση, οι γεννήτριες που εμφανίζουν τη μεγαλύτερη συμμετοχή και οι περιοχές ελέγχου στις οποίες ανήκουν. Τέλος, από το σύνολο αυτό διατηρήθηκαν μόνο εκείνοι με αρνητικό πραγματικό μέρος και με θετικό φανταστικό. Το τελικό αυτό σύνολο χρησιμοποιήθηκε ως σύνολο ιδιοτιμών αναφοράς για την αξιολόγηση των εκτιμήσεων του \textit{N4SID} και των αποτελεσμάτων της συσταδοποίησης και παρουσιάζεται στον Πίνακα~\ref{tab:pf_reference_modes}.
+Για κάθε τέτοιο ρυθμό καταγράφηκαν η συχνότητα, η απόσβεση, οι γεννήτριες που συμμετέχουν και οι περιοχές ελέγχου στις οποίες ανήκουν. Τέλος, από το σύνολο αυτό διατηρήθηκαν μόνο εκείνοι με αρνητικό πραγματικό μέρος και με θετικό φανταστικό. Το τελικό αυτό σύνολο χρησιμοποιήθηκε ως σύνολο ιδιοτιμών αναφοράς για την αξιολόγηση των εκτιμήσεων του \textit{N4SID} και των αποτελεσμάτων της συσταδοποίησης.
+
+
+\section{Αποτελέσματα}
+\subsection{Ιδιοτιμές Αναφοράς}
+Στο Table~\ref{tab:pf_reference_modes} παρουσιάζονται οι ηλεκτρομηχανικοί ρυθμοί αναφοράς που εξήχθησαν από το \textit{PowerFactory}. Το πλήθος των ιδιοτιμών που διατηρήθηκαν βρίσκεται σε πλήρη συμφωνία με τη βιβλιογραφια~\cite{sarkar2024drga} και παρότι οι τιμές δεν ταυτίζονται πλήρως, εμφανίζουν σαφή συμφωνία ως προς τις περιοχές συχνοτήτων.
 
 \begin{table}[htbp]
     \centering
@@ -97,7 +103,7 @@ PLACEHOLDER \cite{digsilent39}
     \scriptsize
     \begin{tabular}{lccccc}
         \toprule
-        \textbf{Mode} & \textbf{$f$ [Hz]} & \textbf{$\sigma$} & \textbf{Generators} \textbf{Areas} & \textbf{Type} \\
+        \textbf{Mode} & \textbf{$f$ [Hz]} & \textbf{$\sigma$} & \textbf{Generators} & \textbf{Areas} & \textbf{Type} \\
         \midrule
         Mode 1  & 1.110 & -0.193 & 10, 8 & 1 & Intra-area\\
         Mode 2 & 0.611 & -0.385 & 1, 5, 6, 9& 1--3 & Inter-area\\
@@ -112,12 +118,258 @@ PLACEHOLDER \cite{digsilent39}
     \end{tabular}
 \end{table}
 
-\section{Βασικά Αποτελέσματα}
+\subsection{Κατανομή Εκτιμήσεων}
+Τα \textit{modal maps} για τα δύο sweeps δίνουν μια συνολική εικόνα της κατανομής των εκτιμώμενων ιδιοτιμών στο επίπεδο $(\sigma, f)$ και παρουσιάζονται στα Figures~\ref{fig:modal_map_orders1} και~\ref{fig:modal_map_orders2}. 
 
-\section{Συσταδοποίηση και Αντιστοίχιση με Modes Αναφοράς}
+Τα δύο sweeps οδηγούν σε παρόμοια συνολική εικόνα, καθώς μεγάλο μέρος των screened εκτιμήσεων συγκεντρώνεται στο εύρος συχνοτήτων όπου βρίσκονται και οι ιδιοτιμές αναφοράς από το \textit{PowerFactory}. Πιο συγκεκριμένα, το \(67.66\%\) των εκτιμήσεων του \texttt{orders1} και το \(65.78\%\) των εκτιμήσεων του \texttt{orders2} ανήκουν στο διάστημα \(0.6{-}1.5\)~Hz, το οποίο περιλαμβάνει το κύριο ηλεκτρομηχανικό περιεχόμενο του συστήματος.
+
+Η συνολική κατανομή παραμένει παρόμοια και για τα δύο sweeps, γεγονός που δείχνει ότι οι βασικοί ρυθμοί αναδεικνύονται με παρόμοιο τρόπο παρά τη διαφορετική επιλογή τάξεων μοντέλου.
+
+Για την οπτική παρουσίαση των modal maps χρησιμοποιείται περιορισμένο εύρος στον άξονα της απόσβεσης, ώστε να αποφεύγεται η συμπίεση του μεγαλύτερου μέρους των εκτιμήσεων από λίγες απομακρυσμένες τιμές με πολύ μεγάλο αρνητικό πραγματικό μέρος. Ο περιορισμός αυτός εφαρμόζεται μόνο για λόγους αναγνωσιμότητας της εικόνας.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\columnwidth]{../analysis/Ambient_Mag0.1_T600s_dt10ms_seed1997/orders1/plots/modal_maps/pdf/system_modal_map.pdf}
+    \caption{Κατανομή των εκτιμώμενων ιδιοτιμών για το sweep \texttt{orders1}.}
+    \label{fig:modal_map_orders1}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\columnwidth]{../analysis/Ambient_Mag0.1_T600s_dt10ms_seed1997/orders2/plots/modal_maps/pdf/system_modal_map.pdf}
+    \caption{Κατανομή των εκτιμώμενων ιδιοτιμών για το sweep \texttt{orders2}.}
+    \label{fig:modal_map_orders2}
+\end{figure}
+
+\subsection{Συσταδοποίηση Εκτιμήσεων}
+Μετά το στάδιο του \textit{data screening}, οι εκτιμήσεις ομαδοποιήθηκαν ανά περιοχή ελέγχου με τις μεθόδους \textit{k-Means}, \textit{k-Medoids} και \textit{OPTICS}. 
+\subsubsection{\textit{k-Means} και \textit{k-Medoids}}
+Για τις μεθόδους \textit{k-Means} και \textit{k-Medoids}, ο αριθμός συστάδων επιλέγεται αρχικά με τη μέθοδο \textit{Elbow}. Ειδικότερα, για κάθε περιοχή ελέγχου η συσταδοποίηση εφαρμόζεται για \(k=1,\ldots,10\) και κατασκευάζεται η αντίστοιχη καμπύλη κόστους. Στον \textit{k-Means} το κόστος είναι το \textit{WCSS} (\textit{Within-Cluster Sum of Squares}), ενώ στον \textit{k-Medoids} χρησιμοποιείται το συνολικό άθροισμα αποστάσεων από τα \textit{medoids}. Για τον αυτόματο εντοπισμό του σημείου καμπής εφαρμόζεται η τεχνική \textit{Maximum Chord Distance}: υπολογίζεται η απόσταση κάθε σημείου της καμπύλης από την ευθεία που ενώνει το πρώτο και το τελευταίο σημείο, και ως προτεινόμενο \(k\) επιλέγεται εκείνο με τη μέγιστη απόσταση.
+
+Τα αποτελέσματα του \textit{Elbow} είναι αρκετά σταθερά σε όλη την ανάλυση. Ο \textit{k-Medoids} δίνει \(k=3\) για όλες τις περιοχές ελέγχου και στα δύο sweeps, ενώ ο \textit{k-Means} δίνει επίσης \(k=3\) σε όλες τις περιπτώσεις εκτός από την περιοχή~3 στο \texttt{orders1}, όπου η καμπή της καμπύλης εμφανίζεται στο \(k=4\). Η συμπεριφορά αυτή φαίνεται ενδεικτικά στα Figures~\ref{fig:kmeans_elbow_area1_orders1} και~\ref{fig:kmedoids_elbow_area1_orders1} για την περιοχή~1 του \texttt{orders1}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{../analysis/Ambient_Mag0.1_T600s_dt10ms_seed1997/orders1/clustering/by_control_area/area_1/kmeans/pdf/elbow_selected_kmeans.pdf}
+    \caption{Διάγραμμα \textit{Elbow} του αλγορίθμου \textit{k-Means} για την περιοχή ελέγχου~1 στο sweep \texttt{orders1}.}
+    \label{fig:kmeans_elbow_area1_orders1}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{../analysis/Ambient_Mag0.1_T600s_dt10ms_seed1997/orders1/clustering/by_control_area/area_1/kmedoids/pdf/elbow_selected_kmedoids.pdf}
+    \caption{Διάγραμμα \textit{Elbow} του αλγορίθμου \textit{k-Medoids} για την περιοχή ελέγχου~1 στο sweep \texttt{orders1}.}
+    \label{fig:kmedoids_elbow_area1_orders1}
+\end{figure}
+
+Για να ελεγχθεί η συνέπεια των εκτιμήσεων μεταξύ των δύο sweeps, στα Figures~\ref{fig:kmeans_area1_orders1_k3} και~\ref{fig:kmeans_area1_orders2_k3} παρουσιάζονται τα αντίστοιχοι modal maps του \textit{k-Means} στην περιοχή ελέγχου~1, όπου και στα δύο σύνολα τάξεων επιλέγεται \(k=3\). Οι τρεις συστάδες αντιστοιχούν στις κύριες συγκεντρώσεις των ambient εκτιμήσεων της περιοχής και εμφανίζουν πολύ παρόμοια γεωμετρία στα δύο sweeps: μία χαμηλότερη περιοχή γύρω από \(0.6\)~Hz, μία δεύτερη γύρω από \(1.2\)--\(1.3\)~Hz, και ένα πολύ μικρό outlier cluster με σημαντικά πιο αρνητικό πραγματικό μέρος. 
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{../analysis/Ambient_Mag0.1_T600s_dt10ms_seed1997/orders1/clustering/by_control_area/area_1/kmeans/pdf/kmeans_modal_map_k3.pdf}
+    \caption{Χάρτης ιδιοτιμών του αλγορίθμου \textit{k-Means} για \(k=3\) στην περιοχή ελέγχου~1 στο sweep \texttt{orders1}.}
+    \label{fig:kmeans_area1_orders1_k3}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{../analysis/Ambient_Mag0.1_T600s_dt10ms_seed1997/orders2/clustering/by_control_area/area_1/kmeans/pdf/kmeans_modal_map_k3.pdf}
+    \caption{Χάρτης ιδιοτιμών του αλγορίθμου \textit{k-Means} για \(k=3\) στην περιοχή ελέγχου~1 στο sweep \texttt{orders2}.}
+    \label{fig:kmeans_area1_orders2_k3}
+\end{figure}
+
+Η μοναδική περίπτωση όπου ο \textit{k-Means} οδηγεί σε \(k=4\) είναι η περιοχή~3 του \texttt{orders1}. Η σύγκριση των Figures~\ref{fig:kmeans_k3_area3_orders1} και~\ref{fig:kmeans_k4_area3_orders1} δείχνει ότι στο \(k=4\) δεν εμφανίζεται ένας νέος κυρίαρχος ρυθμός, αλλά μία περαιτέρω διάσπαση που απομονώνει ακραίες εκτιμήσεις και δημιουργεί ένα επιπλέον centroid κοντά στην περιοχή του \(1\)~Hz.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{../analysis/Ambient_Mag0.1_T600s_dt10ms_seed1997/orders1/clustering/by_control_area/area_3/kmeans/pdf/kmeans_modal_map_k3.pdf}
+    \caption{Χάρτης ιδιοτιμών του αλγορίθμου \textit{k-Means} για \(k=3\) στην περιοχή ελέγχου~3 στο sweep \texttt{orders1}.}
+    \label{fig:kmeans_k3_area3_orders1}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{../analysis/Ambient_Mag0.1_T600s_dt10ms_seed1997/orders1/clustering/by_control_area/area_3/kmeans/pdf/kmeans_modal_map_k4.pdf}
+    \caption{Χάρτης ιδιοτιμών του αλγορίθμου \textit{k-Means} για \(k=4\) στην περιοχή ελέγχου~3 στο sweep \texttt{orders1}.}
+    \label{fig:kmeans_k4_area3_orders1}
+\end{figure}
+
+Ως συμπληρωματικό κριτήριο αξιολόγησης υπολογίστηκε και ο δείκτης \textit{Silhouette}, ο οποίος μετρά πόσο συνεκτική είναι κάθε συστάδα και πόσο καλά διαχωρίζεται από τις γειτονικές της. Τα αποτελέσματα δείχνουν ότι η μέθοδος \textit{Silhouette} δεν επιβεβαιώνει πάντα τις επιλογές του \textit{Elbow} και οι συνοπτικές τιμές εμφανίζονται στον Πίνακα~\ref{tab:silhouette_summary_ambient}.
+
+% \begin{figure}[H]
+%     \centering
+%     \includegraphics[width=\linewidth]{../analysis/Ambient_Mag0.1_T600s_dt10ms_seed1997/orders1/clustering/by_control_area/area_1/silhouette/pdf/silhouette_scores_comparison.pdf}
+%     \caption{Σύγκριση των μέσων \textit{Silhouette Scores} για τους αλγορίθμους \textit{k-Means} και \textit{k-Medoids} στην περιοχή ελέγχου~1 του sweep \texttt{orders1}.}
+%     \label{fig:silhouette_area1_orders1}
+% \end{figure}
+
+\begin{table}[!t]
+\centering
+\caption{\textsc{Σύγκριση των βέλτιστων τιμών \(k\) από τα κριτήρια \textit{Elbow} και \textit{Silhouette} για όλες τις περιοχές και τα δύο sweeps.}}
+\label{tab:silhouette_summary_ambient}
+\footnotesize
+\renewcommand{\arraystretch}{1.2}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lcccl}
+\toprule
+\textbf{Area} & \multicolumn{2}{c}{\textbf{\textit{k-Means}}} & \multicolumn{2}{c}{\textbf{\textit{k-Medoids}}} \\
+\cmidrule(lr){2-3} \cmidrule(l){4-5}
+ & \textbf{Elbow} & \textbf{Silhouette} & \textbf{Elbow} & \textbf{Silhouette} \\
+\midrule
+Area 1 (\texttt{orders1}) & 3 & 2 $(0.950)$ & 3 & 2 $(0.503)$ \\
+Area 2 (\texttt{orders1}) & 3 & 4 $(0.574)$ & 3 & 2 $(0.535)$ \\
+Area 3 (\texttt{orders1}) & 4 & 4 $(0.612)$ & 3 & 2 $(0.573)$ \\
+Area 1 (\texttt{orders2}) & 3 & 3 $(0.487)$ & 3 & 2 $(0.475)$ \\
+Area 2 (\texttt{orders2}) & 3 & 2 $(0.929)$ & 3 & 2 $(0.531)$ \\
+Area 3 (\texttt{orders2}) & 3 & 4 $(0.594)$ & 3 & 2 $(0.554)$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Τέλος, η ποιότητα των τελικών εκτιμήσεων αξιολογήθηκε και μέσω του δείκτη \textit{MAD} (\textit{Median Absolute Deviation}) ως προς τις ιδιοτιμές αναφοράς του \textit{PowerFactory}. Για κάθε mode αναφοράς, ο δείκτης αυτός εκφράζει τη διάμεση απόσταση των αντιστοιχισμένων εκτιμήσεων από τη θέση της αντίστοιχης ιδιοτιμής στο επίπεδο \((f,\sigma)\). Επομένως, μικρότερες τιμές \textit{MAD} αντιστοιχούν σε πιο συμπαγή συγκέντρωση εκτιμήσεων γύρω από το reference mode, ενώ μεγαλύτερες τιμές δείχνουν μεγαλύτερη διασπορά ή ασθενέστερη/λιγότερο σταθερή αντιστοίχιση. Οι αναλυτικές τιμές παρουσιάζονται στους Πίνακες~\ref{tab:mad_summary_ambient_orders1} και~\ref{tab:mad_summary_ambient_orders2} για τα sweeps \texttt{orders1} και \texttt{orders2}, αντίστοιχα.
+
+\begin{table}[!t]
+\centering
+\caption{\textsc{Συνοπτικά αποτελέσματα του δείκτη \textit{MAD} για το ambient sweep \texttt{orders1}.}}
+\label{tab:mad_summary_ambient_orders1}
+\small
+\renewcommand{\arraystretch}{1.2}
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{lccccc}
+\toprule
+\textbf{Mode} & \textbf{$f$ [Hz]} & \textbf{Count} & \textbf{MAD} & \textbf{Mean} & \textbf{Max} \\
+\midrule
+Mode 1 & 1.1099 & 942  & 0.2258 & 0.2637 & 0.7243 \\
+Mode 2 & 0.6113 & 1632 & 0.3542 & 0.3588 & 1.1394 \\
+Mode 3 & 1.0491 & 1898 & 0.3941 & 0.4502 & 0.9601 \\
+Mode 4 & 0.9678 & 6    & 0.1868 & 0.4139 & 0.9304 \\
+Mode 5 & 1.1964 & 148  & 0.4791 & 0.5277 & 3.7757 \\
+Mode 6 & 1.1873 & 12   & 0.3677 & 0.3105 & 0.4181 \\
+Mode 7 & 1.4228 & 64   & 0.7029 & 0.6733 & 0.7684 \\
+Mode 8 & 1.4098 & 20   & 0.3683 & 0.8649 & 5.3164 \\
+Mode 9 & 1.4506 & 12   & 0.4876 & 0.9043 & 2.9341 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[!t]
+\centering
+\caption{\textsc{Συνοπτικά αποτελέσματα του δείκτη \textit{MAD} για το ambient sweep \texttt{orders2}.}}
+\label{tab:mad_summary_ambient_orders2}
+\small
+\renewcommand{\arraystretch}{1.2}
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{lccccc}
+\toprule
+\textbf{Mode} & \textbf{$f$ [Hz]} & \textbf{Count} & \textbf{MAD} & \textbf{Mean} & \textbf{Max} \\
+\midrule
+Mode 1 & 1.1099 & 930  & 0.2487 & 0.2858 & 0.7559 \\
+Mode 2 & 0.6113 & 1388 & 0.3602 & 0.3695 & 0.5841 \\
+Mode 3 & 1.0491 & 1688 & 0.3999 & 0.4536 & 0.9606 \\
+Mode 4 & 0.9678 & 0    & --     & --     & --     \\
+Mode 5 & 1.1964 & 170  & 0.5009 & 0.5549 & 3.7757 \\
+Mode 6 & 1.1873 & 6    & 0.1707 & 0.2260 & 0.3755 \\
+Mode 7 & 1.4228 & 86   & 0.6939 & 0.6683 & 0.7942 \\
+Mode 8 & 1.4098 & 10   & 0.6509 & 0.8623 & 2.0972 \\
+Mode 9 & 1.4506 & 10   & 0.7052 & 1.1880 & 2.9341 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection{\textit{OPTICS}}
+Σε αντίθεση με τις μεθόδους \textit{k-Means} και \textit{k-Medoids}, ο \textit{OPTICS} δεν απαιτεί προκαθορισμένο αριθμό clusters, αλλά βασίζεται άμεσα στη δομή πυκνότητας των δεδομένων. Για να περιοριστεί ο πολύ μεγάλος αριθμός σχεδόν ταυτόσημων ambient εκτιμήσεων από διαδοχικές τάξεις μοντέλου, προηγείται στάδιο προ-συγχώνευσης (\textit{pre-merge}) στο κανονικοποιημένο επίπεδο \((f,\sigma)\). Η διαδικασία εφαρμόζεται ξεχωριστά μέσα σε κάθε ομάδα Γεννήτριας--Σήματος και συνδέει σημεία που:
+\begin{enumerate}
+\item[(α)] ανήκουν σε διαφορετικές τάξεις μοντέλου και
+\item[(β)] απέχουν λιγότερο από (0.2) στο τυποποιημένο επίπεδο.
+\end{enumerate}
+Το τελικό συγχωνευμένο σημείο τοποθετείται ακριβώς στον αριθμητικό μέσο όρο της συχνότητας και του damping όλων των μελών. Αν δεν ικανοποιούνται τα παραπάνω κριτήρια, το σημείο διατηρείται ως έχει.
+
+Το τελικό συγχωνευμένο σημείο τοποθετείται ακριβώς στον αριθμητικό μέσο όρο της συχνότητας και του damping όλων των μελών. Αν δεν ικανοποιούνται τα παραπάνω κριτήρια, το σημείο διατηρείται ως έχει.
+
+Η επίδραση αυτού του βήματος είναι ιδιαίτερα έντονη και συνοψίζεται στον Πίνακα~\ref{tab:optics_merge_summary_ambient}. Σε όλες τις περιοχές, το πλήθος των σημείων εισόδου μειώνεται δραστικά πριν από την εκτέλεση του \textit{OPTICS}, κυρίως επειδή πολλές σχεδόν διπλότυπες εκτιμήσεις από διαφορετικές τάξεις αντικαθίστανται από ένα κοινό αντιπροσωπευτικό σημείο.
+
+\begin{table}[!t]
+\centering
+\caption{\textsc{Μείωση του πλήθους των ambient εκτιμήσεων μετά το στάδιο προ-συγχώνευσης για τον \textit{OPTICS}.}}
+\label{tab:optics_merge_summary_ambient}
+\footnotesize
+\renewcommand{\arraystretch}{1.2}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Sweep/Area} & \textbf{Raw} & \textbf{Merged} & \textbf{Reduction} & \textbf{Ratio} \\
+\midrule
+\texttt{orders1} / Area 1 & 1860 & 174 & 1686 & 90.6\% \\
+\texttt{orders1} / Area 2 & 960  & 118 & 842  & 87.7\% \\
+\texttt{orders1} / Area 3 & 1914 & 182 & 1732 & 90.5\% \\
+\texttt{orders2} / Area 1 & 1696 & 229 & 1467 & 86.5\% \\
+\texttt{orders2} / Area 2 & 864  & 74  & 790  & 91.4\% \\
+\texttt{orders2} / Area 3 & 1728 & 172 & 1556 & 90.0\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Ο \textit{OPTICS} εκτελείται έπειτα για \(min\_samples=5,\ldots,20\). Η παράμετρος \(min\_samples\) εκφράζει το ελάχιστο πλήθος γειτονικών σημείων που απαιτείται ώστε μία περιοχή να θεωρηθεί επαρκώς πυκνή. Μικρές τιμές τείνουν να παράγουν περισσότερες και μικρότερες συστάδες, ενώ μεγαλύτερες τιμές οδηγούν σε πιο συντηρητική ομαδοποίηση και σε περισσότερα σημεία θορύβου. Για κάθε τιμή του \(min\_samples\) υπολογίζονται το πλήθος των clusters, το πλήθος σημείων θορύβου, το ποσοστό ανατεθειμένων σημείων (\textit{Assigned Ratio}) και ο λόγος πλήθος clusters προς \textit{Assigned Points}.
+
+Η τελική επιλογή του \(min\_samples\) γίνεται ιεραρχικά ως εξής:
+\begin{enumerate}
+    \item Διατηρούνται αρχικά μόνο οι λύσεις με \textit{Assigned Ratio} τουλάχιστον \(50\%\).
+    \item Μεταξύ αυτών επιλέγεται η λύση με τον μικρότερο λόγο πλήθος clusters προς \textit{Assigned Points}, ώστε να προκύπτουν λιγότερο κατακερματισμένες συστάδες.
+    \item Σε περίπτωση ισοπαλίας προτιμάται διαδοχικά η λύση με λιγότερα clusters, έπειτα με λιγότερα σημεία θορύβου, και τέλος με μεγαλύτερη τιμή \(min\_samples\).
+\end{enumerate}
+
+Αν δεν υπάρχει λύση με \textit{Assigned Ratio} τουλάχιστον \(50\%\), η επιλογή γίνεται από όλες τις δοκιμασμένες τιμές με το ίδιο κριτήριο. Οι επιλεγμένες λύσεις συνοψίζονται στον Πίνακα~\ref{tab:optics_selected_summary_ambient}. 
+
+\begin{table}[!t]
+\centering
+\caption{\textsc{Επιλεγμένες λύσεις του \textit{OPTICS} ανά sweep και περιοχή ελέγχου.}}
+\label{tab:optics_selected_summary_ambient}
+\footnotesize
+\renewcommand{\arraystretch}{1.2}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Sweep/Area} & \textbf{$min\_samples$} & \textbf{Clusters} & \textbf{Assigned} & \textbf{Noise} \\
+\midrule
+\texttt{orders1} / Area 1 & 20 & 2 & 68.97\% & 54 \\
+\texttt{orders1} / Area 2 & 19 & 3 & 77.97\% & 26 \\
+\texttt{orders1} / Area 3 & 19 & 2 & 51.10\% & 89 \\
+\texttt{orders2} / Area 1 & 9  & 9 & 52.84\% & 108 \\
+\texttt{orders2} / Area 2 & 18 & 2 & 78.38\% & 16 \\
+\texttt{orders2} / Area 3 & 20 & 2 & 54.65\% & 78 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Χαρακτηριστικό παράδειγμα δίνεται στα Figures~\ref{fig:optics_area2_orders1} και~\ref{fig:optics_area2_orders2} για την περιοχή ελέγχου~2. Και στα δύο sweeps οι κυρίαρχες συγκεντρώσεις εκτιμήσεων παραμένουν στις ίδιες περίπου περιοχές του επιπέδου \((f,\sigma)\), ωστόσο το \texttt{orders2} οδηγεί σε ομαδοποίηση με δύο συστάδες αντί για τρεις.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\columnwidth]{../analysis/Ambient_Mag0.1_T600s_dt10ms_seed1997/orders1/clustering/by_control_area/area_2/optics/pdf/optics_selected_cluster_map.pdf}
+    \caption{Χάρτης ιδιοτιμών του \textit{OPTICS} για την περιοχή ελέγχου~2 στο sweep \texttt{orders1}.}
+    \label{fig:optics_area2_orders1}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\columnwidth]{../analysis/Ambient_Mag0.1_T600s_dt10ms_seed1997/orders2/clustering/by_control_area/area_2/optics/pdf/optics_selected_cluster_map.pdf}
+    \caption{Χάρτης ιδιοτιμών του \textit{OPTICS} για την περιοχή ελέγχου~2 στο sweep \texttt{orders2}.}
+    \label{fig:optics_area2_orders2}
+\end{figure}
+
+Συνολικά, ο \textit{OPTICS} προσφέρει μία πιο ευέλικτη περιγραφή των εκτιμήσεων, ιδιαίτερα όταν υπάρχουν μεμονωμένα απομακρυσμένα σημεία. Σε αντίθεση με τις centroid-based μεθόδους, μπορεί να αφήσει τέτοια σημεία εκτός cluster και να τα χαρακτηρίσει ως θόρυβο, αντί να τα ενσωματώσει αναγκαστικά σε κάποια συστάδα. Για τον λόγο αυτό, η ποιότητα του τελικού αποτελέσματος εξαρτάται κυρίως από το στάδιο προ-συγχώνευσης και από την επιλογή του \(min\_samples\), δηλαδή από το πόσο σωστά μετατρέπεται το αρχικό πυκνό σύνολο N4SID εκτιμήσεων σε κατάλληλη είσοδο για density-based clustering.
+
+
+
 
 
 \section{Συμπεράσματα}
+
+Η παρούσα ambient ανάλυση στο \textit{IEEE 39-Bus System} έδειξε ότι η εφαρμογή του \textit{N4SID} σε κατάλληλα προεπεξεργασμένες χρονοσειρές μπορεί να παράγει μεγάλο πλήθος modal εκτιμήσεων με σαφές ηλεκτρομηχανικό περιεχόμενο. Οι ιδιοτιμές αναφοράς που εξήχθησαν από το \textit{PowerFactory} τοποθετούνται στις ίδιες βασικές περιοχές συχνοτήτων με εκείνες που αναμένονται από τη βιβλιογραφία.
+
+Η σύγκριση των δύο sweeps τάξεων μοντέλου έδειξε ότι τόσο το \texttt{orders1} όσο και το \texttt{orders2} οδηγούν σε παρόμοια συνολική modal εικόνα, με το μεγαλύτερο μέρος των εκτιμήσεων να συγκεντρώνεται στο εύρος συχνοτήτων των ιδιοτιμών αναφοράς.
+
+Ως προς το clustering, οι \textit{k-Means} και \textit{k-Medoids} προσφέρουν μία πιο άμεση και ελεγχόμενη ομαδοποίηση, ιδίως όταν ο αριθμός clusters υποστηρίζεται από τα διαγράμματα \textit{elbow} και τους δείκτες \textit{silhouette}. Ο \textit{OPTICS}, από την άλλη, αποδείχθηκε χρήσιμος όταν οι εκτιμήσεις εμφανίζουν ανομοιόμορφες πυκνότητες και απομακρυσμένα σημεία, αρκεί να προηγηθεί κατάλληλο στάδιο προ-συγχώνευσης. Συνολικά, το ambient workflow παρέχει μία συνεπή διαδικασία για την εξαγωγή, ομαδοποίηση και ερμηνεία ηλεκτρομηχανικών ρυθμών στο \textit{IEEE 39-Bus System}.
 
 \FloatBarrier
 \bibliographystyle{ieeetr}
