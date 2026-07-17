@@ -223,9 +223,6 @@ test.txt
 *.fdb_latexmk
 *.xdv
 
-# IEEE39 generated data and analysis outputs
-# Results are generated artifacts and stay local.
-IEEE39/results/
 
 # Analysis outputs are generated artifacts and stay local.
 IEEE39/analysis/
@@ -247,7 +244,6 @@ PreliminaryInvestigation/validation/validation_outputs/
 PreliminaryInvestigation/validation/validation_outputs_legacy/
 
 PreliminaryInvestigation/summary_modes_report.txt
-Results
 Literature
 .codex_tmp
 n4sid matlab

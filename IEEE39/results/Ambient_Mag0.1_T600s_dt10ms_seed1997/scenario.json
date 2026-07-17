@@ -1,0 +1,248 @@
+{
+  "scenario_name": "Ambient_Mag0.1_T600s_dt10ms_seed1997",
+  "disturbance_type": "ambient",
+  "project_name": "39 Bus New England System TEST",
+  "study_case_name": "RMS mine",
+  "grid_name": null,
+  "sim_stop_time_s": 600.0,
+  "sim_step_ms": 10.0,
+  "csv_headers": [
+    "b:tnow in s",
+    "s:ut in p.u.",
+    "s:cur1 in p.u."
+  ],
+  "generator_names_setting": null,
+  "ambient_seed_effective": 1997,
+  "ambient_settings": {
+    "magnitude_percent": 0.1,
+    "low_pass_hz": 5.0,
+    "random_seed": 1997,
+    "export_modal_csvs": true
+  },
+  "ambient_load_profiles": [
+    {
+      "load_name": "Load 23",
+      "file": "results/Ambient_Mag0.1_T600s_dt10ms_seed1997/ambient_load_profiles/Load_23.txt",
+      "samples": 60003,
+      "base_p_mw": 247.5,
+      "base_q_mvar": 84.5999984741211
+    },
+    {
+      "load_name": "Load 29",
+      "file": "results/Ambient_Mag0.1_T600s_dt10ms_seed1997/ambient_load_profiles/Load_29.txt",
+      "samples": 60003,
+      "base_p_mw": 283.5,
+      "base_q_mvar": 26.899999618530273
+    },
+    {
+      "load_name": "Load 28",
+      "file": "results/Ambient_Mag0.1_T600s_dt10ms_seed1997/ambient_load_profiles/Load_28.txt",
+      "samples": 60003,
+      "base_p_mw": 206.0,
+      "base_q_mvar": 27.600000381469727
+    },
+    {
+      "load_name": "Load 27",
+      "file": "results/Ambient_Mag0.1_T600s_dt10ms_seed1997/ambient_load_profiles/Load_27.txt",
+      "samples": 60003,
+      "base_p_mw": 281.0,
+      "base_q_mvar": 75.5
+    },
+    {
+      "load_name": "Load 26",
+      "file": "results/Ambient_Mag0.1_T600s_dt10ms_seed1997/ambient_load_profiles/Load_26.txt",
+      "samples": 60003,
+      "base_p_mw": 139.0,
+      "base_q_mvar": 17.0
+    },
+    {
+      "load_name": "Load 25",
+      "file": "results/Ambient_Mag0.1_T600s_dt10ms_seed1997/ambient_load_profiles/Load_25.txt",
+      "samples": 60003,
+      "base_p_mw": 224.0,
+      "base_q_mvar": 47.20000076293945
+    },
+    {
+      "load_name": "Load 18",
+      "file": "results/Ambient_Mag0.1_T600s_dt10ms_seed1997/ambient_load_profiles/Load_18.txt",
+      "samples": 60003,
+      "base_p_mw": 158.0,
+      "base_q_mvar": 30.0
+    },
+    {
+      "load_name": "Load 03",
+      "file": "results/Ambient_Mag0.1_T600s_dt10ms_seed1997/ambient_load_profiles/Load_03.txt",
+      "samples": 60003,
+      "base_p_mw": 322.0,
+      "base_q_mvar": 2.4000000953674316
+    },
+    {
+      "load_name": "Load 04",
+      "file": "results/Ambient_Mag0.1_T600s_dt10ms_seed1997/ambient_load_profiles/Load_04.txt",
+      "samples": 60003,
+      "base_p_mw": 500.0,
+      "base_q_mvar": 184.0
+    },
+    {
+      "load_name": "Load 39",
+      "file": "results/Ambient_Mag0.1_T600s_dt10ms_seed1997/ambient_load_profiles/Load_39.txt",
+      "samples": 60003,
+      "base_p_mw": 1104.0,
+      "base_q_mvar": 250.0
+    },
+    {
+      "load_name": "Load 07",
+      "file": "results/Ambient_Mag0.1_T600s_dt10ms_seed1997/ambient_load_profiles/Load_07.txt",
+      "samples": 60003,
+      "base_p_mw": 233.8000030517578,
+      "base_q_mvar": 84.0
+    },
+    {
+      "load_name": "Load 08",
+      "file": "results/Ambient_Mag0.1_T600s_dt10ms_seed1997/ambient_load_profiles/Load_08.txt",
+      "samples": 60003,
+      "base_p_mw": 522.0,
+      "base_q_mvar": 176.0
+    },
+    {
+      "load_name": "Load 31",
+      "file": "results/Ambient_Mag0.1_T600s_dt10ms_seed1997/ambient_load_profiles/Load_31.txt",
+      "samples": 60003,
+      "base_p_mw": 9.199999809265137,
+      "base_q_mvar": 4.599999904632568
+    },
+    {
+      "load_name": "Load 12",
+      "file": "results/Ambient_Mag0.1_T600s_dt10ms_seed1997/ambient_load_profiles/Load_12.txt",
+      "samples": 60003,
+      "base_p_mw": 7.5,
+      "base_q_mvar": 88.0
+    },
+    {
+      "load_name": "Load 20",
+      "file": "results/Ambient_Mag0.1_T600s_dt10ms_seed1997/ambient_load_profiles/Load_20.txt",
+      "samples": 60003,
+      "base_p_mw": 628.0,
+      "base_q_mvar": 103.0
+    },
+    {
+      "load_name": "Load 21",
+      "file": "results/Ambient_Mag0.1_T600s_dt10ms_seed1997/ambient_load_profiles/Load_21.txt",
+      "samples": 60003,
+      "base_p_mw": 274.0,
+      "base_q_mvar": 115.0
+    },
+    {
+      "load_name": "Load 16",
+      "file": "results/Ambient_Mag0.1_T600s_dt10ms_seed1997/ambient_load_profiles/Load_16.txt",
+      "samples": 60003,
+      "base_p_mw": 329.0,
+      "base_q_mvar": 32.29999923706055
+    },
+    {
+      "load_name": "Load 24",
+      "file": "results/Ambient_Mag0.1_T600s_dt10ms_seed1997/ambient_load_profiles/Load_24.txt",
+      "samples": 60003,
+      "base_p_mw": 308.6000061035156,
+      "base_q_mvar": -92.19999694824219
+    },
+    {
+      "load_name": "Load 15",
+      "file": "results/Ambient_Mag0.1_T600s_dt10ms_seed1997/ambient_load_profiles/Load_15.txt",
+      "samples": 60003,
+      "base_p_mw": 320.0,
+      "base_q_mvar": 153.0
+    }
+  ],
+  "generators": [
+    "G 01",
+    "G 02",
+    "G 03",
+    "G 04",
+    "G 05",
+    "G 06",
+    "G 07",
+    "G 08",
+    "G 09",
+    "G 10"
+  ],
+  "csv_files": [
+    {
+      "generator": "G 01",
+      "file": "results/Ambient_Mag0.1_T600s_dt10ms_seed1997/g1.csv",
+      "rows": 60001
+    },
+    {
+      "generator": "G 02",
+      "file": "results/Ambient_Mag0.1_T600s_dt10ms_seed1997/g2.csv",
+      "rows": 60001
+    },
+    {
+      "generator": "G 03",
+      "file": "results/Ambient_Mag0.1_T600s_dt10ms_seed1997/g3.csv",
+      "rows": 60001
+    },
+    {
+      "generator": "G 04",
+      "file": "results/Ambient_Mag0.1_T600s_dt10ms_seed1997/g4.csv",
+      "rows": 60001
+    },
+    {
+      "generator": "G 05",
+      "file": "results/Ambient_Mag0.1_T600s_dt10ms_seed1997/g5.csv",
+      "rows": 60001
+    },
+    {
+      "generator": "G 06",
+      "file": "results/Ambient_Mag0.1_T600s_dt10ms_seed1997/g6.csv",
+      "rows": 60001
+    },
+    {
+      "generator": "G 07",
+      "file": "results/Ambient_Mag0.1_T600s_dt10ms_seed1997/g7.csv",
+      "rows": 60001
+    },
+    {
+      "generator": "G 08",
+      "file": "results/Ambient_Mag0.1_T600s_dt10ms_seed1997/g8.csv",
+      "rows": 60001
+    },
+    {
+      "generator": "G 09",
+      "file": "results/Ambient_Mag0.1_T600s_dt10ms_seed1997/g9.csv",
+      "rows": 60001
+    },
+    {
+      "generator": "G 10",
+      "file": "results/Ambient_Mag0.1_T600s_dt10ms_seed1997/g10.csv",
+      "rows": 60001
+    }
+  ],
+  "modal_analysis_csvs": [
+    {
+      "name": "eigenvalues.csv",
+      "file": "results/Ambient_Mag0.1_T600s_dt10ms_seed1997/modal/eigenvalues.csv"
+    },
+    {
+      "name": "participation_factors.csv",
+      "file": "results/Ambient_Mag0.1_T600s_dt10ms_seed1997/modal/participation_factors.csv"
+    },
+    {
+      "name": "state_index.csv",
+      "file": "results/Ambient_Mag0.1_T600s_dt10ms_seed1997/modal/state_index.csv"
+    },
+    {
+      "name": "electromechanical_modes.csv",
+      "file": "results/Ambient_Mag0.1_T600s_dt10ms_seed1997/modal/electromechanical_modes.csv"
+    },
+    {
+      "name": "electromechanical_modes_stable_oscillatory.csv",
+      "file": "results/Ambient_Mag0.1_T600s_dt10ms_seed1997/modal/electromechanical_modes_stable_oscillatory.csv"
+    },
+    {
+      "name": "electromechanical_mode_generator_participation.csv",
+      "file": "results/Ambient_Mag0.1_T600s_dt10ms_seed1997/modal/electromechanical_mode_generator_participation.csv"
+    }
+  ],
+  "status": "OK"
+}
