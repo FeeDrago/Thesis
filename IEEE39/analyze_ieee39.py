@@ -83,9 +83,8 @@ def build_arg_parser():
     parser.add_argument("--taus", nargs="+", type=float, default=None, help="Override the tau values used for adaptive order selection. Default: 1 0.1 0.01.")
     parser.add_argument("--n4sid-orders", nargs="+", type=int, default=None, help="Ambient N4SID model orders. Default: built-in ambient order sweep.")
     parser.add_argument("--ambient-downsample-hz", type=float, default=None, help="Ambient preprocessing downsample rate in Hz. Default: 5.")
-    parser.add_argument("--ambient-lpf-hz", type=float, default=None, help="Ambient preprocessing low-pass cutoff in Hz. Default: 2.")
     parser.add_argument("--ambient-no-detrend", action="store_true", help="Disable ambient detrending. Default ambient preprocessing detrends first.")
-    parser.add_argument("--clustering-methods", nargs="+", choices=["kmeans", "kmedoids", "optics"], default=None, help="Ambient clustering methods. Default: kmeans kmedoids optics.")
+    parser.add_argument("--clustering-methods", nargs="+", choices=["kmeans", "kmedoids", "optics", "dbscan"], default=None, help="Ambient clustering methods. Default: kmeans kmedoids optics dbscan.")
     return parser
 
 
@@ -800,11 +799,12 @@ def _run_clustering_pipeline(results_path, output_path, reference_modes=None, me
         _save_reference_mad_outputs,
         run_kmeans_modal_analysis,
         run_kmedoids_modal_analysis,
+        run_dbscan_modal_analysis,
         run_silhouette_analysis,
     )
 
     pipeline_start = time.perf_counter()
-    requested_methods = list(methods or ["kmeans", "kmedoids"])
+    requested_methods = list(methods or ["kmeans", "kmedoids", "dbscan"])
 
     screen_start = time.perf_counter()
     df_for_mad = _load_screened_data(str(results_path), str(output_path))
@@ -823,6 +823,7 @@ def _run_clustering_pipeline(results_path, output_path, reference_modes=None, me
     runners = {
         "kmeans": run_kmeans_modal_analysis,
         "kmedoids": run_kmedoids_modal_analysis,
+        "dbscan": run_dbscan_modal_analysis,
     }
     for method in requested_methods:
         method_start = time.perf_counter()

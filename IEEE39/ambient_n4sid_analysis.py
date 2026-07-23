@@ -26,13 +26,20 @@ AMBIENT_DEFAULT_ORDER_GROUPS = [
 ]
 AMBIENT_DEFAULT_DOWNSAMPLE_HZ = 5.0
 AMBIENT_DEFAULT_DETREND = True
-AMBIENT_DEFAULT_CLUSTERING_METHODS = ["kmeans", "kmedoids", "optics"]
+AMBIENT_DEFAULT_CLUSTERING_METHODS = ["kmeans", "kmedoids", "optics", "dbscan"]
 AMBIENT_DEFAULT_CLUSTERING_SCOPE = {"global": False, "by_control_area": True}
 AMBIENT_DEFAULT_OPTICS_SETTINGS = {
     "min_samples_min": 5,
     "min_samples_max": 20,
     "xi": 0.05,
 }
+AMBIENT_DEFAULT_DBSCAN_SETTINGS = {
+    "pe": 0.025,
+    "pm": 0.25,
+    "multiply_by_orders": True,
+    "min_npts": 2,
+}
+
 AMBIENT_REFERENCE_MODES = {
     "Mode 1": {"Frequency": 0.6062, "Damping": -0.0800, "Damping_Factor": 0.0210, "Generator_Involvement": "1-9 vs. 10", "relevant_areas": [1, 2, 3]},
     "Mode 2": {"Frequency": 0.9497, "Damping": -0.1065, "Damping_Factor": 0.0178, "Generator_Involvement": "1,8 and 9 vs. 4,5,6 and 7", "relevant_areas": [1, 2]},
@@ -508,13 +515,14 @@ def identify_n4sid_modes(t, y, dt_s, order, block_rows=None):
     return modes, summary
 
 
-def _run_clustering_pipeline(results_path, output_path, reference_modes, methods, optics_settings=None):
+def _run_clustering_pipeline(results_path, output_path, reference_modes, methods, optics_settings=None, dbscan_settings=None):
     from clustering_analysis import (
         _load_screened_data,
         _save_reference_mad_outputs,
         run_kmeans_modal_analysis,
         run_kmedoids_modal_analysis,
         run_optics_modal_analysis,
+        run_dbscan_modal_analysis,
         run_silhouette_analysis,
     )
 
@@ -535,6 +543,7 @@ def _run_clustering_pipeline(results_path, output_path, reference_modes, methods
         "kmeans": run_kmeans_modal_analysis,
         "kmedoids": run_kmedoids_modal_analysis,
         "optics": run_optics_modal_analysis,
+        "dbscan": run_dbscan_modal_analysis,
     }
     for method in requested_methods:
         started = time.perf_counter()
@@ -544,6 +553,13 @@ def _run_clustering_pipeline(results_path, output_path, reference_modes, methods
                 str(output_path),
                 reference_modes=reference_modes,
                 optics_settings=optics_settings,
+            )
+        elif method == "dbscan":
+            runners[method](
+                str(results_path),
+                str(output_path),
+                reference_modes=reference_modes,
+                dbscan_settings=dbscan_settings,
             )
         else:
             runners[method](str(results_path), str(output_path), reference_modes=reference_modes)
@@ -562,7 +578,7 @@ def _run_clustering_pipeline(results_path, output_path, reference_modes, methods
     return timings
 
 
-def run_ambient_clustering_for_results(output_dir, results_path, df_results, reference_modes, methods, optics_settings=None, clustering_scope=None):
+def run_ambient_clustering_for_results(output_dir, results_path, df_results, reference_modes, methods, optics_settings=None, dbscan_settings=None, clustering_scope=None):
     if df_results.empty:
         print(f"No ambient N4SID results for {output_dir}; skipping clustering.")
         return {}
@@ -578,6 +594,7 @@ def run_ambient_clustering_for_results(output_dir, results_path, df_results, ref
             reference_modes=reference_modes,
             methods=methods,
             optics_settings=optics_settings,
+            dbscan_settings=dbscan_settings,
         )
 
     if scope.get("by_control_area", False):
@@ -601,6 +618,7 @@ def run_ambient_clustering_for_results(output_dir, results_path, df_results, ref
                 reference_modes=area_reference_modes,
                 methods=methods,
                 optics_settings=optics_settings,
+                dbscan_settings=dbscan_settings,
             )
 
         _save_combined_reference_mad_summary(area_root, reference_modes)
@@ -628,6 +646,7 @@ def resolve_ambient_settings(scenario, args):
         raise SystemExit("Ambient N4SID requires at least one signal.")
 
     optics_settings = dict(AMBIENT_DEFAULT_OPTICS_SETTINGS)
+    dbscan_settings = dict(AMBIENT_DEFAULT_DBSCAN_SETTINGS)
     clustering_scope = _resolve_clustering_scope(getattr(args, "clustering_scope", "areas"))
 
     return {
@@ -640,6 +659,7 @@ def resolve_ambient_settings(scenario, args):
         "clustering_methods": clustering_methods,
         "clustering_scope": clustering_scope,
         "optics_settings": optics_settings,
+        "dbscan_settings": dbscan_settings,
         "reference_modes_source": reference_source,
         "reference_modes": reference_modes,
         "signals": signals,
@@ -777,6 +797,7 @@ def run_ambient_n4sid_for_scenario(name, scenario, args):
                 reference_modes=settings["reference_modes"],
                 methods=settings["clustering_methods"],
                 optics_settings=settings["optics_settings"],
+                dbscan_settings=settings["dbscan_settings"],
                 clustering_scope=settings["clustering_scope"],
             )
         clustering_total_seconds = 0.0
@@ -820,6 +841,7 @@ def run_ambient_n4sid_for_scenario(name, scenario, args):
             "clustering_methods": settings["clustering_methods"],
             "clustering_scope": dict(settings["clustering_scope"]),
             "optics_settings": settings["optics_settings"],
+            "dbscan_settings": settings["dbscan_settings"],
             "reference_modes_source": settings["reference_modes_source"],
             "reference_modes": settings["reference_modes"],
             "signal_summaries": signal_summary_rows,
@@ -865,6 +887,7 @@ def run_ambient_n4sid_for_scenario(name, scenario, args):
         "clustering_methods": settings["clustering_methods"],
         "clustering_scope": dict(settings["clustering_scope"]),
         "optics_settings": settings["optics_settings"],
+        "dbscan_settings": settings["dbscan_settings"],
         "reference_modes_source": settings["reference_modes_source"],
         "reference_modes": settings["reference_modes"],
         "sweeps": sweep_summaries,

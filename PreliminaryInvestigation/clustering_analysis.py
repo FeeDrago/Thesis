@@ -1,10 +1,9 @@
-
 import os
 import warnings
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from sklearn.cluster import KMeans, OPTICS
+from sklearn.cluster import KMeans, OPTICS, DBSCAN
 from sklearn.metrics import silhouette_score, silhouette_samples
 from sklearn.preprocessing import StandardScaler
 import kmedoids
@@ -36,6 +35,13 @@ OPTICS_DEFAULT_SETTINGS = {
     "min_samples_min": 5,
     "min_samples_max": 20,
     "xi": 0.05,
+}
+
+DBSCAN_DEFAULT_SETTINGS = {
+    "pe": 0.025,
+    "pm": 0.25,
+    "multiply_by_orders": False,
+    "min_npts": 2,
 }
 
 REFERENCE_MODES = {
@@ -1124,6 +1130,150 @@ def run_optics_modal_analysis(results_path, output_path, reference_modes=None, o
     _save_figure(fig, base_output, "optics_selected_cluster_map")
     plt.close(fig)
 
+def _resolve_dbscan_settings(dbscan_settings=None):
+    settings = dict(DBSCAN_DEFAULT_SETTINGS)
+    if dbscan_settings:
+        settings.update(dbscan_settings)
+    settings["pe"] = float(settings["pe"])
+    settings["pm"] = float(settings["pm"])
+    settings["multiply_by_orders"] = bool(settings["multiply_by_orders"])
+    settings["min_npts"] = max(2, int(settings["min_npts"]))
+    return settings
+
+
+def _dbscan_epsilon(settings):
+    sigma_min, sigma_max = DAMPING_AXIS_LIMS
+    omega_min = 2.0 * np.pi * FREQ_MIN
+    omega_max = 2.0 * np.pi * FREQ_MAX
+    d_c = 0.5 * np.sqrt((sigma_max - sigma_min) ** 2 + (omega_max - omega_min) ** 2)
+    return float(settings["pe"] * d_c)
+
+
+def _dbscan_min_pts(n_signals, n_orders, settings):
+    scale = float(n_signals)
+    if settings["multiply_by_orders"]:
+        scale *= float(max(1, int(n_orders)))
+    return max(int(settings["min_npts"]), int(np.ceil(settings["pm"] * scale)))
+
+
+def _dbscan_order_count(df):
+    if "Order" in df.columns:
+        return int(df["Order"].nunique())
+    if "Method" in df.columns:
+        return int(df["Method"].nunique())
+    return 1
+
+
+def run_dbscan_modal_analysis(results_path, output_path, reference_modes=None, dbscan_settings=None):
+    base_output = os.path.join(output_path, "dbscan")
+    _prepare_output_dirs(base_output)
+
+    df_screened = _load_screened_data(results_path, output_path)
+    if df_screened is None:
+        return
+
+    resolved_dbscan_settings = _resolve_dbscan_settings(dbscan_settings)
+    dbscan_df = df_screened.reset_index(drop=True)
+
+    if len(dbscan_df) < 3:
+        print("Not enough samples for DBSCAN clustering.")
+        return
+
+    if {"Gen", "Signal"}.issubset(dbscan_df.columns):
+        n_signals = int(dbscan_df.groupby(["Gen", "Signal"]).ngroups)
+    else:
+        n_signals = 1
+    n_orders = _dbscan_order_count(dbscan_df)
+
+    epsilon = _dbscan_epsilon(resolved_dbscan_settings)
+    min_pts = _dbscan_min_pts(n_signals, n_orders, resolved_dbscan_settings)
+
+    X = np.column_stack([
+        dbscan_df["Damping"].to_numpy(dtype=float),
+        2.0 * np.pi * dbscan_df["Frequency"].to_numpy(dtype=float),
+    ])
+
+    labels = DBSCAN(eps=epsilon, min_samples=min_pts).fit_predict(X)
+    unique_labels = sorted(lbl for lbl in np.unique(labels) if int(lbl) >= 0)
+    noise_count = int(np.sum(labels == -1))
+    n_clusters = int(len(unique_labels))
+
+    representatives = []
+    cluster_stats = []
+    for cluster_label in unique_labels:
+        cluster_points = dbscan_df.loc[labels == cluster_label, ["Frequency", "Damping"]].to_numpy(dtype=float)
+        representative = np.mean(cluster_points, axis=0)
+        representatives.append(representative)
+        cluster_stats.append({
+            "Cluster": int(cluster_label + 1),
+            "Frequency": float(representative[0]),
+            "Damping": float(representative[1]),
+            "Size": int(np.sum(labels == cluster_label)),
+        })
+
+    representatives = np.array(representatives, dtype=float) if representatives else np.empty((0, 2), dtype=float)
+
+    pd.DataFrame(cluster_stats).to_csv(
+        os.path.join(base_output, "cluster_representatives_sizes.csv"), index=False
+    )
+    pd.DataFrame([{
+        "Epsilon": epsilon,
+        "MinPts": int(min_pts),
+        "pe": resolved_dbscan_settings["pe"],
+        "pm": resolved_dbscan_settings["pm"],
+        "Nsignals": int(n_signals),
+        "NOrders": int(n_orders),
+        "MultiplyByOrders": resolved_dbscan_settings["multiply_by_orders"],
+        "Clusters": n_clusters,
+        "NoisePoints": noise_count,
+        "AssignedPoints": int(len(dbscan_df) - noise_count),
+        "AssignedRatio": float((len(dbscan_df) - noise_count) / len(dbscan_df)),
+        "TotalPoints": int(len(dbscan_df)),
+    }]).to_csv(os.path.join(base_output, "dbscan_metrics_summary.csv"), index=False)
+
+    fig, ax = plt.subplots(figsize=(11.5, 8.8))
+    point_colors = _label_colors_with_noise(labels)
+    ax.scatter(
+        dbscan_df["Damping"], dbscan_df["Frequency"],
+        c=point_colors, alpha=POINT_ALPHA,
+        edgecolors='k', linewidths=0.8, s=POINT_SIZE
+    )
+    if len(representatives) > 0:
+        ax.scatter(
+            representatives[:, 1], representatives[:, 0],
+            c=ACCENT_RED, marker='x',
+            s=REP_SIZE, linewidths=4, label='Cluster Means'
+        )
+    _overlay_reference_modes(ax, reference_modes)
+    ax.axvline(0, color=ACCENT_RED, linestyle='--', alpha=0.35, linewidth=2)
+    ax.set_xlabel("Damping (Sigma) [rad/s]")
+    ax.set_ylabel("Frequency [Hz]")
+    ax.set_title(
+        f"Modal Clustering with DBSCAN ($\\epsilon={epsilon:.3f}$, $N_{{pts}}={min_pts}$)\nClusters: {n_clusters} | Noise: {noise_count}",
+        fontweight='bold'
+    )
+    handles = _noise_point_handle()
+    if n_clusters > 0:
+        handles += _cluster_legend_handles(n_clusters, representative_label='Cluster Means')
+    handles += _reference_mode_handles(reference_modes)
+    if handles:
+        fig.legend(
+            handles=handles,
+            loc='lower center',
+            bbox_to_anchor=(0.5, 0.015),
+            ncol=min(5, len(handles)),
+        )
+    _set_modal_axis_limits(
+        ax,
+        dbscan_df,
+        reference_modes=reference_modes,
+        representatives=representatives if len(representatives) > 0 else None,
+        include_all_points=True,
+    )
+    _apply_axis_style(ax)
+    fig.subplots_adjust(left=0.11, right=0.97, top=0.88, bottom=0.26)
+    _save_figure(fig, base_output, "dbscan_modal_map")
+    plt.close(fig)
 
 def run_silhouette_analysis(results_path, output_path, reference_modes=None):
     base_output = os.path.join(output_path, "silhouette")
