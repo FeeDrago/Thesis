@@ -962,8 +962,7 @@ def _preprocess_signal(df, column_name, scenario, gen, signal_label=None):
             column_name=column_name,
             time_mask_config=scenario.get("time_mask") or {},
             detrend_enabled=bool(ambient_cfg.get("detrend", True)),
-            downsample_hz=float(ambient_cfg.get("downsample_hz", 5.0)),
-            lowpass_hz=float(ambient_cfg.get("low_pass_hz", 2.0)),
+            downsample_hz=float(ambient_cfg.get("downsample_hz", 5.0))
         )
         if t_selected is None or y_selected is None or preprocess_meta is None:
             return None, None, None

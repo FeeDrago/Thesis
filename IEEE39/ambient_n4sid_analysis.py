@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from scipy.signal import butter, detrend, filtfilt
+from scipy.signal import decimate, detrend
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -25,7 +25,6 @@ AMBIENT_DEFAULT_ORDER_GROUPS = [
     {"name": "orders2", "orders": list(range(10, 50, 5))},
 ]
 AMBIENT_DEFAULT_DOWNSAMPLE_HZ = 5.0
-AMBIENT_DEFAULT_LPF_HZ = 2.0
 AMBIENT_DEFAULT_DETREND = True
 AMBIENT_DEFAULT_CLUSTERING_METHODS = ["kmeans", "kmedoids", "optics"]
 AMBIENT_DEFAULT_CLUSTERING_SCOPE = {"global": False, "by_control_area": True}
@@ -53,6 +52,8 @@ CONTROL_AREAS = {
 MIN_REQUIRED_SAMPLES = 32
 MIN_HANKEL_COLUMNS = 16
 FREQ_EPS_HZ = 1e-6
+BLOCK_ROWS_MIN = 20
+BLOCK_ROWS_MARGIN = 6
 RESULT_COLUMNS = [
     "Scenario",
     "Gen",
@@ -294,32 +295,57 @@ def _raw_sample_hz(time_values):
     return float(1.0 / np.median(diffs))
 
 
+def _decimation_stages(factor):
+    """
+    Split a decimation factor into stages <= 13, as recommended for
+    scipy.signal.decimate. E.g. 20 -> [10, 2], 100 -> [10, 10].
+    """
+    stages = []
+    remaining = int(factor)
+    while remaining > 13:
+        for candidate in range(13, 1, -1):
+            if remaining % candidate == 0:
+                stages.append(candidate)
+                remaining //= candidate
+                break
+        else:
+            # Prime factor > 13: decimate in one large stage (still filtered).
+            stages.append(remaining)
+            remaining = 1
+    if remaining > 1:
+        stages.append(remaining)
+    return stages
+
+
 def _maybe_downsample(t, y, target_hz):
+    """
+    Anti-aliased downsampling: a zero-phase FIR low-pass at the new Nyquist
+    frequency is applied BEFORE each decimation stage (via scipy.signal.decimate),
+    so out-of-band content cannot fold into the modal band as spurious modes.
+    """
     raw_hz = _raw_sample_hz(t)
-    if target_hz is None or target_hz <= 0.0 or raw_hz <= target_hz:
+    if target_hz is None or float(target_hz) <= 0.0 or raw_hz <= float(target_hz) * (1.0 + 1e-9):
         return t, y, raw_hz, raw_hz, 1
 
     factor = max(1, int(round(raw_hz / float(target_hz))))
     if factor == 1:
         return t, y, raw_hz, raw_hz, 1
 
-    return t[::factor], y[::factor], raw_hz, float(raw_hz / factor), factor
+    y_dec = np.asarray(y, dtype=float)
+    for stage in _decimation_stages(factor):
+        if len(y_dec) <= 20 * stage + 1:
+            # Too short for the FIR anti-alias filter; stop decimating further.
+            break
+        y_dec = decimate(y_dec, stage, ftype="fir", zero_phase=True)
+
+    achieved_factor = int(round(len(y) / max(len(y_dec), 1)))
+    achieved_factor = max(1, achieved_factor)
+    t_dec = t[::achieved_factor][: len(y_dec)]
+    y_dec = y_dec[: len(t_dec)]
+    return t_dec, y_dec, raw_hz, float(raw_hz / achieved_factor), achieved_factor
 
 
-def _maybe_lowpass(y, sample_hz, cutoff_hz):
-    if cutoff_hz is None or cutoff_hz <= 0.0:
-        return y
-    nyquist_hz = 0.5 * float(sample_hz)
-    if nyquist_hz <= 0.0:
-        return y
-    normalized = float(cutoff_hz) / nyquist_hz
-    if normalized >= 1.0:
-        return y
-    b, a = butter(4, normalized, btype="low")
-    return filtfilt(b, a, y)
-
-
-def preprocess_ambient_signal(df, column_name, time_mask_config, detrend_enabled, downsample_hz, lowpass_hz):
+def preprocess_ambient_signal(df, column_name, time_mask_config, detrend_enabled, downsample_hz):
     time_all = df.iloc[:, 0].to_numpy(dtype=float)
     signal_all = df[column_name].to_numpy(dtype=float)
     mask = _time_mask(time_all, time_mask_config)
@@ -338,7 +364,6 @@ def preprocess_ambient_signal(df, column_name, time_mask_config, detrend_enabled
         y = detrend(y)
 
     t, y, raw_hz, effective_hz, downsample_factor = _maybe_downsample(t, y, downsample_hz)
-    y = _maybe_lowpass(y, effective_hz, lowpass_hz)
     if len(t) < MIN_REQUIRED_SAMPLES:
         return None, None, None
 
@@ -355,130 +380,121 @@ def preprocess_ambient_signal(df, column_name, time_mask_config, detrend_enabled
     return t, y, meta
 
 
-def _build_hankel(signal_values, block_rows):
-    y = np.asarray(signal_values, dtype=float).reshape(-1)
-    columns = y.size - (2 * block_rows) + 1
-    if columns < MIN_HANKEL_COLUMNS:
-        raise ValueError(
-            f"Ambient signal is too short for N4SID order sweep with block_rows={block_rows}; need at least {2 * block_rows + MIN_HANKEL_COLUMNS - 1} samples."
-        )
-    return np.vstack([y[idx:idx + columns] for idx in range(2 * block_rows)])
+def default_block_rows_for_orders(orders):
+    max_order = max(int(order) for order in orders)
+    return max(BLOCK_ROWS_MIN, max_order + BLOCK_ROWS_MARGIN)
 
 
-def _fit_modal_amplitudes_and_phases(t, y, modal_rows):
-    if not modal_rows:
-        return []
-
-    t = np.asarray(t, dtype=float)
-    y = np.asarray(y, dtype=float)
-    t_rel = t - t[0]
-    basis_columns = []
-    valid_rows = []
-    for row in modal_rows:
-        sigma = float(row["Damping"])
-        omega = 2.0 * np.pi * float(row["Frequency"])
-        envelope = np.exp(sigma * t_rel)
-        basis_columns.append(envelope * np.cos(omega * t_rel))
-        basis_columns.append(envelope * np.sin(omega * t_rel))
-        valid_rows.append(row)
-
-    design = np.column_stack(basis_columns)
-    coeffs, _, _, _ = np.linalg.lstsq(design, y, rcond=None)
-
-    fitted_rows = []
-    for idx, row in enumerate(valid_rows):
-        alpha = float(coeffs[2 * idx])
-        beta = float(coeffs[(2 * idx) + 1])
-        amplitude = 0.5 * float(np.sqrt((alpha ** 2) + (beta ** 2)))
-        phase = float(np.arctan2(-beta, alpha))
-        fitted_row = dict(row)
-        fitted_row["Amplitude"] = amplitude
-        fitted_row["Phase"] = phase
-        fitted_rows.append(fitted_row)
-    return fitted_rows
-
-
-def identify_n4sid_modes(t, y, dt_s, order):
+def identify_n4sid_modes(t, y, dt_s, order, block_rows=None):
     order = int(order)
     if order < 2:
         raise ValueError("N4SID order must be at least 2.")
 
-    block_rows = max(order + 4, 12)
-    hankel = _build_hankel(y, block_rows)
-    U, singular_values, Vt = np.linalg.svd(hankel, full_matrices=False)
-    if order >= len(singular_values):
-        raise ValueError(f"N4SID order {order} exceeds available numerical rank {len(singular_values) - 1}.")
+    y = np.asarray(y, dtype=float).reshape(-1)
+    t = np.asarray(t, dtype=float).reshape(-1)
+    dt_s = float(dt_s)
+
+    if block_rows is None:
+        block_rows = max(order + BLOCK_ROWS_MARGIN, BLOCK_ROWS_MIN)
+    i = int(block_rows)
+    if order >= i:
+        i = order + 2
+
+    n_cols = y.size - (2 * i) + 1
+    if n_cols < MIN_HANKEL_COLUMNS:
+        raise ValueError(
+            f"Ambient signal is too short for N4SID order sweep with block_rows={i}; "
+            f"need at least {2 * i + MIN_HANKEL_COLUMNS - 1} samples."
+        )
+
+    hankel = np.vstack([y[idx:idx + n_cols] for idx in range(2 * i)]) / np.sqrt(n_cols)
+
+    Q, R = np.linalg.qr(hankel.T)
+    L = R.T
+    Q_rows = Q.T
+
+    L21 = L[i:, :i]
+    U, singular_values, _ = np.linalg.svd(L21, full_matrices=False)
+    if singular_values.size == 0 or singular_values[0] <= 0.0:
+        raise ValueError("N4SID projection is rank deficient; signal may be constant.")
+    positive_rank = int(np.sum(singular_values > (singular_values[0] * 1e-12)))
+    if order > positive_rank:
+        raise ValueError(f"N4SID order {order} exceeds available numerical rank {positive_rank}.")
 
     U1 = U[:, :order]
     S1 = singular_values[:order]
-    V1 = Vt[:order, :]
 
-    sqrt_s1 = np.diag(np.sqrt(S1))
-    observability = U1 @ sqrt_s1
-    state_sequence = sqrt_s1 @ V1
+    gamma = U1 * np.sqrt(S1)[None, :]
+    projection = (L21 @ Q_rows[:i, :]) * np.sqrt(n_cols)
+    x_hat = np.linalg.pinv(gamma) @ projection
 
-    output_dim = 1
-    obs_upper = observability[:-output_dim, :]
-    obs_lower = observability[output_dim:, :]
-    a_matrix = np.linalg.lstsq(obs_upper, obs_lower, rcond=None)[0]
-    c_matrix = observability[:output_dim, :]
+    a_matrix = np.linalg.lstsq(gamma[:-1, :], gamma[1:, :], rcond=None)[0]
+    c_matrix = gamma[:1, :]
 
-    x_k = state_sequence[:, :-1].T
-    x_next = state_sequence[:, 1:].T
-    y_k = np.asarray(y[:x_k.shape[0]], dtype=float).reshape(-1, 1)
+    x_k = x_hat[:, :-1].T
+    x_next = x_hat[:, 1:].T
     x_next_hat = x_k @ a_matrix
-    y_hat = x_k @ c_matrix.T
-
     state_rmse = float(np.sqrt(np.mean((x_next - x_next_hat) ** 2)))
-    output_rmse = float(np.sqrt(np.mean((y_k - y_hat) ** 2)))
-    output_var = float(np.var(y_k))
+
+    y_segment = y[i:i + x_hat.shape[1]]
+    y_hat = (c_matrix @ x_hat).ravel()[:y_segment.size]
+    output_rmse = float(np.sqrt(np.mean((y_segment - y_hat) ** 2)))
+    output_var = float(np.var(y_segment))
     fit_percent = None
     if output_var > 0.0:
         fit_percent = float(max(0.0, 100.0 * (1.0 - (output_rmse ** 2) / output_var)))
 
-    eigvals = np.linalg.eigvals(a_matrix)
-    poles = np.log(eigvals) / float(dt_s)
+    eigvals, eigvecs = np.linalg.eig(a_matrix)
     total_sv_energy = float(np.sum(singular_values ** 2))
     order_sv_energy = float(np.sum(S1 ** 2))
+    order_sv_ratio = None if total_sv_energy <= 0.0 else float(order_sv_energy / total_sv_energy)
+
+    with np.errstate(divide="ignore", invalid="ignore"):
+        z = eigvals.astype(complex)
+        safe_z = np.where(np.abs(z) > 0.0, z, np.nan)
+        poles = np.log(safe_z) / dt_s
+
+    observability = (c_matrix @ eigvecs).ravel()
+
     modes = []
-    for mode_index, pole in enumerate(poles, start=1):
+    mode_counter = 0
+    for pole_idx, pole in enumerate(poles):
         if not np.isfinite(pole.real) or not np.isfinite(pole.imag):
             continue
-        frequency_hz = abs(float(np.imag(pole))) / (2.0 * np.pi)
-        damping = float(np.real(pole))
+        # Keep only the positive-frequency member of each conjugate pair.
+        if np.imag(pole) <= 0.0:
+            continue
+        frequency_hz = float(np.imag(pole)) / (2.0 * np.pi)
         if frequency_hz <= FREQ_EPS_HZ:
             continue
-        discrete_eig = eigvals[mode_index - 1]
-        dominant_sv = float(S1[min(mode_index - 1, len(S1) - 1)])
-        singular_value_energy_ratio = None
-        if total_sv_energy > 0.0:
-            singular_value_energy_ratio = float((dominant_sv ** 2) / total_sv_energy)
+
+        damping = float(np.real(pole))
+        discrete_eig = eigvals[pole_idx]
         damping_ratio = None
         pole_mag = float(np.abs(pole))
         if pole_mag > 0.0:
             damping_ratio = float(-damping / pole_mag)
 
+        mode_counter += 1
         modes.append({
             "Order": order,
-            "ModeIndex": int(mode_index),
+            "ModeIndex": int(mode_counter),
             "Frequency": frequency_hz,
             "Damping": damping,
-            "Amplitude": None,
-            "Phase": None,
+            "Amplitude": float(np.abs(observability[pole_idx])),
+            "Phase": float(np.angle(observability[pole_idx])),
             "DampingRatio": damping_ratio,
             "DiscreteEigenvalueReal": float(np.real(discrete_eig)),
             "DiscreteEigenvalueImag": float(np.imag(discrete_eig)),
             "DiscreteEigenvalueMagnitude": float(np.abs(discrete_eig)),
             "Stable": bool(np.abs(discrete_eig) < 1.0),
-            "SingularValue": dominant_sv,
-            "SingularValueEnergyRatio": singular_value_energy_ratio,
-            "OrderSingularValueEnergyRatio": None if total_sv_energy <= 0.0 else float(order_sv_energy / total_sv_energy),
+            "SingularValue": None,
+            "SingularValueEnergyRatio": None,
+            "OrderSingularValueEnergyRatio": order_sv_ratio,
             "StatePredictionRMSE": state_rmse,
             "OutputPredictionRMSE": output_rmse,
             "OutputFitPercent": fit_percent,
         })
-
-    modes = _fit_modal_amplitudes_and_phases(t=t, y=y, modal_rows=modes)
 
     summary = {
         "Order": order,
@@ -487,7 +503,7 @@ def identify_n4sid_modes(t, y, dt_s, order):
         "MeanOutputPredictionRMSE": output_rmse,
         "MeanStatePredictionRMSE": state_rmse,
         "OutputFitPercent": fit_percent,
-        "OrderSingularValueEnergyRatio": None if total_sv_energy <= 0.0 else float(order_sv_energy / total_sv_energy),
+        "OrderSingularValueEnergyRatio": order_sv_ratio,
     }
     return modes, summary
 
@@ -620,7 +636,6 @@ def resolve_ambient_settings(scenario, args):
         "ambient_preprocessing": {
             "detrend": not bool(args.ambient_no_detrend),
             "downsample_hz": float(args.ambient_downsample_hz) if args.ambient_downsample_hz is not None else float(AMBIENT_DEFAULT_DOWNSAMPLE_HZ),
-            "low_pass_hz": float(args.ambient_lpf_hz) if args.ambient_lpf_hz is not None else float(AMBIENT_DEFAULT_LPF_HZ),
         },
         "clustering_methods": clustering_methods,
         "clustering_scope": clustering_scope,
@@ -653,6 +668,7 @@ def run_ambient_n4sid_for_scenario(name, scenario, args):
         signal_summary_rows = []
         per_signal_timings = {}
         sweep_start = time.perf_counter()
+        group_block_rows = default_block_rows_for_orders(order_group["orders"])
 
         for gen in generators:
             csv_path = data_dir / f"{gen}.csv"
@@ -673,7 +689,6 @@ def run_ambient_n4sid_for_scenario(name, scenario, args):
                     time_mask_config=time_mask,
                     detrend_enabled=bool(preprocess_cfg["detrend"]),
                     downsample_hz=float(preprocess_cfg["downsample_hz"]),
-                    lowpass_hz=float(preprocess_cfg["low_pass_hz"]),
                 )
                 if t is None or y is None or preprocess_meta is None:
                     print(f"Not enough samples for ambient N4SID on {gen} {signal_label}", flush=True)
@@ -698,7 +713,9 @@ def run_ambient_n4sid_for_scenario(name, scenario, args):
                 for order in order_group["orders"]:
                     order_start = time.perf_counter()
                     try:
-                        modes, order_summary = identify_n4sid_modes(t=t, y=y, dt_s=dt_s, order=order)
+                        modes, order_summary = identify_n4sid_modes(
+                            t=t, y=y, dt_s=dt_s, order=order, block_rows=group_block_rows
+                        )
                     except ValueError as exc:
                         order_summary_rows.append({
                             "Scenario": name,
@@ -793,6 +810,9 @@ def run_ambient_n4sid_for_scenario(name, scenario, args):
             "signals_used": list(signals.values()),
             "columns": signals,
             "n4sid_orders": list(order_group["orders"]),
+            "n4sid_block_rows": int(group_block_rows),
+            "pole_mapping": "log",
+            "conjugate_pairs_deduplicated": True,
             "ambient_preprocessing": {
                 **preprocess_cfg,
                 "signals": list(signals.values()),
@@ -836,6 +856,8 @@ def run_ambient_n4sid_for_scenario(name, scenario, args):
         "signals_used": list(signals.values()),
         "columns": signals,
         "n4sid_order_groups": settings["order_groups"],
+        "pole_mapping": "log",
+        "conjugate_pairs_deduplicated": True,
         "ambient_preprocessing": {
             **preprocess_cfg,
             "signals": list(signals.values()),
