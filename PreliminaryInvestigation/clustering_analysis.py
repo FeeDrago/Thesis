@@ -33,10 +33,6 @@ FREQ_MAX = 2.0
 DAMPING_MAX = -1e-3
 DAMPING_AXIS_LIMS = (-2.0, 0.0)
 OPTICS_DEFAULT_SETTINGS = {
-    "premerge_enabled": True,
-    "premerge_scope": "Gen+Signal",
-    "merge_radius_scaled": 0.20,
-    "merge_min_distinct_orders": 2,
     "min_samples_min": 5,
     "min_samples_max": 20,
     "xi": 0.05,
@@ -305,201 +301,12 @@ def _resolve_optics_settings(optics_settings=None):
     settings = dict(OPTICS_DEFAULT_SETTINGS)
     if optics_settings:
         settings.update(optics_settings)
-    settings["merge_radius_scaled"] = float(settings["merge_radius_scaled"])
-    settings["merge_min_distinct_orders"] = max(2, int(settings["merge_min_distinct_orders"]))
     settings["min_samples_min"] = max(2, int(settings["min_samples_min"]))
     settings["min_samples_max"] = max(settings["min_samples_min"], int(settings["min_samples_max"]))
     settings["xi"] = float(settings["xi"])
-    settings["premerge_enabled"] = bool(settings["premerge_enabled"])
-    settings["premerge_scope"] = str(settings["premerge_scope"])
     settings["render_all_min_samples_maps"] = bool(settings.get("render_all_min_samples_maps", True))
     settings["render_parameter_sweep_plot"] = bool(settings.get("render_parameter_sweep_plot", True))
     return settings
-
-
-def _connected_components(adjacency):
-    n_nodes = int(adjacency.shape[0])
-    visited = np.zeros(n_nodes, dtype=bool)
-    components = []
-
-    for start_idx in range(n_nodes):
-        if visited[start_idx]:
-            continue
-        stack = [start_idx]
-        visited[start_idx] = True
-        component = []
-        while stack:
-            node = stack.pop()
-            component.append(node)
-            neighbors = np.flatnonzero(adjacency[node])
-            for neighbor in neighbors:
-                if visited[neighbor]:
-                    continue
-                visited[neighbor] = True
-                stack.append(int(neighbor))
-        components.append(component)
-
-    return components
-
-
-def _build_optics_premerge_inputs(df, base_output, optics_settings=None):
-    settings = _resolve_optics_settings(optics_settings)
-    raw_df = df.copy().reset_index(drop=True)
-    raw_df["RawPointId"] = [f"R{idx:06d}" for idx in range(1, len(raw_df) + 1)]
-    raw_df.to_csv(os.path.join(base_output, "optics_input_raw_screened.csv"), index=False)
-
-    if raw_df.empty or not settings["premerge_enabled"]:
-        merged_df = raw_df.copy()
-        if not merged_df.empty:
-            merged_df["MergedPointId"] = [f"M{idx:06d}" for idx in range(1, len(merged_df) + 1)]
-            merged_df["MergedCount"] = 1
-            merged_df["DistinctOrders"] = 1
-            merged_df["OrderMin"] = merged_df["Order"]
-            merged_df["OrderMax"] = merged_df["Order"]
-            merged_df["RepresentativeKind"] = "single_point"
-        merged_df.to_csv(os.path.join(base_output, "optics_input_merged.csv"), index=False)
-        summary_df = pd.DataFrame([{
-            "Scope": "overall",
-            "Gen": None,
-            "Signal": None,
-            "RawPoints": int(len(raw_df)),
-            "MergedPoints": int(len(merged_df)),
-            "Reduction": int(len(raw_df) - len(merged_df)),
-            "ReductionRatio": float((len(raw_df) - len(merged_df)) / len(raw_df)) if len(raw_df) else 0.0,
-            "MultiOrderMergedPoints": 0,
-            "MergeRadiusScaled": settings["merge_radius_scaled"],
-            "MergeMinDistinctOrders": settings["merge_min_distinct_orders"],
-            "PremergeEnabled": settings["premerge_enabled"],
-            "PremergeScope": settings["premerge_scope"],
-        }])
-        summary_df.to_csv(os.path.join(base_output, "optics_merge_summary.csv"), index=False)
-        pd.DataFrame(columns=["MergedPointId", "RawPointId"]).to_csv(
-            os.path.join(base_output, "optics_merge_membership.csv"),
-            index=False,
-        )
-        return merged_df, settings, {
-            "raw_points": int(len(raw_df)),
-            "merged_points": int(len(merged_df)),
-            "reduction": int(len(raw_df) - len(merged_df)),
-        }
-
-    X_scaled_full = StandardScaler().fit_transform(raw_df[["Frequency", "Damping"]].to_numpy(dtype=float))
-    merged_rows = []
-    membership_rows = []
-    summary_rows = []
-    merged_counter = 0
-
-    for (gen, signal), group_df in raw_df.groupby(["Gen", "Signal"], sort=True):
-        group_indices = group_df.index.to_numpy(dtype=int)
-        group_scaled = X_scaled_full[group_indices]
-        group_orders = group_df["Order"].to_numpy()
-        distance_matrix = _pairwise_distances(group_scaled)
-        close_mask = distance_matrix <= settings["merge_radius_scaled"]
-        cross_order_mask = group_orders[:, None] != group_orders[None, :]
-        adjacency = close_mask & cross_order_mask
-        np.fill_diagonal(adjacency, False)
-
-        components = _connected_components(adjacency)
-        group_merged_points = 0
-
-        for component in components:
-            member_idx = group_indices[np.asarray(component, dtype=int)]
-            member_df = raw_df.loc[member_idx].copy()
-            distinct_orders = sorted({int(order) for order in member_df["Order"].tolist()})
-            merged_counter += 1
-            merged_point_id = f"M{merged_counter:06d}"
-
-            is_multi_order_merge = (
-                len(member_df) > 1 and
-                len(distinct_orders) >= settings["merge_min_distinct_orders"]
-            )
-            if is_multi_order_merge:
-                representative_kind = "multi_order_merge"
-                representative_frequency = float(np.average(member_df["Frequency"].to_numpy(dtype=float)))
-                representative_damping = float(np.average(member_df["Damping"].to_numpy(dtype=float)))
-                group_merged_points += 1
-            else:
-                representative_kind = "single_point"
-                representative_frequency = float(member_df.iloc[0]["Frequency"])
-                representative_damping = float(member_df.iloc[0]["Damping"])
-
-            base_row = member_df.iloc[0].to_dict()
-            base_row.update({
-                "MergedPointId": merged_point_id,
-                "Frequency": representative_frequency,
-                "Damping": representative_damping,
-                "MergedCount": int(len(member_df)),
-                "DistinctOrders": int(len(distinct_orders)),
-                "OrderMin": int(min(distinct_orders)),
-                "OrderMax": int(max(distinct_orders)),
-                "RepresentativeKind": representative_kind,
-            })
-            merged_rows.append(base_row)
-
-            for _, member_row in member_df.iterrows():
-                membership_rows.append({
-                    "MergedPointId": merged_point_id,
-                    "RawPointId": member_row["RawPointId"],
-                    "Gen": member_row.get("Gen"),
-                    "Signal": member_row.get("Signal"),
-                    "Order": member_row.get("Order"),
-                    "ModeIndex": member_row.get("ModeIndex"),
-                    "Frequency": member_row.get("Frequency"),
-                    "Damping": member_row.get("Damping"),
-                    "RepresentativeKind": representative_kind,
-                })
-
-        group_raw_points = int(len(group_df))
-        group_merged_output = int(len(components))
-        summary_rows.append({
-            "Scope": "group",
-            "Gen": gen,
-            "Signal": signal,
-            "RawPoints": group_raw_points,
-            "MergedPoints": group_merged_output,
-            "Reduction": group_raw_points - group_merged_output,
-            "ReductionRatio": float((group_raw_points - group_merged_output) / group_raw_points) if group_raw_points else 0.0,
-            "MultiOrderMergedPoints": int(group_merged_points),
-            "MergeRadiusScaled": settings["merge_radius_scaled"],
-            "MergeMinDistinctOrders": settings["merge_min_distinct_orders"],
-            "PremergeEnabled": settings["premerge_enabled"],
-            "PremergeScope": settings["premerge_scope"],
-        })
-
-    merged_df = pd.DataFrame(merged_rows)
-    if not merged_df.empty:
-        merged_df = merged_df.sort_values(["Gen", "Signal", "Frequency", "Damping"], kind="stable").reset_index(drop=True)
-    merged_df.to_csv(os.path.join(base_output, "optics_input_merged.csv"), index=False)
-
-    membership_df = pd.DataFrame(membership_rows)
-    if not membership_df.empty:
-        membership_df = membership_df.sort_values(["MergedPointId", "RawPointId"], kind="stable").reset_index(drop=True)
-    membership_df.to_csv(os.path.join(base_output, "optics_merge_membership.csv"), index=False)
-
-    overall_raw_points = int(len(raw_df))
-    overall_merged_points = int(len(merged_df))
-    overall_reduction = overall_raw_points - overall_merged_points
-    summary_rows.insert(0, {
-        "Scope": "overall",
-        "Gen": None,
-        "Signal": None,
-        "RawPoints": overall_raw_points,
-        "MergedPoints": overall_merged_points,
-        "Reduction": overall_reduction,
-        "ReductionRatio": float(overall_reduction / overall_raw_points) if overall_raw_points else 0.0,
-        "MultiOrderMergedPoints": int(sum(row["MultiOrderMergedPoints"] for row in summary_rows)),
-        "MergeRadiusScaled": settings["merge_radius_scaled"],
-        "MergeMinDistinctOrders": settings["merge_min_distinct_orders"],
-        "PremergeEnabled": settings["premerge_enabled"],
-        "PremergeScope": settings["premerge_scope"],
-    })
-    pd.DataFrame(summary_rows).to_csv(os.path.join(base_output, "optics_merge_summary.csv"), index=False)
-
-    return merged_df, settings, {
-        "raw_points": overall_raw_points,
-        "merged_points": overall_merged_points,
-        "reduction": overall_reduction,
-    }
 
 
 def _pam_kmedoids(distance_matrix, n_clusters, random_state=42, max_iter=100):
@@ -1137,11 +944,8 @@ def run_optics_modal_analysis(results_path, output_path, reference_modes=None, o
     if df_screened is None:
         return
 
-    optics_df, resolved_optics_settings, merge_stats = _build_optics_premerge_inputs(
-        df_screened,
-        base_output,
-        optics_settings=optics_settings,
-    )
+    resolved_optics_settings = _resolve_optics_settings(optics_settings)
+    optics_df = df_screened.reset_index(drop=True)
 
     if len(optics_df) < 3:
         print("Not enough samples for OPTICS clustering.")
@@ -1204,13 +1008,7 @@ def run_optics_modal_analysis(results_path, output_path, reference_modes=None, o
             "AssignedPoints": int(len(optics_df) - noise_count),
             "AssignedRatio": float((len(optics_df) - noise_count) / len(optics_df)),
             "Fragmentation": float(n_clusters / max(len(optics_df) - noise_count, 1)),
-            "InputPointsRaw": int(merge_stats["raw_points"]),
-            "InputPointsMerged": int(merge_stats["merged_points"]),
-            "InputReduction": int(merge_stats["reduction"]),
-            "UsedMergedInput": bool(merge_stats["merged_points"] < merge_stats["raw_points"]),
             "Xi": float(resolved_optics_settings["xi"]),
-            "MergeRadiusScaled": float(resolved_optics_settings["merge_radius_scaled"]),
-            "MergeMinDistinctOrders": int(resolved_optics_settings["merge_min_distinct_orders"]),
         })
 
         if bool(resolved_optics_settings.get("render_all_min_samples_maps", True)):

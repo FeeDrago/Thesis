@@ -30,10 +30,6 @@ AMBIENT_DEFAULT_DETREND = True
 AMBIENT_DEFAULT_CLUSTERING_METHODS = ["kmeans", "kmedoids", "optics"]
 AMBIENT_DEFAULT_CLUSTERING_SCOPE = {"global": False, "by_control_area": True}
 AMBIENT_DEFAULT_OPTICS_SETTINGS = {
-    "premerge_enabled": True,
-    "premerge_scope": "Gen+Signal",
-    "merge_radius_scaled": 0.20,
-    "merge_min_distinct_orders": 2,
     "min_samples_min": 5,
     "min_samples_max": 20,
     "xi": 0.05,
@@ -616,8 +612,6 @@ def resolve_ambient_settings(scenario, args):
         raise SystemExit("Ambient N4SID requires at least one signal.")
 
     optics_settings = dict(AMBIENT_DEFAULT_OPTICS_SETTINGS)
-    if args.merge_radius is not None:
-        optics_settings["merge_radius_scaled"] = float(args.merge_radius)
     clustering_scope = _resolve_clustering_scope(getattr(args, "clustering_scope", "areas"))
 
     return {

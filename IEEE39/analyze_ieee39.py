@@ -85,7 +85,6 @@ def build_arg_parser():
     parser.add_argument("--ambient-downsample-hz", type=float, default=None, help="Ambient preprocessing downsample rate in Hz. Default: 5.")
     parser.add_argument("--ambient-lpf-hz", type=float, default=None, help="Ambient preprocessing low-pass cutoff in Hz. Default: 2.")
     parser.add_argument("--ambient-no-detrend", action="store_true", help="Disable ambient detrending. Default ambient preprocessing detrends first.")
-    parser.add_argument("--merge-radius", type=float, default=None, help="Ambient OPTICS pre-merge radius in standardized (Frequency, Damping) space. Default: 0.2. Only valid for ambient analysis.")
     parser.add_argument("--clustering-methods", nargs="+", choices=["kmeans", "kmedoids", "optics"], default=None, help="Ambient clustering methods. Default: kmeans kmedoids optics.")
     return parser
 
@@ -286,7 +285,6 @@ def _ambient_cli_overrides_requested(args):
         args.ambient_downsample_hz is not None,
         args.ambient_lpf_hz is not None,
         bool(args.ambient_no_detrend),
-        args.merge_radius is not None,
         args.clustering_methods is not None,
     ])
 
@@ -2106,8 +2104,6 @@ def main():
             )
             analysis_config["evaluation"] = {"sweeps": sweep_evaluations}
         else:
-            if args.merge_radius is not None:
-                raise SystemExit("--merge-radius is only supported for ambient N4SID analysis.")
             if disturbance_type == "ambient" and _ambient_cli_overrides_requested(args):
                 print(
                     f"Ignoring ambient-only CLI flags for '{name}' because --analysis-method resolved to matrix-pencil.",
