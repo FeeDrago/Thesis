@@ -30,6 +30,7 @@ apply_thesis_style()
 FREQ_MIN = 0.1
 FREQ_MAX = 2.0
 DAMPING_MAX = -1e-3
+DAMPING_AXIS_LIMS = (-2.0, 0.0)
 OPTICS_DEFAULT_SETTINGS = {
     "premerge_enabled": True,
     "premerge_scope": "Gen+Signal",
@@ -248,7 +249,7 @@ def _set_modal_axis_limits(ax, df, reference_modes=None, representatives=None, i
     if y_max <= y_min:
         y_max = y_min + max(0.2, freq_span)
 
-    ax.set_xlim(x_min, x_max)
+    ax.set_xlim(DAMPING_AXIS_LIMS[0], DAMPING_AXIS_LIMS[1])
     ax.set_ylim(y_min, y_max)
 
 
