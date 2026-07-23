@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans, OPTICS
 from sklearn.metrics import silhouette_score, silhouette_samples
 from sklearn.preprocessing import StandardScaler
+import kmedoids
 from matplotlib.lines import Line2D
 from plot_style import (
     apply_thesis_style,
@@ -502,40 +503,26 @@ def _build_optics_premerge_inputs(df, base_output, optics_settings=None):
 
 
 def _pam_kmedoids(distance_matrix, n_clusters, random_state=42, max_iter=100):
-    n_samples = distance_matrix.shape[0]
-    rng = np.random.default_rng(random_state)
-    medoid_indices = np.sort(rng.choice(n_samples, size=n_clusters, replace=False))
+    n_clusters = int(n_clusters)
+    max_iter = int(max_iter)
 
-    labels = np.argmin(distance_matrix[:, medoid_indices], axis=1)
-    best_cost = np.sum(distance_matrix[np.arange(n_samples), medoid_indices[labels]])
+    if n_clusters == 1:
+        # FasterPAM needs k >= 2; handle k=1 directly
+        totals = distance_matrix.sum(axis=1)
+        medoid = int(np.argmin(totals))
+        labels = np.zeros(distance_matrix.shape[0], dtype=int)
+        return labels, np.array([medoid]), float(totals[medoid])
 
-    for _ in range(max_iter):
-        improved = False
-        current_set = set(medoid_indices.tolist())
-
-        for medoid_pos in range(n_clusters):
-            for candidate in range(n_samples):
-                if candidate in current_set:
-                    continue
-
-                trial_medoids = medoid_indices.copy()
-                trial_medoids[medoid_pos] = candidate
-                trial_medoids.sort()
-
-                trial_labels = np.argmin(distance_matrix[:, trial_medoids], axis=1)
-                trial_cost = np.sum(distance_matrix[np.arange(n_samples), trial_medoids[trial_labels]])
-
-                if trial_cost + 1e-12 < best_cost:
-                    medoid_indices = trial_medoids
-                    labels = trial_labels
-                    best_cost = trial_cost
-                    improved = True
-                    current_set = set(medoid_indices.tolist())
-
-        if not improved:
-            break
-
-    return labels, medoid_indices, best_cost
+    result = kmedoids.fasterpam(
+        distance_matrix.astype(np.float64),
+        n_clusters,
+        max_iter=max_iter,
+        random_state=random_state,
+    )
+    labels = np.asarray(result.labels, dtype=int)
+    medoid_indices = np.asarray(result.medoids, dtype=int)
+    cost = float(result.loss)
+    return labels, medoid_indices, cost
 
 
 def _apply_frequency_screening(df, output_path=None):
