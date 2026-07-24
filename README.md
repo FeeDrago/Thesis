@@ -114,30 +114,29 @@
 
 Στο ambient `N4SID` path, το clustering δουλεύει πάνω στο aggregated mode table του κάθε sweep και υποστηρίζει `kmeans`, `kmedoids` και `optics`. Τα reference modes για όλα τα ambient clustering steps (`kmeans`, `kmedoids`, `optics`, `reference_mad`) φορτώνονται από το `modal/electromechanical_modes_stable_oscillatory.csv` που έχει εξαχθεί από το PowerFactory για το ίδιο dataset. Αν αυτό λείπει ή είναι άδειο, γίνεται fallback στα built-in reference modes. Προς το παρόν το `optics` τρέχει μόνο στο ambient path, όχι στα κλασικά Matrix Pencil analyses.
 
-**Ambient Analyze Output Layout:** Αν το input είναι ambient dataset, το default output root βασίζεται πλέον στο ambient dataset identity και στα βασικά ambient analysis settings. Συγκεκριμένα χρησιμοποιεί το dataset name από το `scenario.json` ή από το results folder, και προσθέτει suffix για `LPF` και `premerge`. Κάτω από αυτό το folder, το ambient analyze γράφει ξεχωριστά subfolders για κάθε order sweep:
+**Ambient Analyze Output Layout:** Αν το input είναι ambient dataset, το default output root είναι `IEEE39/analysis/<ambient_results_folder_name>`. Κάτω από αυτό το folder, το ambient analyze γράφει αυτή τη στιγμή ξεχωριστά subfolders για κάθε order sweep:
 
 - `orders1` για `range(2, 32, 2)`
 - `orders2` για `range(10, 50, 5)`
 
-Δηλαδή, για input folder όπως `IEEE39/results/Ambient_Mag0.1_T600s_dt10ms_seed1997`, τα default outputs είναι της μορφής:
+Δηλαδή, για input folder όπως `IEEE39/results/Ambient_Mag0.1_T600s_dt10ms_seed1997`, το default output είναι:
 
-- `IEEE39/analysis/Ambient_Mag0.1_T600s_dt10ms_seed1997_lpf10hz_premerge-off/orders1`
-- `IEEE39/analysis/Ambient_Mag0.1_T600s_dt10ms_seed1997_lpf10hz_premerge-off/orders2`
+- `IEEE39/analysis/Ambient_Mag0.1_T600s_dt10ms_seed1997/orders1`
+- `IEEE39/analysis/Ambient_Mag0.1_T600s_dt10ms_seed1997/orders2`
 
-Αν αλλάξετε `LPF` ή `premerge`, το suffix προσαρμόζεται αυτόματα, για παράδειγμα `..._lpf-off_premerge-off` ή `..._lpf2hz_premerge-on`. Στο root `IEEE39/analysis/Ambient_Mag.../` γράφεται και ένα συνοπτικό `analysis_config.json` που περιγράφει τα sweeps, το `output_naming`, και δείχνει στα subfolders τους.
+Στο root `IEEE39/analysis/Ambient_Mag.../` γράφεται και ένα συνοπτικό `analysis_config.json` που περιγράφει τα sweeps και δείχνει στα subfolders τους.
 
 **Ambient Analyze Defaults:** Για ambient datasets, αν δεν δοθούν CLI overrides, το analyze χρησιμοποιεί:
 
 - σήματα `Voltage` και `Current`
-- preprocessing: `detrend -> downsample στα 5 Hz -> low-pass στα 10 Hz`
+- preprocessing: `detrend -> downsample στα 5 Hz -> low-pass στα 2 Hz`
 - order sweeps:
   - `orders1 = range(2, 32, 2)`
   - `orders2 = range(10, 50, 5)`
 - clustering: `on` ανά περιοχή ελέγχου
 - clustering methods: `kmeans`, `kmedoids`, `optics`
 - reference modes: generated electromechanical modes από το `PowerFactory` modal export του ίδιου dataset
-- `OPTICS` pre-merge: `off` by default
-- `OPTICS` pre-merge radius: `0.2` στο standardized `(Frequency, Damping)` space όταν είναι ενεργό
+- `OPTICS` pre-merge radius: `0.2` στο standardized `(Frequency, Damping)` space
 
 Κάθε sweep γράφει το δικό του:
 
@@ -151,7 +150,7 @@
 - `python IEEE39/analyze_ieee39.py --scenario Ambient_Mag0.1_T600s_dt10ms_seed1997`
 - `python IEEE39/analyze_ieee39.py --scenario ambient_seed1997 --data-dir results/Ambient_Mag0.1_T600s_dt10ms_seed1997`
 - `python IEEE39/analyze_ieee39.py --scenario ambient_seed1997 --data-dir results/Ambient_Mag0.1_T600s_dt10ms_seed1997 --analysis-method n4sid`
-- `python IEEE39/analyze_ieee39.py --scenario ambient_seed1997 --data-dir results/Ambient_Mag0.1_T600s_dt10ms_seed1997 --analysis-method n4sid --optics-premerge --merge-radius 0.15`
+- `python IEEE39/analyze_ieee39.py --scenario ambient_seed1997 --data-dir results/Ambient_Mag0.1_T600s_dt10ms_seed1997 --analysis-method n4sid --merge-radius 0.15`
 
 Αν θέλετε αντί για τα δύο default sweeps να τρέξει μόνο ένα custom sweep, χρησιμοποιήστε `--n4sid-orders`. Σε αυτή την περίπτωση το ambient output γράφεται σε subfolder `custom_orders`, για παράδειγμα:
 
@@ -161,7 +160,7 @@
 
 - `IEEE39/analysis/Ambient_Mag0.1_T600s_dt10ms_seed1997/custom_orders`
 
-**Στατιστικά & Διαγράμματα:** Το `comprehensive_report.csv` παράγεται πάντα στο `IEEE39/analysis/<scenario>/stats/comprehensive_report.csv`, ακόμη και όταν χρησιμοποιείται `--skip-matrix-pencil` με ήδη υπάρχον `results.csv`. Στο Matrix Pencil path τα plots είναι πλέον default on, οπότε το IEEE39 παράγει από προεπιλογή modal maps, reconstruction grids και τα thesis-used summary figures που αντιστοιχούν στο preliminary workflow, όπως bubble map (`stats/pdf/5_bubble_map.pdf`) και best reconstruction `2x2` ανά γεννήτρια (`stats/pdf/10_best_reconstruction_g*_2x2.pdf`). Στο ambient `N4SID` path τα plots είναι επίσης default on, αλλά πλέον δεν παράγονται reconstruction grids ή best-reconstruction summary figures: κρατούνται μόνο modal maps, modal summary stats και clustering outputs. Για το `load29`, με fixed default window, τα modal maps θα βρίσκονται στο `IEEE39/analysis/Load29_Pplus2_50s_0_to_end_reset/plots/modal_maps`, τα reconstruction grids στο `IEEE39/analysis/Load29_Pplus2_50s_0_to_end_reset/plots/reconstruction_grids`, και τα summary stats plots στο `IEEE39/analysis/Load29_Pplus2_50s_0_to_end_reset/stats/pdf`. Αν χρησιμοποιούνται subsets με `--generators` ή `--signals`, το `comprehensive_report.csv` και τα αντίστοιχα plots περιέχουν μόνο το subset που ζητήθηκε.
+**Στατιστικά & Διαγράμματα:** Το `comprehensive_report.csv` παράγεται πάντα στο `IEEE39/analysis/<scenario>/stats/comprehensive_report.csv`, ακόμη και όταν χρησιμοποιείται `--skip-matrix-pencil` με ήδη υπάρχον `results.csv`. Στο Matrix Pencil path τα plots είναι πλέον default on, οπότε το IEEE39 παράγει από προεπιλογή modal maps, reconstruction grids και τα thesis-used summary figures που αντιστοιχούν στο preliminary workflow, όπως bubble map (`stats/pdf/5_bubble_map.pdf`) και best reconstruction `2x2` ανά γεννήτρια (`stats/pdf/10_best_reconstruction_g*_2x2.pdf`). Στο ambient `N4SID` path τα plots είναι επίσης default on, αλλά περιορίζονται σε modal maps και clustering outputs: δεν παράγονται reconstruction grids, bubble maps, best-reconstruction plots ή `comprehensive_report.csv`. Για το `load29`, με fixed default window, τα modal maps θα βρίσκονται στο `IEEE39/analysis/Load29_Pplus2_50s_0_to_end_reset/plots/modal_maps`, τα reconstruction grids στο `IEEE39/analysis/Load29_Pplus2_50s_0_to_end_reset/plots/reconstruction_grids`, και τα summary stats plots στο `IEEE39/analysis/Load29_Pplus2_50s_0_to_end_reset/stats/pdf`. Αν χρησιμοποιούνται subsets με `--generators` ή `--signals`, το `comprehensive_report.csv` και τα αντίστοιχα plots περιέχουν μόνο το subset που ζητήθηκε.
 
 **Αυτόματη Αξιολόγηση Analysis Runs:** Κάθε φορά που ολοκληρώνεται το `IEEE39/analyze_ieee39.py`, προστίθεται στο `analysis_config.json` του αντίστοιχου analysis folder ένα πεδίο `evaluation`. Εκεί αποθηκεύονται:
 

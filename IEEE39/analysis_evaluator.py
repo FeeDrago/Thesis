@@ -182,7 +182,6 @@ def build_evaluation_payload(analysis_folder):
     reference_modes = _reference_modes_from_config(config)
     mode_df, recovered_counts, recovered_names = mode_match_rows(results_df, reference_modes=reference_modes)
     best_df = best_reconstruction_rows(report_df) if not report_df.empty else pd.DataFrame(columns=["Gen", "Signal", "Method", "R2", "RMSE", "Poles"])
-
     r2_series = pd.to_numeric(report_df["R2"], errors="coerce") if "R2" in report_df.columns else pd.Series(dtype=float)
     valid_r2 = r2_series.dropna()
 
