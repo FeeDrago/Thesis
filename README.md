@@ -129,15 +129,13 @@
 **Ambient Analyze Defaults:** Για ambient datasets, αν δεν δοθούν CLI overrides, το analyze χρησιμοποιεί:
 
 - σήματα `Voltage` και `Current`
-- preprocessing: `detrend -> downsample στα 5 Hz -> low-pass στα 2 Hz`
+- preprocessing: `detrend -> downsample στα 5 Hz` με anti-aliased decimation
 - order sweeps:
   - `orders1 = range(2, 32, 2)`
   - `orders2 = range(10, 50, 5)`
 - clustering: `on` ανά περιοχή ελέγχου
-- clustering methods: `kmeans`, `kmedoids`, `optics`
+- clustering methods: `kmeans`, `kmedoids`, `optics`, `dbscan`
 - reference modes: generated electromechanical modes από το `PowerFactory` modal export του ίδιου dataset
-- `OPTICS` pre-merge radius: `0.2` στο standardized `(Frequency, Damping)` space
-
 Κάθε sweep γράφει το δικό του:
 
 - `results.csv`
@@ -150,7 +148,7 @@
 - `python IEEE39/analyze_ieee39.py --scenario Ambient_Mag0.1_T600s_dt10ms_seed1997`
 - `python IEEE39/analyze_ieee39.py --scenario ambient_seed1997 --data-dir results/Ambient_Mag0.1_T600s_dt10ms_seed1997`
 - `python IEEE39/analyze_ieee39.py --scenario ambient_seed1997 --data-dir results/Ambient_Mag0.1_T600s_dt10ms_seed1997 --analysis-method n4sid`
-- `python IEEE39/analyze_ieee39.py --scenario ambient_seed1997 --data-dir results/Ambient_Mag0.1_T600s_dt10ms_seed1997 --analysis-method n4sid --merge-radius 0.15`
+- `python IEEE39/analyze_ieee39.py --scenario ambient_seed1997 --data-dir results/Ambient_Mag0.1_T600s_dt10ms_seed1997 --analysis-method n4sid --clustering-methods kmeans kmedoids optics dbscan`
 
 Αν θέλετε αντί για τα δύο default sweeps να τρέξει μόνο ένα custom sweep, χρησιμοποιήστε `--n4sid-orders`. Σε αυτή την περίπτωση το ambient output γράφεται σε subfolder `custom_orders`, για παράδειγμα:
 
