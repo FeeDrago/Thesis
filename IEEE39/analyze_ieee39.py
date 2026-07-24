@@ -1473,6 +1473,60 @@ def generate_ieee39_plots(df_results, report, scenario):
     _generate_ieee39_best_reconstruction_plots(df_results, report, scenario, stats_dir, data_dir, generators, columns)
 
 
+def generate_ieee39_ambient_modal_plots(df_results, scenario):
+    if df_results.empty:
+        print("No ambient N4SID results available; skipping ambient modal plots.")
+        return
+
+    _, output_dir, _, generators, columns = _scenario_runtime_config(scenario)
+    modal_maps_dir = output_dir / "plots" / "modal_maps"
+
+    _generate_ieee39_modal_grid_plots(df_results, modal_maps_dir, generators, columns)
+
+    for gen in generators:
+        gen_data = df_results[df_results["Gen"] == gen]
+        if gen_data.empty:
+            continue
+
+        plot_modal_combined_map(
+            df_results=df_results,
+            output_dir=modal_maps_dir,
+            filename=f"{gen}_combined_modal_map",
+            title=f"Combined Modal Map: {generator_modal_label(gen)}",
+            signals=list(columns.values()),
+            gen=gen,
+            colors=SIGNAL_COLORS.copy(),
+            figsize=(10, 6),
+            fixed_xlim=(-1.0, 0.02),
+            fixed_ylim=(0.0, 2.05),
+            show_zero_line=True,
+            fixed_xticks=[-1.0, -0.75, -0.5, -0.25, 0.0],
+        )
+
+    plot_modal_combined_map(
+        df_results=df_results,
+        output_dir=modal_maps_dir,
+        filename="system_modal_map_full",
+        title="System-Wide Modal Map",
+        signals=list(columns.values()),
+        colors=SIGNAL_COLORS.copy(),
+        figsize=(11, 7),
+    )
+    plot_modal_combined_map(
+        df_results=df_results,
+        output_dir=modal_maps_dir,
+        filename="system_modal_map",
+        title="System-Wide Modal Map",
+        signals=list(columns.values()),
+        colors=SIGNAL_COLORS.copy(),
+        figsize=(11, 7),
+        fixed_xlim=(-1.0, 0.02),
+        fixed_ylim=(0.0, 2.05),
+        show_zero_line=True,
+        fixed_xticks=[-1.0, -0.75, -0.5, -0.25, 0.0],
+    )
+
+
 def run_matrix_pencil_for_scenario(name, scenario):
     mp_start = time.perf_counter()
     data_dir, output_dir, generated_config, generators, columns = _scenario_runtime_config(scenario)
@@ -2023,7 +2077,7 @@ def main():
                 scenario["columns"] = dict(AMBIENT_DEFAULT_SIGNALS)
                 scenario["signal_subset"] = list(AMBIENT_DEFAULT_SIGNALS.values())
             if not effective_skip_plots:
-                print(f"Ambient N4SID will generate modal maps and reconstruction plots per sweep for '{name}'.", flush=True)
+                print(f"Ambient N4SID will generate modal maps per sweep for '{name}'.", flush=True)
 
             if args.skip_n4sid:
                 output_dir, results_path, df_results, analysis_config = load_existing_ambient_results_for_scenario(name, scenario)
@@ -2031,7 +2085,6 @@ def main():
                 output_dir, results_path, df_results, analysis_config = run_ambient_n4sid_for_scenario(name, scenario, args)
             sweep_evaluations = []
             sweep_plotting_seconds = 0.0
-            sweep_report_seconds = 0.0
             sweep_clustering_seconds = 0.0
             for sweep in analysis_config.get("sweeps", []):
                 sweep_dir = _resolve_path(sweep["output_dir"])
@@ -2051,15 +2104,10 @@ def main():
                     "clustering": effective_clustering,
                 }
 
-                report_start = time.perf_counter()
-                report = generate_ieee39_comprehensive_report(sweep_df, sweep_scenario)
-                report_elapsed = time.perf_counter() - report_start
-                sweep_report_seconds += report_elapsed
-
                 plotting_elapsed = 0.0
                 if not effective_skip_plots:
                     plotting_start = time.perf_counter()
-                    generate_ieee39_plots(sweep_df, report, sweep_scenario)
+                    generate_ieee39_ambient_modal_plots(sweep_df, sweep_scenario)
                     plotting_elapsed = time.perf_counter() - plotting_start
                     sweep_plotting_seconds += plotting_elapsed
 
@@ -2077,7 +2125,7 @@ def main():
                     clustering_elapsed = time.perf_counter() - clustering_start
                     sweep_clustering_seconds += clustering_elapsed
 
-                sweep_config.setdefault("timings", {})["comprehensive_report"] = _timing_entry(report_elapsed)
+                sweep_config.setdefault("timings", {})["comprehensive_report"] = _timing_entry(0.0, skipped=True)
                 sweep_config["timings"]["plotting"] = _timing_entry(plotting_elapsed, skipped=effective_skip_plots)
                 sweep_config["timings"]["clustering"] = _timing_entry(
                     clustering_elapsed,
@@ -2096,7 +2144,7 @@ def main():
                     "evaluation_summary": evaluation_payload.get("summary", {}),
                 })
 
-            analysis_config.setdefault("timings", {})["comprehensive_report"] = _timing_entry(sweep_report_seconds)
+            analysis_config.setdefault("timings", {})["comprehensive_report"] = _timing_entry(0.0, skipped=True)
             analysis_config["timings"]["plotting"] = _timing_entry(sweep_plotting_seconds, skipped=effective_skip_plots)
             analysis_config["timings"]["clustering"] = _timing_entry(
                 sweep_clustering_seconds,
