@@ -72,10 +72,16 @@ def _scenario_metadata(config):
 
 
 def best_reconstruction_rows(report_df):
-    if report_df.empty:
+    required = {"Gen", "Signal", "Method", "R2", "RMSE", "Poles"}
+    if report_df.empty or not required.issubset(set(report_df.columns)):
         return pd.DataFrame(columns=["Gen", "Signal", "Method", "R2", "RMSE", "Poles"])
-    best_idx = report_df.groupby(["Gen", "Signal"])["R2"].idxmax()
-    return report_df.loc[best_idx].copy().sort_values(["R2", "Gen", "Signal"])
+    working = report_df.copy()
+    working["R2"] = pd.to_numeric(working["R2"], errors="coerce")
+    working = working.dropna(subset=["R2"])
+    if working.empty:
+        return pd.DataFrame(columns=["Gen", "Signal", "Method", "R2", "RMSE", "Poles"])
+    best_idx = working.groupby(["Gen", "Signal"])["R2"].idxmax()
+    return working.loc[best_idx].copy().sort_values(["R2", "Gen", "Signal"])
 
 
 def mode_match_rows(results_df, reference_modes=None):
@@ -170,21 +176,27 @@ def build_evaluation_payload(analysis_folder):
     results_df = pd.read_csv(results_path)
     config = load_json(config_path)
     report_df = pd.read_csv(report_path) if report_path.exists() else pd.DataFrame(columns=["Gen", "Signal", "Method", "R2", "RMSE", "Poles"])
+    for col in ["R2", "RMSE", "Poles"]:
+        if col not in report_df.columns:
+            report_df[col] = pd.Series(dtype=float)
     reference_modes = _reference_modes_from_config(config)
     mode_df, recovered_counts, recovered_names = mode_match_rows(results_df, reference_modes=reference_modes)
     best_df = best_reconstruction_rows(report_df) if not report_df.empty else pd.DataFrame(columns=["Gen", "Signal", "Method", "R2", "RMSE", "Poles"])
 
+    r2_series = pd.to_numeric(report_df["R2"], errors="coerce") if "R2" in report_df.columns else pd.Series(dtype=float)
+    valid_r2 = r2_series.dropna()
+
     summary = {
         "analysis_folder": folder.name,
         **_scenario_metadata(config),
-        "has_reconstruction_report": bool(report_path.exists()),
+        "has_reconstruction_report": bool(report_path.exists() and not valid_r2.empty),
         "report_row_count": int(len(report_df)),
         "results_row_count": int(len(results_df)),
-        "mean_R2": float(report_df["R2"].mean()) if not report_df.empty else None,
-        "median_R2": float(report_df["R2"].median()) if not report_df.empty else None,
-        "min_R2": float(report_df["R2"].min()) if not report_df.empty else None,
-        "negative_R2_count": int((report_df["R2"] < 0).sum()) if not report_df.empty else 0,
-        "lt_0_8_R2_count": int((report_df["R2"] < 0.8).sum()) if not report_df.empty else 0,
+        "mean_R2": float(valid_r2.mean()) if not valid_r2.empty else None,
+        "median_R2": float(valid_r2.median()) if not valid_r2.empty else None,
+        "min_R2": float(valid_r2.min()) if not valid_r2.empty else None,
+        "negative_R2_count": int((valid_r2 < 0).sum()) if not valid_r2.empty else 0,
+        "lt_0_8_R2_count": int((valid_r2 < 0.8).sum()) if not valid_r2.empty else 0,
         "best_mean_R2": float(best_df["R2"].mean()) if not best_df.empty else None,
         "best_min_R2": float(best_df["R2"].min()) if not best_df.empty else None,
         "best_voltage_R2": float(best_df[best_df["Signal"] == "Voltage"]["R2"].mean()) if not best_df.empty else None,

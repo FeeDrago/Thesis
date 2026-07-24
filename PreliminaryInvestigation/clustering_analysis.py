@@ -31,7 +31,7 @@ FREQ_MIN = 0.1
 FREQ_MAX = 2.0
 DAMPING_MAX = -1e-3
 OPTICS_DEFAULT_SETTINGS = {
-    "premerge_enabled": True,
+    "premerge_enabled": False,
     "premerge_scope": "Gen+Signal",
     "merge_radius_scaled": 0.20,
     "merge_min_distinct_orders": 2,

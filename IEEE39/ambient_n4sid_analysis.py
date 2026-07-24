@@ -25,12 +25,12 @@ AMBIENT_DEFAULT_ORDER_GROUPS = [
     {"name": "orders2", "orders": list(range(10, 50, 5))},
 ]
 AMBIENT_DEFAULT_DOWNSAMPLE_HZ = 5.0
-AMBIENT_DEFAULT_LPF_HZ = 2.0
+AMBIENT_DEFAULT_LPF_HZ = 10.0
 AMBIENT_DEFAULT_DETREND = True
 AMBIENT_DEFAULT_CLUSTERING_METHODS = ["kmeans", "kmedoids", "optics"]
 AMBIENT_DEFAULT_CLUSTERING_SCOPE = {"global": False, "by_control_area": True}
 AMBIENT_DEFAULT_OPTICS_SETTINGS = {
-    "premerge_enabled": True,
+    "premerge_enabled": False,
     "premerge_scope": "Gen+Signal",
     "merge_radius_scaled": 0.20,
     "merge_min_distinct_orders": 2,
@@ -67,8 +67,6 @@ RESULT_COLUMNS = [
     "ModeIndex",
     "Frequency",
     "Damping",
-    "Amplitude",
-    "Phase",
     "DampingRatio",
     "DiscreteEigenvalueReal",
     "DiscreteEigenvalueImag",
@@ -122,6 +120,27 @@ def _timing_entry(seconds, skipped=False):
         "seconds": round(total_seconds, 6),
         "min_sec": f"{minutes:02d}:{seconds_part:04.1f}",
         "skipped": bool(skipped),
+    }
+
+
+def _ambient_output_naming_metadata(preprocess_cfg, optics_settings):
+    low_pass_hz = float(preprocess_cfg.get("low_pass_hz", 0.0))
+    if low_pass_hz <= 0.0:
+        lpf_suffix = "lpf-off"
+    else:
+        text = f"{low_pass_hz:g}".replace("-", "m").replace(".", "p")
+        lpf_suffix = f"lpf{text}hz"
+
+    premerge_enabled = bool(optics_settings.get("premerge_enabled", False))
+    premerge_suffix = "premerge-on" if premerge_enabled else "premerge-off"
+    return {
+        "low_pass_hz": low_pass_hz,
+        "premerge_enabled": premerge_enabled,
+        "folder_suffix": f"{lpf_suffix}_{premerge_suffix}",
+        "parts": {
+            "lpf": lpf_suffix,
+            "premerge": premerge_suffix,
+        },
     }
 
 
@@ -369,37 +388,67 @@ def _build_hankel(signal_values, block_rows):
     return np.vstack([y[idx:idx + columns] for idx in range(2 * block_rows)])
 
 
-def _fit_modal_amplitudes_and_phases(t, y, modal_rows):
-    if not modal_rows:
-        return []
+def _as_output_matrix(signal_values):
+    outputs = np.asarray(signal_values, dtype=float)
+    if outputs.ndim == 1:
+        outputs = outputs.reshape(-1, 1)
+    if outputs.ndim != 2:
+        raise ValueError("Ambient N4SID expects a 1D signal or a 2D output matrix.")
+    if outputs.shape[0] < 2:
+        raise ValueError("Ambient N4SID requires at least two output samples.")
+    return outputs
 
-    t = np.asarray(t, dtype=float)
-    y = np.asarray(y, dtype=float)
-    t_rel = t - t[0]
-    basis_columns = []
-    valid_rows = []
-    for row in modal_rows:
-        sigma = float(row["Damping"])
-        omega = 2.0 * np.pi * float(row["Frequency"])
-        envelope = np.exp(sigma * t_rel)
-        basis_columns.append(envelope * np.cos(omega * t_rel))
-        basis_columns.append(envelope * np.sin(omega * t_rel))
-        valid_rows.append(row)
 
-    design = np.column_stack(basis_columns)
-    coeffs, _, _, _ = np.linalg.lstsq(design, y, rcond=None)
+def _build_block_hankel(outputs, block_rows):
+    y = _as_output_matrix(outputs)
+    sample_count, output_dim = y.shape
+    columns = sample_count - (2 * block_rows) + 1
+    if columns < MIN_HANKEL_COLUMNS:
+        raise ValueError(
+            f"Ambient signal is too short for N4SID order sweep with block_rows={block_rows}; need at least {2 * block_rows + MIN_HANKEL_COLUMNS - 1} samples."
+        )
 
-    fitted_rows = []
-    for idx, row in enumerate(valid_rows):
-        alpha = float(coeffs[2 * idx])
-        beta = float(coeffs[(2 * idx) + 1])
-        amplitude = 0.5 * float(np.sqrt((alpha ** 2) + (beta ** 2)))
-        phase = float(np.arctan2(-beta, alpha))
-        fitted_row = dict(row)
-        fitted_row["Amplitude"] = amplitude
-        fitted_row["Phase"] = phase
-        fitted_rows.append(fitted_row)
-    return fitted_rows
+    blocks = []
+    for block_index in range(2 * block_rows):
+        block = y[block_index:block_index + columns, :].T
+        blocks.append(block)
+    return np.vstack(blocks), output_dim, columns
+
+
+def _lq_factor(*matrices):
+    stacked = np.vstack(matrices)
+    q_matrix, r_matrix = np.linalg.qr(stacked.T, mode="reduced")
+    return q_matrix.T, r_matrix.T
+
+
+def _project_onto_row_space(target, basis):
+    basis_rows = int(basis.shape[0])
+    target_rows = int(target.shape[0])
+    _, l_matrix = _lq_factor(basis, target)
+    l21 = l_matrix[basis_rows:basis_rows + target_rows, :basis_rows]
+    return l21 @ basis
+
+
+def _build_output_predictors(hankel, output_dim, block_rows):
+    y_past, y_future, y_past_plus, y_future_minus = _split_output_hankels(
+        hankel,
+        output_dim,
+        block_rows,
+    )
+    oh = _project_onto_row_space(y_future, y_past)
+    oh_plus = _project_onto_row_space(y_future_minus, y_past_plus)
+    return oh, oh_plus
+
+
+def _split_output_hankels(hankel, output_dim, block_rows):
+    past_rows = block_rows * output_dim
+    next_past_rows = (block_rows + 1) * output_dim
+    return (
+        hankel[:past_rows, :],
+        hankel[past_rows:, :],
+        hankel[:next_past_rows, :],
+        hankel[next_past_rows:, :],
+    )
 
 
 def identify_n4sid_modes(t, y, dt_s, order):
@@ -408,34 +457,48 @@ def identify_n4sid_modes(t, y, dt_s, order):
         raise ValueError("N4SID order must be at least 2.")
 
     block_rows = max(order + 4, 12)
-    hankel = _build_hankel(y, block_rows)
-    U, singular_values, Vt = np.linalg.svd(hankel, full_matrices=False)
+    outputs = _as_output_matrix(y)
+    hankel, output_dim, columns = _build_block_hankel(outputs, block_rows)
+    oh, oh_plus = _build_output_predictors(hankel, output_dim, block_rows)
+
+    U, singular_values, _ = np.linalg.svd(oh, full_matrices=False)
     if order >= len(singular_values):
         raise ValueError(f"N4SID order {order} exceeds available numerical rank {len(singular_values) - 1}.")
 
     U1 = U[:, :order]
     S1 = singular_values[:order]
-    V1 = Vt[:order, :]
+    Gammah = U1 @ np.diag(np.sqrt(S1))
+    Gammahbar = Gammah[:-output_dim, :]
+    if Gammahbar.shape[0] < order:
+        raise ValueError("Ambient N4SID observability matrix is too short for the requested order.")
 
-    sqrt_s1 = np.diag(np.sqrt(S1))
-    observability = U1 @ sqrt_s1
-    state_sequence = sqrt_s1 @ V1
+    xhat = np.linalg.pinv(Gammah) @ oh
+    xhatplus = np.linalg.pinv(Gammahbar) @ oh_plus
 
-    output_dim = 1
-    obs_upper = observability[:-output_dim, :]
-    obs_lower = observability[output_dim:, :]
-    a_matrix = np.linalg.lstsq(obs_upper, obs_lower, rcond=None)[0]
-    c_matrix = observability[:output_dim, :]
+    aligned_outputs = outputs[block_rows:block_rows + columns, :].T
+    lhs = np.vstack([xhatplus[:, :columns], aligned_outputs]).T
+    rhs = xhat[:, :columns].T
+    params = np.linalg.lstsq(rhs, lhs, rcond=None)[0]
+    residual = lhs - (rhs @ params)
 
-    x_k = state_sequence[:, :-1].T
-    x_next = state_sequence[:, 1:].T
-    y_k = np.asarray(y[:x_k.shape[0]], dtype=float).reshape(-1, 1)
-    x_next_hat = x_k @ a_matrix
-    y_hat = x_k @ c_matrix.T
+    a_matrix = params[:, :order].T
+    c_matrix = params[:, order:].T
 
-    state_rmse = float(np.sqrt(np.mean((x_next - x_next_hat) ** 2)))
-    output_rmse = float(np.sqrt(np.mean((y_k - y_hat) ** 2)))
-    output_var = float(np.var(y_k))
+    state_residual = residual[:, :order]
+    output_residual = residual[:, order:]
+    dof = max(1, columns - order)
+    sigma = (residual.T @ residual) / float(dof)
+    sigma12 = sigma[:order, order:]
+    sigma22 = sigma[order:, order:]
+    if sigma22.size == 0 or np.allclose(sigma22, 0.0):
+        k_matrix = np.zeros((order, output_dim), dtype=float)
+    else:
+        k_matrix = sigma12 @ np.linalg.pinv(sigma22)
+
+    output_rmse = float(np.sqrt(np.mean(output_residual ** 2)))
+    state_rmse = float(np.sqrt(np.mean(state_residual ** 2)))
+
+    output_var = float(np.var(aligned_outputs.T))
     fit_percent = None
     if output_var > 0.0:
         fit_percent = float(max(0.0, 100.0 * (1.0 - (output_rmse ** 2) / output_var)))
@@ -467,8 +530,6 @@ def identify_n4sid_modes(t, y, dt_s, order):
             "ModeIndex": int(mode_index),
             "Frequency": frequency_hz,
             "Damping": damping,
-            "Amplitude": None,
-            "Phase": None,
             "DampingRatio": damping_ratio,
             "DiscreteEigenvalueReal": float(np.real(discrete_eig)),
             "DiscreteEigenvalueImag": float(np.imag(discrete_eig)),
@@ -481,8 +542,6 @@ def identify_n4sid_modes(t, y, dt_s, order):
             "OutputPredictionRMSE": output_rmse,
             "OutputFitPercent": fit_percent,
         })
-
-    modes = _fit_modal_amplitudes_and_phases(t=t, y=y, modal_rows=modes)
 
     summary = {
         "Order": order,
@@ -616,6 +675,8 @@ def resolve_ambient_settings(scenario, args):
         raise SystemExit("Ambient N4SID requires at least one signal.")
 
     optics_settings = dict(AMBIENT_DEFAULT_OPTICS_SETTINGS)
+    if bool(getattr(args, "optics_premerge", False)):
+        optics_settings["premerge_enabled"] = True
     if args.merge_radius is not None:
         optics_settings["merge_radius_scaled"] = float(args.merge_radius)
     clustering_scope = _resolve_clustering_scope(getattr(args, "clustering_scope", "areas"))
@@ -646,6 +707,7 @@ def run_ambient_n4sid_for_scenario(name, scenario, args):
     settings = resolve_ambient_settings(scenario, args)
 
     preprocess_cfg = settings["ambient_preprocessing"]
+    output_naming = _ambient_output_naming_metadata(preprocess_cfg, settings["optics_settings"])
     signals = settings["signals"]
     time_mask = dict(scenario.get("time_mask") or {})
     analysis_start = time.perf_counter()
@@ -803,6 +865,7 @@ def run_ambient_n4sid_for_scenario(name, scenario, args):
                 **preprocess_cfg,
                 "signals": list(signals.values()),
             },
+            "output_naming": output_naming,
             "clustering_methods": settings["clustering_methods"],
             "clustering_scope": dict(settings["clustering_scope"]),
             "optics_settings": settings["optics_settings"],
@@ -846,6 +909,7 @@ def run_ambient_n4sid_for_scenario(name, scenario, args):
             **preprocess_cfg,
             "signals": list(signals.values()),
         },
+        "output_naming": output_naming,
         "clustering_methods": settings["clustering_methods"],
         "clustering_scope": dict(settings["clustering_scope"]),
         "optics_settings": settings["optics_settings"],

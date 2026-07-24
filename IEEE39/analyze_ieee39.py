@@ -32,7 +32,7 @@ def build_arg_parser():
               python IEEE39/analyze_ieee39.py --scenario load29 --time-cross global --time-cross-reference g2:Current --plots
               python IEEE39/analyze_ieee39.py --scenario load29 --fixed-orders 2 4 6 8 --taus 1 0.1 0.01
               python IEEE39/analyze_ieee39.py --scenario Load29_Pplus2_50s --skip-matrix-pencil --analysis-dir analysis/Load29_Pplus2_50s_0_to_end_reset
-              python IEEE39/analyze_ieee39.py --scenario ambient_seed1997 --data-dir results/Ambient_Mag0.1_T600s_dt10ms_seed1997 --output-dir analysis/ambient_seed1997 --analysis-method n4sid --n4sid-orders 10 20 30 40 50 --ambient-downsample-hz 5 --ambient-lpf-hz 2 --clustering --clustering-methods kmeans kmedoids optics
+              python IEEE39/analyze_ieee39.py --scenario ambient_seed1997 --data-dir results/Ambient_Mag0.1_T600s_dt10ms_seed1997 --output-dir analysis/ambient_seed1997 --analysis-method n4sid --n4sid-orders 10 20 30 40 50 --ambient-downsample-hz 5 --ambient-lpf-hz 10 --clustering --clustering-methods kmeans kmedoids optics --optics-premerge
 
             Notes:
               - --scenario is required for actual analysis runs; the script no longer defaults silently to 'all'.
@@ -83,9 +83,10 @@ def build_arg_parser():
     parser.add_argument("--taus", nargs="+", type=float, default=None, help="Override the tau values used for adaptive order selection. Default: 1 0.1 0.01.")
     parser.add_argument("--n4sid-orders", nargs="+", type=int, default=None, help="Ambient N4SID model orders. Default: built-in ambient order sweep.")
     parser.add_argument("--ambient-downsample-hz", type=float, default=None, help="Ambient preprocessing downsample rate in Hz. Default: 5.")
-    parser.add_argument("--ambient-lpf-hz", type=float, default=None, help="Ambient preprocessing low-pass cutoff in Hz. Default: 2.")
+    parser.add_argument("--ambient-lpf-hz", type=float, default=None, help="Ambient preprocessing low-pass cutoff in Hz. Default: 10.")
     parser.add_argument("--ambient-no-detrend", action="store_true", help="Disable ambient detrending. Default ambient preprocessing detrends first.")
-    parser.add_argument("--merge-radius", type=float, default=None, help="Ambient OPTICS pre-merge radius in standardized (Frequency, Damping) space. Default: 0.2. Only valid for ambient analysis.")
+    parser.add_argument("--optics-premerge", action="store_true", help="Enable ambient OPTICS pre-merge before clustering. Default: off.")
+    parser.add_argument("--merge-radius", type=float, default=None, help="Ambient OPTICS pre-merge radius in standardized (Frequency, Damping) space when --optics-premerge is enabled. Default: 0.2. Only valid for ambient analysis.")
     parser.add_argument("--clustering-methods", nargs="+", choices=["kmeans", "kmedoids", "optics"], default=None, help="Ambient clustering methods. Default: kmeans kmedoids optics.")
     return parser
 
@@ -173,12 +174,14 @@ from plot_style import (
     SIGNAL_COLORS,
 )
 from shared_plotting import (
+    MODAL_DEFAULT_XTICKS,
     generator_display_name,
     generator_modal_label,
     plot_best_reconstruction_grid,
     plot_bubble_map,
     plot_modal_combined_map,
     plot_modal_generator_grid,
+    plot_modal_signal_focus_map,
     plot_modal_signal_grid,
     plot_reconstruction_method_grid,
     save_current_figure,
@@ -286,9 +289,20 @@ def _ambient_cli_overrides_requested(args):
         args.ambient_downsample_hz is not None,
         args.ambient_lpf_hz is not None,
         bool(args.ambient_no_detrend),
+        bool(getattr(args, "optics_premerge", False)),
         args.merge_radius is not None,
         args.clustering_methods is not None,
     ])
+
+
+def _ambient_output_naming_from_args(args):
+    from ambient_n4sid_analysis import AMBIENT_DEFAULT_LPF_HZ
+
+    low_pass_hz = float(args.ambient_lpf_hz) if args.ambient_lpf_hz is not None else float(AMBIENT_DEFAULT_LPF_HZ)
+    return {
+        "low_pass_hz": low_pass_hz,
+        "premerge_enabled": bool(getattr(args, "optics_premerge", False)),
+    }
 
 
 def _base_scenario_defaults():
@@ -379,19 +393,71 @@ def _selection_suffix(scenario):
     return "_".join(parts)
 
 
+def _format_numeric_suffix_value(value):
+    text = f"{float(value):g}"
+    return text.replace("-", "m").replace(".", "p")
+
+
+def _ambient_output_naming_from_scenario(scenario):
+    info = dict(scenario.get("ambient_output_naming") or {})
+    low_pass_hz = info.get("low_pass_hz")
+    if low_pass_hz is None:
+        return ""
+
+    if float(low_pass_hz) <= 0.0:
+        lpf_part = "lpf-off"
+    else:
+        lpf_part = f"lpf{_format_numeric_suffix_value(low_pass_hz)}hz"
+
+    premerge_enabled = bool(info.get("premerge_enabled", False))
+    premerge_part = "premerge-on" if premerge_enabled else "premerge-off"
+    return f"{lpf_part}_{premerge_part}"
+
+
+def _ambient_dataset_output_base_name(scenario):
+    data_dir = _resolve_path(scenario["data_dir"])
+    generated_config = _load_scenario_json(data_dir)
+    scenario_name = None if generated_config is None else generated_config.get("scenario_name")
+    text = str(scenario_name).strip() if scenario_name is not None else ""
+    return text or data_dir.name
+
+
+def _is_default_ambient_time_window(time_mask):
+    time_mask = dict(time_mask or {})
+    start = time_mask.get("start_inclusive", time_mask.get("start"))
+    end = time_mask.get("end_inclusive", time_mask.get("end"))
+    reset = time_mask.get("reset_time", True)
+    start_ok = start is None or float(start) == 0.0
+    end_ok = end is None
+    return start_ok and end_ok and bool(reset)
+
+
 def _analysis_output_dir(scenario):
     output_dir = _resolve_path(scenario.get("output_dir", "analysis"))
     if scenario.get("output_dir_explicit"):
         return output_dir
 
-    if scenario.get("time_cross"):
-        time_suffix = _time_cross_suffix(scenario.get("time_mask"), scenario.get("time_cross"))
+    if str(scenario.get("analysis_method", "")).strip().lower() == "n4sid":
+        base_name = _ambient_dataset_output_base_name(scenario)
+        if scenario.get("time_cross"):
+            time_suffix = _time_cross_suffix(scenario.get("time_mask"), scenario.get("time_cross"))
+            base_name = f"{base_name}_{time_suffix}"
+        elif not _is_default_ambient_time_window(scenario.get("time_mask")):
+            base_name = f"{base_name}_{_time_mask_suffix(scenario.get('time_mask'))}"
     else:
-        time_suffix = _time_mask_suffix(scenario.get("time_mask"))
-    base_name = f"{output_dir.name}_{time_suffix}"
+        if scenario.get("time_cross"):
+            time_suffix = _time_cross_suffix(scenario.get("time_mask"), scenario.get("time_cross"))
+        else:
+            time_suffix = _time_mask_suffix(scenario.get("time_mask"))
+        base_name = f"{output_dir.name}_{time_suffix}"
+
     selection_suffix = _selection_suffix(scenario)
     if selection_suffix:
         base_name = f"{base_name}_{selection_suffix}"
+    if str(scenario.get("analysis_method", "")).strip().lower() == "n4sid":
+        ambient_suffix = _ambient_output_naming_from_scenario(scenario)
+        if ambient_suffix:
+            base_name = f"{base_name}_{ambient_suffix}"
     return output_dir.parent / base_name
 
 
@@ -965,7 +1031,7 @@ def _preprocess_signal(df, column_name, scenario, gen, signal_label=None):
             time_mask_config=scenario.get("time_mask") or {},
             detrend_enabled=bool(ambient_cfg.get("detrend", True)),
             downsample_hz=float(ambient_cfg.get("downsample_hz", 5.0)),
-            lowpass_hz=float(ambient_cfg.get("low_pass_hz", 2.0)),
+            lowpass_hz=float(ambient_cfg.get("low_pass_hz", 10.0)),
         )
         if t_selected is None or y_selected is None or preprocess_meta is None:
             return None, None, None
@@ -1221,14 +1287,33 @@ def _attach_result_diagnostics(analysis_config, data_dir, scenario, generators, 
     analysis_config.update(diagnostics)
 
 
+def _is_ambient_n4sid_scenario(scenario):
+    return str(scenario.get("analysis_method", "")).strip().lower() == "n4sid"
+
+
 def generate_ieee39_comprehensive_report(df_results, scenario):
     data_dir, output_dir, _, generators, columns = _scenario_runtime_config(scenario)
     stats_dir = output_dir / "stats"
     stats_dir.mkdir(parents=True, exist_ok=True)
-    report_columns = ["Gen", "Signal", "Method", "R2", "RMSE", "Poles"]
+    if _is_ambient_n4sid_scenario(scenario):
+        report_columns = ["Gen", "Signal", "Method", "Poles"]
+    else:
+        report_columns = ["Gen", "Signal", "Method", "R2", "RMSE", "Poles"]
 
     metrics = []
     if df_results.empty:
+        report = pd.DataFrame(metrics, columns=report_columns)
+        report.to_csv(stats_dir / "comprehensive_report.csv", index=False)
+        return report
+
+    if _is_ambient_n4sid_scenario(scenario):
+        for (gen, signal, method), group in df_results.groupby(["Gen", "Signal", "Method"], sort=True):
+            metrics.append({
+                "Gen": gen,
+                "Signal": signal,
+                "Method": method,
+                "Poles": int(len(group)),
+            })
         report = pd.DataFrame(metrics, columns=report_columns)
         report.to_csv(stats_dir / "comprehensive_report.csv", index=False)
         return report
@@ -1277,6 +1362,8 @@ def generate_ieee39_comprehensive_report(df_results, scenario):
 
 
 def _generate_ieee39_modal_grid_plots(df_results, modal_maps_dir, generators, columns):
+    grid_xticks = MODAL_DEFAULT_XTICKS[:4]
+
     for gen in generators:
         gen_data = df_results[df_results["Gen"] == gen]
         if gen_data.empty:
@@ -1301,10 +1388,26 @@ def _generate_ieee39_modal_grid_plots(df_results, modal_maps_dir, generators, co
         title="System-Wide Modal Identification (All Generators)",
         colors=SIGNAL_COLORS.copy(),
         clamp_positive_max=False,
-        fixed_xlim=(-1.0, 0.02),
-        fixed_ylim=(0.0, 1.60),
         show_zero_line=True,
+        right_xlim=0.008,
+        fixed_xticks=grid_xticks,
+        force_symlog_x=True,
+        frequency_guides_as_y_ticks=True,
     )
+
+
+def _ambient_uncut_xticks(df_results):
+    positive_max = float(pd.to_numeric(df_results["Damping"], errors="coerce").max())
+    ticks = [-10.0, -1.0, -0.1, -0.01]
+    if positive_max > 0.05:
+        ticks.append(0.1)
+    if positive_max > 0.5:
+        ticks.append(1.0)
+    if positive_max > 1.5:
+        ticks.append(2.0)
+    if positive_max > 2.5:
+        ticks.append(3.0)
+    return ticks
 
 
 def _generate_ieee39_bubble_map(df_results, stats_dir):
@@ -1383,11 +1486,15 @@ def generate_ieee39_plots(df_results, report, scenario):
         print("No Matrix Pencil results available; skipping IEEE39 plots.")
         return
 
+    summary_xticks = MODAL_DEFAULT_XTICKS
+    grid_xticks = MODAL_DEFAULT_XTICKS[:4]
+    uncut_xticks = _ambient_uncut_xticks(df_results)
     data_dir, output_dir, _, generators, columns = _scenario_runtime_config(scenario)
     plots_dir = output_dir / "plots"
     modal_maps_dir = plots_dir / "modal_maps"
-    recon_dir = plots_dir / "reconstruction_grids"
     stats_dir = output_dir / "stats"
+    ambient_n4sid = _is_ambient_n4sid_scenario(scenario)
+    reference_modes = _resolve_reference_modes_for_scenario(scenario) if ambient_n4sid else None
 
     _generate_ieee39_modal_grid_plots(df_results, modal_maps_dir, generators, columns)
 
@@ -1405,10 +1512,8 @@ def generate_ieee39_plots(df_results, report, scenario):
             gen=gen,
             colors=SIGNAL_COLORS.copy(),
             figsize=(10, 6),
-            fixed_xlim=(-1.0, 0.02),
-            fixed_ylim=(0.0, 2.05),
             show_zero_line=True,
-            fixed_xticks=[-1.0, -0.75, -0.5, -0.25, 0.0],
+            right_xlim=0.02,
         )
 
     plot_modal_combined_map(
@@ -1419,60 +1524,104 @@ def generate_ieee39_plots(df_results, report, scenario):
         signals=list(columns.values()),
         colors=SIGNAL_COLORS.copy(),
         figsize=(11, 7),
+        right_xlim=0.008,
+        fixed_xticks=summary_xticks,
+        force_symlog_x=True,
+        frequency_guides_as_y_ticks=True,
     )
-    plot_modal_combined_map(
+    plot_modal_signal_focus_map(
         df_results=df_results,
         output_dir=modal_maps_dir,
         filename="system_modal_map",
-        title="System-Wide Modal Map",
+        title="System-Wide Modal Map by Signal",
         signals=list(columns.values()),
         colors=SIGNAL_COLORS.copy(),
-        figsize=(11, 7),
-        fixed_xlim=(-1.0, 0.02),
-        fixed_ylim=(0.0, 2.05),
+        figsize=(11, 9),
         show_zero_line=True,
-        fixed_xticks=[-1.0, -0.75, -0.5, -0.25, 0.0],
+        right_xlim=0.008,
+        fixed_xticks=summary_xticks,
+        force_symlog_x=True,
+        frequency_guides_as_y_ticks=True,
+        reference_modes=reference_modes if ambient_n4sid else None,
+        annotate_reference_modes=False,
     )
 
-    inv_columns = {label: csv_col for csv_col, label in columns.items()}
-    reconstruction_rows = _scenario_reconstruction_rows(scenario)
-    for gen in generators:
-        csv_path = data_dir / f"{gen}.csv"
-        if not csv_path.exists():
-            continue
+    if ambient_n4sid:
+        plot_modal_generator_grid(
+            df_results=df_results,
+            generators=generators,
+            signals=list(columns.values()),
+            output_dir=modal_maps_dir,
+            filename="All_Generators_Grid",
+            title="System-Wide Modal Identification (All Generators)",
+            colors=SIGNAL_COLORS.copy(),
+            clamp_positive_max=False,
+            show_zero_line=True,
+            right_xlim=0.008,
+            fixed_xticks=grid_xticks,
+            force_symlog_x=True,
+            frequency_guides_as_y_ticks=True,
+            reference_modes=reference_modes,
+            annotate_reference_modes=False,
+        )
+        plot_modal_signal_focus_map(
+            df_results=df_results,
+            output_dir=modal_maps_dir,
+            filename="system_modal_map_uncut",
+            title="System-Wide Modal Map by Signal",
+            signals=list(columns.values()),
+            colors=SIGNAL_COLORS.copy(),
+            figsize=(11, 9),
+            show_zero_line=True,
+            fixed_xticks=uncut_xticks,
+            force_symlog_x=True,
+            frequency_guides_as_y_ticks=True,
+            reference_modes=reference_modes,
+            annotate_reference_modes=True,
+        )
 
-        df = _read_numeric_csv(csv_path)
-        for signal in columns.values():
-            source_col = inv_columns[signal]
-            if source_col not in df.columns:
+    if not ambient_n4sid:
+        recon_dir = plots_dir / "reconstruction_grids"
+        inv_columns = {label: csv_col for csv_col, label in columns.items()}
+        reconstruction_rows = _scenario_reconstruction_rows(scenario)
+        for gen in generators:
+            csv_path = data_dir / f"{gen}.csv"
+            if not csv_path.exists():
                 continue
 
-            t, y_ref, _ = _preprocess_signal(df, source_col, scenario, gen, signal)
-            if t is None or y_ref is None:
-                continue
+            df = _read_numeric_csv(csv_path)
+            for signal in columns.values():
+                source_col = inv_columns[signal]
+                if source_col not in df.columns:
+                    continue
 
-            if not reconstruction_rows:
-                continue
+                t, y_ref, _ = _preprocess_signal(df, source_col, scenario, gen, signal)
+                if t is None or y_ref is None:
+                    continue
 
-            plot_reconstruction_method_grid(
-                t=t,
-                y_ref=y_ref,
-                reconstruction_rows=reconstruction_rows,
-                fetch_modes=lambda method: df_results[
-                    (df_results["Gen"] == gen)
-                    & (df_results["Signal"] == signal)
-                    & (df_results["Method"] == method)
-                ],
-                reconstruct_signal=_reconstruct_signal,
-                output_dir=recon_dir,
-                filename=f"{gen}_{signal.replace(' ', '_')}_reconstruction",
-                title=f"Reconstruction Accuracy: {gen.upper()} - {signal}\nLeft: Fixed Orders | Right: Adaptive Tau",
-                signal=signal,
-                x_lims=RECON_X_LIMS,
-            )
+                if not reconstruction_rows:
+                    continue
 
-    _generate_ieee39_bubble_map(df_results, stats_dir)
-    _generate_ieee39_best_reconstruction_plots(df_results, report, scenario, stats_dir, data_dir, generators, columns)
+                plot_reconstruction_method_grid(
+                    t=t,
+                    y_ref=y_ref,
+                    reconstruction_rows=reconstruction_rows,
+                    fetch_modes=lambda method: df_results[
+                        (df_results["Gen"] == gen)
+                        & (df_results["Signal"] == signal)
+                        & (df_results["Method"] == method)
+                    ],
+                    reconstruct_signal=_reconstruct_signal,
+                    output_dir=recon_dir,
+                    filename=f"{gen}_{signal.replace(' ', '_')}_reconstruction",
+                    title=f"Reconstruction Accuracy: {gen.upper()} - {signal}\nLeft: Fixed Orders | Right: Adaptive Tau",
+                    signal=signal,
+                    x_lims=RECON_X_LIMS,
+                )
+
+    if not ambient_n4sid:
+        _generate_ieee39_bubble_map(df_results, stats_dir)
+        _generate_ieee39_best_reconstruction_plots(df_results, report, scenario, stats_dir, data_dir, generators, columns)
 
 
 def run_matrix_pencil_for_scenario(name, scenario):
@@ -2017,6 +2166,11 @@ def main():
             scenario["clustering"] = effective_clustering
 
         if analysis_method == "n4sid":
+            scenario["analysis_method"] = "n4sid"
+            scenario["ambient_output_naming"] = _ambient_output_naming_from_args(args)
+            if not scenario.get("output_dir_explicit"):
+                scenario["output_dir"] = path_for_metadata(_analysis_output_dir(scenario))
+                scenario["output_dir_explicit"] = True
             if args.skip_matrix_pencil:
                 raise SystemExit("--skip-matrix-pencil cannot be used with ambient N4SID analysis.")
             if args.time_cross is not None:
@@ -2025,7 +2179,7 @@ def main():
                 scenario["columns"] = dict(AMBIENT_DEFAULT_SIGNALS)
                 scenario["signal_subset"] = list(AMBIENT_DEFAULT_SIGNALS.values())
             if not effective_skip_plots:
-                print(f"Ambient N4SID will generate modal maps and reconstruction plots per sweep for '{name}'.", flush=True)
+                print(f"Ambient N4SID will generate modal maps per sweep for '{name}'.", flush=True)
 
             if args.skip_n4sid:
                 output_dir, results_path, df_results, analysis_config = load_existing_ambient_results_for_scenario(name, scenario)
