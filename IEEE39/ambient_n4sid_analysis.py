@@ -29,15 +29,18 @@ AMBIENT_DEFAULT_DETREND = True
 AMBIENT_DEFAULT_CLUSTERING_METHODS = ["kmeans", "kmedoids", "optics", "dbscan"]
 AMBIENT_DEFAULT_CLUSTERING_SCOPE = {"global": False, "by_control_area": True}
 AMBIENT_DEFAULT_OPTICS_SETTINGS = {
-    "min_samples_min": 5,
-    "min_samples_max": 20,
-    "xi": 0.05,
-}
-AMBIENT_DEFAULT_DBSCAN_SETTINGS = {
-    "pe": 0.025,
-    "pm": 0.25,
+    "pm_values": [0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40],
+    "xi_values": [round(value, 2) for value in np.arange(0.02, 0.401, 0.02)],
     "multiply_by_orders": True,
     "min_npts": 2,
+    "min_assigned_ratio": 0.50,
+}
+AMBIENT_DEFAULT_DBSCAN_SETTINGS = {
+    "pe_values": [round(value, 3) for value in np.arange(0.01, 0.051, 0.005)],
+    "pm_values": [0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40],
+    "multiply_by_orders": True,
+    "min_npts": 2,
+    "min_assigned_ratio": 0.50,
 }
 
 AMBIENT_REFERENCE_MODES = {
@@ -98,6 +101,14 @@ ORDER_SUMMARY_COLUMNS = [
     "OrderSingularValueEnergyRatio",
     "Status",
     "Message",
+]
+CLUSTERING_SELECTION_SUMMARY_COLUMNS = [
+    "Scenario", "OrderGroup", "Orders", "Area", "Generators", "GeneratorCount",
+    "ReferenceModeCount", "ReferenceModes", "Method", "Status",
+    "SelectedK", "SilhouetteSelectedK", "Pe", "Pm", "Epsilon", "Xi",
+    "MinPts", "MinSamples", "Clusters", "NoisePoints", "AssignedPoints",
+    "AssignedRatio", "Silhouette", "SelectionReason", "ObjectiveName",
+    "ObjectiveValue",
 ]
 
 
@@ -255,6 +266,141 @@ def _reference_modes_for_control_area(reference_modes, area_name):
         if not relevant_areas or area_idx in relevant_areas:
             filtered[mode_name] = dict(mode_data)
     return filtered
+
+
+def _selected_summary_row(metrics_path):
+    if not metrics_path.exists():
+        return None
+    metrics = pd.read_csv(metrics_path)
+    if metrics.empty:
+        return None
+    selected_column = next((column for column in ("Selected", "selected") if column in metrics.columns), None)
+    if selected_column is None:
+        return None
+    selected = metrics[metrics[selected_column].astype(str).str.lower().eq("true")]
+    return None if selected.empty else selected.iloc[0]
+
+
+def _summary_value(row, column):
+    if row is None or column not in row or pd.isna(row[column]):
+        return None
+    return row[column]
+
+
+def _ambient_summary_base_row(scenario, order_group, orders, area_name, generators, reference_modes, method):
+    return {
+        "Scenario": scenario,
+        "OrderGroup": order_group,
+        "Orders": ", ".join(str(order) for order in orders),
+        "Area": area_name,
+        "Generators": ", ".join(generators),
+        "GeneratorCount": len(generators),
+        "ReferenceModeCount": len(reference_modes),
+        "ReferenceModes": "; ".join(reference_modes),
+        "Method": method,
+        "Status": "ok",
+    }
+
+
+def _append_density_summary_row(rows, base_row, method_dir, method_name):
+    metrics_name = "dbscan_metrics_summary.csv" if method_name == "DBSCAN" else "optics_metrics_summary.csv"
+    selected = _selected_summary_row(method_dir / metrics_name)
+    row = dict(base_row)
+    if selected is None:
+        row["Status"] = "missing_selection"
+    else:
+        for column in (
+            "Pe", "Pm", "Epsilon", "Xi", "MinPts", "MinSamples", "Clusters",
+            "NoisePoints", "AssignedPoints", "AssignedRatio", "Silhouette", "SelectionReason",
+        ):
+            row[column] = _summary_value(selected, column)
+    rows.append(row)
+
+
+def _append_partitioning_summary_row(rows, base_row, method_dir, method_name):
+    metrics_name = "kmeans_metrics_summary.csv" if method_name == "K-Means" else "kmedoids_metrics_summary.csv"
+    selected = _selected_summary_row(method_dir / metrics_name)
+    row = dict(base_row)
+    if selected is None:
+        metrics_path = method_dir / metrics_name
+        if metrics_path.exists():
+            metrics = pd.read_csv(metrics_path)
+            selected_mask = metrics.get("k_selected_by_max_chord", pd.Series(False, index=metrics.index))
+            selected_rows = metrics[selected_mask.astype(str).str.lower().eq("true")]
+            selected = None if selected_rows.empty else selected_rows.iloc[0]
+    if selected is None:
+        row["Status"] = "missing_selection"
+    else:
+        objective = "WCSS" if method_name == "K-Means" else "Cost"
+        row["SelectedK"] = _summary_value(selected, "k")
+        row["Clusters"] = _summary_value(selected, "k")
+        row["ObjectiveName"] = objective
+        row["ObjectiveValue"] = _summary_value(selected, objective)
+
+    silhouette_path = method_dir.parent / "silhouette" / "silhouette_optimal_k_summary.csv"
+    if silhouette_path.exists():
+        silhouette = pd.read_csv(silhouette_path)
+        match = silhouette[silhouette["Method"].astype(str).str.lower().eq(method_name.lower())]
+        if not match.empty:
+            row["SilhouetteSelectedK"] = _summary_value(match.iloc[0], "k_opt")
+            row["Silhouette"] = _summary_value(match.iloc[0], "Silhouette")
+    rows.append(row)
+
+
+def save_ambient_clustering_selection_summary(base_output_dir, analysis_config=None):
+    """Write one comparable clustering-selection row per order group, area, and method."""
+    base_output_dir = Path(base_output_dir)
+    if analysis_config is None:
+        analysis_config = _load_json(base_output_dir / "analysis_config.json")
+
+    scenario = str(analysis_config.get("name", "ambient"))
+    all_reference_modes = dict(analysis_config.get("reference_modes") or {})
+    rows = []
+    for sweep in analysis_config.get("sweeps", []):
+        sweep_dir = _resolve_path(sweep["output_dir"])
+        sweep_config_path = sweep_dir / "analysis_config.json"
+        sweep_config = _load_json(sweep_config_path) if sweep_config_path.exists() else {}
+        order_group = str(sweep.get("name", sweep_config.get("order_group_name", sweep_dir.name)))
+        orders = list(sweep.get("orders", sweep_config.get("n4sid_orders", [])))
+        methods = list(sweep_config.get("clustering_methods", analysis_config.get("clustering_methods", [])))
+        reference_modes = dict(sweep_config.get("reference_modes") or all_reference_modes)
+        area_root = sweep_dir / "clustering" / "by_control_area"
+
+        for area_name, generators in CONTROL_AREAS.items():
+            area_dir = area_root / area_name
+            area_reference_modes = _reference_modes_for_control_area(reference_modes, area_name)
+            if "kmeans" in methods:
+                _append_partitioning_summary_row(
+                    rows,
+                    _ambient_summary_base_row(scenario, order_group, orders, area_name, generators, area_reference_modes, "K-Means"),
+                    area_dir / "kmeans",
+                    "K-Means",
+                )
+            if "kmedoids" in methods:
+                _append_partitioning_summary_row(
+                    rows,
+                    _ambient_summary_base_row(scenario, order_group, orders, area_name, generators, area_reference_modes, "K-Medoids"),
+                    area_dir / "kmedoids",
+                    "K-Medoids",
+                )
+            if "dbscan" in methods:
+                _append_density_summary_row(
+                    rows,
+                    _ambient_summary_base_row(scenario, order_group, orders, area_name, generators, area_reference_modes, "DBSCAN"),
+                    area_dir / "dbscan",
+                    "DBSCAN",
+                )
+            if "optics" in methods:
+                _append_density_summary_row(
+                    rows,
+                    _ambient_summary_base_row(scenario, order_group, orders, area_name, generators, area_reference_modes, "OPTICS"),
+                    area_dir / "optics",
+                    "OPTICS",
+                )
+
+    summary = pd.DataFrame(rows, columns=CLUSTERING_SELECTION_SUMMARY_COLUMNS)
+    summary.to_csv(base_output_dir / "clustering_selection_summary.csv", index=False)
+    return summary
 
 
 def _save_combined_reference_mad_summary(area_root, reference_modes):
@@ -529,6 +675,7 @@ def _run_clustering_pipeline(results_path, output_path, reference_modes, methods
     requested_methods = list(methods or [])
     output_path.mkdir(parents=True, exist_ok=True)
     timings = {}
+    selections = {}
 
     screen_start = time.perf_counter()
     df_for_mad = _load_screened_data(str(results_path), str(output_path))
@@ -548,22 +695,24 @@ def _run_clustering_pipeline(results_path, output_path, reference_modes, methods
     for method in requested_methods:
         started = time.perf_counter()
         if method == "optics":
-            runners[method](
+            selection = runners[method](
                 str(results_path),
                 str(output_path),
                 reference_modes=reference_modes,
                 optics_settings=optics_settings,
             )
         elif method == "dbscan":
-            runners[method](
+            selection = runners[method](
                 str(results_path),
                 str(output_path),
                 reference_modes=reference_modes,
                 dbscan_settings=dbscan_settings,
             )
         else:
-            runners[method](str(results_path), str(output_path), reference_modes=reference_modes)
+            selection = runners[method](str(results_path), str(output_path), reference_modes=reference_modes)
         timings[method] = _timing_entry(time.perf_counter() - started)
+        if selection is not None:
+            selections[method] = selection
 
     silhouette_skipped = True
     silhouette_elapsed = 0.0
@@ -575,6 +724,7 @@ def _run_clustering_pipeline(results_path, output_path, reference_modes, methods
     timings["silhouette"] = _timing_entry(silhouette_elapsed, skipped=silhouette_skipped)
 
     timings["total"] = _timing_entry(sum(entry["seconds"] for entry in timings.values()))
+    timings["selections"] = selections
     return timings
 
 
@@ -896,6 +1046,7 @@ def run_ambient_n4sid_for_scenario(name, scenario, args):
         },
     }
     _save_json(base_output_dir / "analysis_config.json", analysis_config)
+    save_ambient_clustering_selection_summary(base_output_dir, analysis_config)
     return base_output_dir, None, pd.DataFrame(), analysis_config
 
 

@@ -32,16 +32,20 @@ FREQ_MAX = 2.0
 DAMPING_MAX = -1e-3
 DAMPING_AXIS_LIMS = (-2.0, 0.0)
 OPTICS_DEFAULT_SETTINGS = {
-    "min_samples_min": 5,
-    "min_samples_max": 20,
-    "xi": 0.05,
+    "pm_values": [0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40],
+    "xi_values": [round(value, 2) for value in np.arange(0.02, 0.401, 0.02)],
+    "multiply_by_orders": True,
+    "min_npts": 2,
+    "min_assigned_ratio": 0.50,
+    "render_all_parameter_maps": False,
 }
 
 DBSCAN_DEFAULT_SETTINGS = {
-    "pe": 0.025,
-    "pm": 0.25,
-    "multiply_by_orders": False,
+    "pe_values": [round(value, 3) for value in np.arange(0.01, 0.051, 0.005)],
+    "pm_values": [0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40],
+    "multiply_by_orders": True,
     "min_npts": 2,
+    "min_assigned_ratio": 0.50,
 }
 
 REFERENCE_MODES = {
@@ -1274,6 +1278,314 @@ def run_dbscan_modal_analysis(results_path, output_path, reference_modes=None, d
     fig.subplots_adjust(left=0.11, right=0.97, top=0.88, bottom=0.26)
     _save_figure(fig, base_output, "dbscan_modal_map")
     plt.close(fig)
+
+def _resolve_tuning_settings(defaults, overrides=None):
+    settings = dict(defaults)
+    if overrides:
+        settings.update(overrides)
+    settings["pm_values"] = [float(value) for value in settings["pm_values"]]
+    settings["min_npts"] = max(2, int(settings["min_npts"]))
+    settings["min_assigned_ratio"] = float(settings["min_assigned_ratio"])
+    settings["multiply_by_orders"] = bool(settings["multiply_by_orders"])
+    return settings
+
+
+def _density_inputs(df):
+    if {"Gen", "Signal"}.issubset(df.columns):
+        n_signals = int(df.groupby(["Gen", "Signal"]).ngroups)
+    else:
+        n_signals = 1
+    return n_signals, _dbscan_order_count(df)
+
+
+def _density_min_samples(pm, n_signals, n_orders, settings):
+    scale = float(n_signals)
+    if settings["multiply_by_orders"]:
+        scale *= float(max(1, n_orders))
+    return max(int(settings["min_npts"]), int(np.ceil(float(pm) * scale)))
+
+
+def _cluster_representatives(df, labels, extra=None):
+    rows = []
+    representatives = []
+    for label in sorted(label for label in np.unique(labels) if int(label) >= 0):
+        points = df.loc[labels == label, ["Frequency", "Damping"]].to_numpy(dtype=float)
+        representative = np.mean(points, axis=0)
+        representatives.append(representative)
+        row = {
+            "Cluster": int(label + 1),
+            "Frequency": float(representative[0]),
+            "Damping": float(representative[1]),
+            "Size": int(points.shape[0]),
+        }
+        if extra:
+            row.update(extra)
+        rows.append(row)
+    values = np.asarray(representatives, dtype=float) if representatives else np.empty((0, 2), dtype=float)
+    return values, rows
+
+
+def _save_clustered_reference_mad_outputs(df, labels, cluster_rows, base_output, reference_modes=None):
+    """Save post-clustering MAD in the (sigma, frequency) plane.
+
+    Only non-noise estimates are retained.  A cluster's representative is
+    assigned to its nearest reference mode and that assignment is shared by
+    every estimate belonging to the cluster.
+    """
+    if not reference_modes:
+        return
+
+    labels = np.asarray(labels, dtype=int)
+    assigned_mask = labels >= 0
+    if not np.any(assigned_mask):
+        return
+
+    cluster_df = pd.DataFrame(cluster_rows)
+    if cluster_df.empty:
+        return
+
+    reference_names = list(reference_modes)
+    reference_df = pd.DataFrame({
+        "Reference_Mode": reference_names,
+        "Reference_Frequency": [float(reference_modes[name]["Frequency"]) for name in reference_names],
+        "Reference_Damping": [float(reference_modes[name]["Damping"]) for name in reference_names],
+    })
+    cluster_points = cluster_df[["Frequency", "Damping"]].to_numpy(dtype=float)
+    reference_points = reference_df[["Reference_Frequency", "Reference_Damping"]].to_numpy(dtype=float)
+    distances = np.sqrt(np.sum((cluster_points[:, None, :] - reference_points[None, :, :]) ** 2, axis=2))
+    nearest_idx = np.argmin(distances, axis=1)
+    cluster_df = cluster_df.copy()
+    cluster_df["Reference_Mode"] = [reference_names[idx] for idx in nearest_idx]
+    cluster_df["Reference_Frequency"] = reference_points[nearest_idx, 0]
+    cluster_df["Reference_Damping"] = reference_points[nearest_idx, 1]
+    cluster_df["RepresentativeDistanceToReference"] = distances[np.arange(len(cluster_df)), nearest_idx]
+
+    assigned_df = df.loc[assigned_mask].copy()
+    assigned_df["Cluster"] = labels[assigned_mask] + 1
+    assignment_columns = [
+        "Cluster",
+        "Reference_Mode",
+        "Reference_Frequency",
+        "Reference_Damping",
+        "RepresentativeDistanceToReference",
+    ]
+    assigned_df = assigned_df.merge(cluster_df[assignment_columns], on="Cluster", how="left", validate="many_to_one")
+    assigned_df["Distance_to_Reference"] = np.sqrt(
+        (assigned_df["Frequency"] - assigned_df["Reference_Frequency"]) ** 2
+        + (assigned_df["Damping"] - assigned_df["Reference_Damping"]) ** 2
+    )
+
+    reference_dir = os.path.join(base_output, "reference_mad")
+    os.makedirs(reference_dir, exist_ok=True)
+    assigned_df.to_csv(
+        os.path.join(reference_dir, "clustered_mode_estimates_with_reference_assignment.csv"),
+        index=False,
+    )
+    cluster_df.to_csv(
+        os.path.join(reference_dir, "cluster_reference_assignment.csv"),
+        index=False,
+    )
+
+    overall = (
+        assigned_df.groupby("Reference_Mode", as_index=False)
+        .agg(
+            Reference_Frequency=("Reference_Frequency", "first"),
+            Reference_Damping=("Reference_Damping", "first"),
+            Count=("Distance_to_Reference", "size"),
+            MAD=("Distance_to_Reference", "median"),
+            Mean_Distance=("Distance_to_Reference", "mean"),
+            Max_Distance=("Distance_to_Reference", "max"),
+        )
+    )
+    _complete_reference_mode_summary(overall, reference_modes).to_csv(
+        os.path.join(reference_dir, "reference_mad_summary_overall.csv"),
+        index=False,
+    )
+
+
+def _silhouette_for_cluster_labels(X_scaled, labels, min_assigned_ratio):
+    assigned_mask = labels >= 0
+    assigned_count = int(np.sum(assigned_mask))
+    total_count = int(len(labels))
+    assigned_ratio = float(assigned_count / total_count) if total_count else 0.0
+    assigned_labels = labels[assigned_mask]
+    n_clusters = int(len(np.unique(assigned_labels))) if assigned_count else 0
+    silhouette = np.nan
+    valid_silhouette = n_clusters >= 2 and assigned_count > n_clusters
+    if valid_silhouette:
+        silhouette = float(silhouette_score(X_scaled[assigned_mask], assigned_labels))
+    eligible = bool(valid_silhouette and assigned_ratio >= min_assigned_ratio)
+    return {
+        "Clusters": n_clusters,
+        "NoisePoints": int(total_count - assigned_count),
+        "AssignedPoints": assigned_count,
+        "AssignedRatio": assigned_ratio,
+        "Silhouette": silhouette,
+        "ValidSilhouette": bool(valid_silhouette),
+        "Eligible": eligible,
+    }
+
+
+def _select_tuning_row(metrics_df):
+    eligible = metrics_df[metrics_df["Eligible"]].copy()
+    if not eligible.empty:
+        ranked = eligible.sort_values(
+            ["Silhouette", "AssignedRatio", "NoisePoints", "MinSamples"],
+            ascending=[False, False, True, True],
+            kind="stable",
+        )
+        return int(ranked.index[0]), "max_silhouette_subject_to_coverage"
+
+    fallback = metrics_df.copy()
+    fallback["_silhouette_rank"] = fallback["Silhouette"].fillna(-np.inf)
+    ranked = fallback.sort_values(
+        ["AssignedRatio", "_silhouette_rank", "NoisePoints", "MinSamples"],
+        ascending=[False, False, True, True],
+        kind="stable",
+    )
+    return int(ranked.index[0]), "fallback_max_coverage"
+
+
+def _save_selected_density_map(base_output, method, df, selected, reference_modes, title_parameters):
+    fig, ax = plt.subplots(figsize=(10, 7))
+    point_colors = _label_colors_with_noise(selected["labels"])
+    ax.scatter(df["Damping"], df["Frequency"], c=point_colors, alpha=POINT_ALPHA,
+               edgecolors="k", linewidths=0.8, s=POINT_SIZE)
+    representatives = selected["representatives"]
+    if len(representatives) > 0:
+        ax.scatter(representatives[:, 1], representatives[:, 0], c=ACCENT_RED, marker="x",
+                   s=REP_SIZE, linewidths=4, label="Cluster Means")
+    _overlay_reference_modes(ax, reference_modes)
+    ax.axvline(0, color=ACCENT_RED, linestyle="--", alpha=0.35, linewidth=2)
+    ax.set_xlabel("Damping (Sigma) [rad/s]")
+    ax.set_ylabel("Frequency [Hz]")
+    assigned_percent = 100.0 * float(selected["metrics"]["AssignedRatio"])
+    ax.set_title(
+        f"Selected {method} Cluster Map ({title_parameters})\n"
+        f"Clusters: {selected['metrics']['Clusters']} | Noise: {selected['metrics']['NoisePoints']} | "
+        f"Assigned: {assigned_percent:.1f}% | Silhouette: {selected['metrics']['Silhouette']:.3f}" if np.isfinite(selected['metrics']['Silhouette']) else
+        f"Selected {method} Cluster Map ({title_parameters})\n"
+        f"Clusters: {selected['metrics']['Clusters']} | Noise: {selected['metrics']['NoisePoints']} | Assigned: {assigned_percent:.1f}% | Silhouette: n/a",
+        fontweight="bold",
+    )
+    handles = _noise_point_handle()
+    if selected["metrics"]["Clusters"] > 0:
+        handles += _cluster_legend_handles(selected["metrics"]["Clusters"], representative_label="Cluster Means")
+    handles += _reference_mode_handles(reference_modes)
+    if handles:
+        ax.legend(handles=handles, loc="upper left")
+    _set_modal_axis_limits(ax, df, reference_modes=reference_modes, representatives=representatives)
+    _apply_axis_style(ax)
+    _save_figure(fig, base_output, f"{method.lower()}_selected_cluster_map")
+    plt.close(fig)
+
+
+def run_optics_modal_analysis(results_path, output_path, reference_modes=None, optics_settings=None):
+    base_output = os.path.join(output_path, "optics")
+    _prepare_output_dirs(base_output)
+    optics_df = _load_screened_data(results_path, output_path)
+    if optics_df is None or len(optics_df) < 3:
+        print("Not enough samples for OPTICS clustering.")
+        return None
+
+    settings = _resolve_tuning_settings(OPTICS_DEFAULT_SETTINGS, optics_settings)
+    settings["xi_values"] = [float(value) for value in settings["xi_values"]]
+    n_signals, n_orders = _density_inputs(optics_df)
+    X_scaled = StandardScaler().fit_transform(optics_df[["Frequency", "Damping"]].to_numpy(dtype=float))
+    stored = {}
+    rows = []
+    for pm in settings["pm_values"]:
+        min_samples = _density_min_samples(pm, n_signals, n_orders, settings)
+        if min_samples >= len(optics_df):
+            continue
+        for xi in settings["xi_values"]:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", RuntimeWarning)
+                labels = OPTICS(min_samples=min_samples, cluster_method="xi", xi=xi).fit_predict(X_scaled)
+            metrics = _silhouette_for_cluster_labels(X_scaled, labels, settings["min_assigned_ratio"])
+            row = {"Pm": pm, "MinSamples": min_samples, "Xi": xi, "Nsignals": n_signals,
+                   "NOrders": n_orders, "MultiplyByOrders": settings["multiply_by_orders"], **metrics}
+            rows.append(row)
+            representatives, cluster_rows = _cluster_representatives(
+                optics_df, labels, {"Pm": pm, "MinSamples": min_samples, "Xi": xi}
+            )
+            stored[(pm, xi)] = {"labels": labels, "representatives": representatives,
+                                "cluster_rows": cluster_rows, "metrics": metrics}
+    metrics_df = pd.DataFrame(rows)
+    if metrics_df.empty:
+        print("No valid OPTICS parameter combinations.")
+        return None
+    best_idx, selection_reason = _select_tuning_row(metrics_df)
+    metrics_df["Selected"] = metrics_df.index == best_idx
+    metrics_df["SelectionReason"] = selection_reason
+    metrics_df.to_csv(os.path.join(base_output, "optics_metrics_summary.csv"), index=False)
+    selected_row = metrics_df.loc[best_idx]
+    selected = stored[(float(selected_row["Pm"]), float(selected_row["Xi"]))]
+    pd.DataFrame(selected["cluster_rows"]).to_csv(os.path.join(base_output, "cluster_representatives_sizes.csv"), index=False)
+    _save_clustered_reference_mad_outputs(
+        optics_df,
+        selected["labels"],
+        selected["cluster_rows"],
+        base_output,
+        reference_modes=reference_modes,
+    )
+    _save_selected_density_map(base_output, "OPTICS", optics_df, selected, reference_modes,
+                               f"$min\\_samples={int(selected_row['MinSamples'])}$, xi={selected_row['Xi']:.2f}")
+    return {"pm": float(selected_row["Pm"]), "min_samples": int(selected_row["MinSamples"]),
+            "xi": float(selected_row["Xi"]), "silhouette": None if pd.isna(selected_row["Silhouette"]) else float(selected_row["Silhouette"]),
+            "assigned_ratio": float(selected_row["AssignedRatio"]), "selection_reason": selection_reason}
+
+
+def run_dbscan_modal_analysis(results_path, output_path, reference_modes=None, dbscan_settings=None):
+    base_output = os.path.join(output_path, "dbscan")
+    _prepare_output_dirs(base_output)
+    dbscan_df = _load_screened_data(results_path, output_path)
+    if dbscan_df is None or len(dbscan_df) < 3:
+        print("Not enough samples for DBSCAN clustering.")
+        return None
+
+    settings = _resolve_tuning_settings(DBSCAN_DEFAULT_SETTINGS, dbscan_settings)
+    settings["pe_values"] = [float(value) for value in settings["pe_values"]]
+    n_signals, n_orders = _density_inputs(dbscan_df)
+    X_scaled = StandardScaler().fit_transform(dbscan_df[["Frequency", "Damping"]].to_numpy(dtype=float))
+    X_dbscan = np.column_stack([dbscan_df["Damping"].to_numpy(dtype=float), 2.0 * np.pi * dbscan_df["Frequency"].to_numpy(dtype=float)])
+    stored = {}
+    rows = []
+    for pe in settings["pe_values"]:
+        epsilon = _dbscan_epsilon({"pe": pe})
+        for pm in settings["pm_values"]:
+            min_samples = _density_min_samples(pm, n_signals, n_orders, settings)
+            labels = DBSCAN(eps=epsilon, min_samples=min_samples).fit_predict(X_dbscan)
+            metrics = _silhouette_for_cluster_labels(X_scaled, labels, settings["min_assigned_ratio"])
+            row = {"Pe": pe, "Pm": pm, "Epsilon": epsilon, "MinPts": min_samples, "MinSamples": min_samples,
+                   "Nsignals": n_signals, "NOrders": n_orders, "MultiplyByOrders": settings["multiply_by_orders"], **metrics}
+            rows.append(row)
+            representatives, cluster_rows = _cluster_representatives(
+                dbscan_df, labels, {"Pe": pe, "Pm": pm, "Epsilon": epsilon, "MinPts": min_samples}
+            )
+            stored[(pe, pm)] = {"labels": labels, "representatives": representatives,
+                                "cluster_rows": cluster_rows, "metrics": metrics}
+    metrics_df = pd.DataFrame(rows)
+    best_idx, selection_reason = _select_tuning_row(metrics_df)
+    metrics_df["Selected"] = metrics_df.index == best_idx
+    metrics_df["SelectionReason"] = selection_reason
+    metrics_df.to_csv(os.path.join(base_output, "dbscan_metrics_summary.csv"), index=False)
+    selected_row = metrics_df.loc[best_idx]
+    selected = stored[(float(selected_row["Pe"]), float(selected_row["Pm"]))]
+    pd.DataFrame(selected["cluster_rows"]).to_csv(os.path.join(base_output, "cluster_representatives_sizes.csv"), index=False)
+    _save_clustered_reference_mad_outputs(
+        dbscan_df,
+        selected["labels"],
+        selected["cluster_rows"],
+        base_output,
+        reference_modes=reference_modes,
+    )
+    _save_selected_density_map(base_output, "DBSCAN", dbscan_df, selected, reference_modes,
+                               f"$\\epsilon={selected_row['Epsilon']:.3f}$, $N_{{pts}}={int(selected_row['MinPts'])}$")
+    return {"pe": float(selected_row["Pe"]), "pm": float(selected_row["Pm"]), "epsilon": float(selected_row["Epsilon"]),
+            "min_pts": int(selected_row["MinPts"]), "silhouette": None if pd.isna(selected_row["Silhouette"]) else float(selected_row["Silhouette"]),
+            "assigned_ratio": float(selected_row["AssignedRatio"]), "selection_reason": selection_reason}
+
 
 def run_silhouette_analysis(results_path, output_path, reference_modes=None):
     base_output = os.path.join(output_path, "silhouette")

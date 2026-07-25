@@ -17,7 +17,7 @@ def build_arg_parser():
         epilog=dedent(
             """
             Scenario input forms:
-              1. Preset alias: load29
+              1. Preset alias: load29 or ambient
               2. Multiple preset aliases: load03 load24
               3. All presets: all
               4. Existing results folder name: Load29_Pplus2_50s
@@ -26,6 +26,7 @@ def build_arg_parser():
             Examples:
               python IEEE39/analyze_ieee39.py --scenario load29
               python IEEE39/analyze_ieee39.py --scenario load03 load24
+              python IEEE39/analyze_ieee39.py --scenario ambient
               python IEEE39/analyze_ieee39.py --scenario all
               python IEEE39/analyze_ieee39.py --scenario Load29_Pplus2_50s
               python IEEE39/analyze_ieee39.py --scenario load20_custom --data-dir results/Load20_Pplus2_50s --output-dir analysis/Load20_Pplus2_50s
@@ -54,7 +55,7 @@ def build_arg_parser():
         nargs="+",
         default=None,
         help=(
-            "Scenario selector. Accepts preset aliases like 'load29', exact IEEE39/results folder names like\n"
+            "Scenario selector. Accepts preset aliases like 'load29' or 'ambient', exact IEEE39/results folder names like\n"
             "'Load29_Pplus2_50s', custom labels used with --data-dir, or 'all'. Required unless using --list-scenarios or --list-analysis."
         ),
     )
@@ -264,6 +265,10 @@ DEFAULT_SCENARIO_PATHS = {
     "load24": {
         "data_dir": "results/Load24_Pplus2_50s",
         "output_dir": "analysis/Load24_Pplus2_50s",
+    },
+    "ambient": {
+        "data_dir": "results/Ambient_Mag0.1_T600s_dt10ms_seed1997",
+        "output_dir": "analysis/Ambient_Mag0.1_T600s_dt10ms_seed1997",
     },
 }
 
@@ -798,12 +803,11 @@ def _run_clustering_pipeline(results_path, output_path, reference_modes=None, me
         _save_reference_mad_outputs,
         run_kmeans_modal_analysis,
         run_kmedoids_modal_analysis,
-        run_dbscan_modal_analysis,
         run_silhouette_analysis,
     )
 
     pipeline_start = time.perf_counter()
-    requested_methods = list(methods or ["kmeans", "kmedoids", "dbscan"])
+    requested_methods = list(methods or ["kmeans", "kmedoids"])
 
     screen_start = time.perf_counter()
     df_for_mad = _load_screened_data(str(results_path), str(output_path))
@@ -822,7 +826,6 @@ def _run_clustering_pipeline(results_path, output_path, reference_modes=None, me
     runners = {
         "kmeans": run_kmeans_modal_analysis,
         "kmedoids": run_kmedoids_modal_analysis,
-        "dbscan": run_dbscan_modal_analysis,
     }
     for method in requested_methods:
         method_start = time.perf_counter()
@@ -1947,7 +1950,11 @@ def _scenario_from_results_folder(folder_name):
 
 def select_scenarios(names, allow_custom=False):
     if names == ["all"]:
-        return {name: dict(scenario) for name, scenario in DEFAULT_SCENARIOS.items()}
+        return {
+            name: dict(scenario)
+            for name, scenario in DEFAULT_SCENARIOS.items()
+            if name != "ambient"
+        }
 
     selected = {}
     for name in names:
