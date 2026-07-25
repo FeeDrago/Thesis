@@ -3,7 +3,8 @@ import warnings
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from sklearn.cluster import KMeans, OPTICS, DBSCAN
+from sklearn.cluster import AgglomerativeClustering, DBSCAN, HDBSCAN, KMeans, OPTICS
+from sklearn.mixture import GaussianMixture
 from sklearn.metrics import silhouette_score, silhouette_samples
 from sklearn.preprocessing import StandardScaler
 import kmedoids
@@ -46,6 +47,30 @@ DBSCAN_DEFAULT_SETTINGS = {
     "multiply_by_orders": True,
     "min_npts": 2,
     "min_assigned_ratio": 0.50,
+}
+
+HDBSCAN_DEFAULT_SETTINGS = {
+    "min_cluster_size": 20,
+    "min_samples": 10,
+    "cluster_selection_method": "eom",
+    "metric": "euclidean",
+    "allow_single_cluster": False,
+    "copy": True,
+}
+
+GMM_DEFAULT_SETTINGS = {
+    "covariance_type": "full",
+    "init_params": "kmeans",
+    "n_init": 10,
+    "random_state": 42,
+    "max_iter": 300,
+    "reg_covar": 1e-6,
+}
+
+AGGLOMERATIVE_DEFAULT_SETTINGS = {
+    "linkage": "ward",
+    "metric": "euclidean",
+    "compute_distances": True,
 }
 
 REFERENCE_MODES = {
@@ -1585,6 +1610,190 @@ def run_dbscan_modal_analysis(results_path, output_path, reference_modes=None, d
     return {"pe": float(selected_row["Pe"]), "pm": float(selected_row["Pm"]), "epsilon": float(selected_row["Epsilon"]),
             "min_pts": int(selected_row["MinPts"]), "silhouette": None if pd.isna(selected_row["Silhouette"]) else float(selected_row["Silhouette"]),
             "assigned_ratio": float(selected_row["AssignedRatio"]), "selection_reason": selection_reason}
+
+
+def _resolve_fixed_settings(defaults, overrides=None):
+    settings = dict(defaults)
+    if overrides:
+        settings.update(overrides)
+    return settings
+
+
+def _reference_component_count(reference_modes, sample_count):
+    """Use the locally relevant reference modes as the fixed partition count."""
+    reference_count = len(reference_modes or {})
+    return max(1, min(int(sample_count), reference_count or 1))
+
+
+def _save_fixed_cluster_map(base_output, method, df, labels, representatives, reference_modes, title, include_noise=False):
+    fig, ax = plt.subplots(figsize=(10, 7))
+    color_fn = _label_colors_with_noise if include_noise else _label_colors
+    ax.scatter(df["Damping"], df["Frequency"], c=color_fn(labels), alpha=POINT_ALPHA,
+               edgecolors="k", linewidths=0.8, s=POINT_SIZE)
+    if len(representatives) > 0:
+        ax.scatter(representatives[:, 1], representatives[:, 0], c=ACCENT_RED, marker="x",
+                   s=REP_SIZE, linewidths=4, label="Cluster Means")
+    _overlay_reference_modes(ax, reference_modes)
+    ax.axvline(0, color=ACCENT_RED, linestyle="--", alpha=0.35, linewidth=2)
+    ax.set_xlabel("Damping (Sigma) [rad/s]")
+    ax.set_ylabel("Frequency [Hz]")
+    ax.set_title(title, fontweight="bold")
+    handles = _noise_point_handle() if include_noise and np.any(np.asarray(labels) < 0) else []
+    n_clusters = len(representatives)
+    if n_clusters:
+        handles += _cluster_legend_handles(n_clusters, representative_label="Cluster Means")
+    handles += _reference_mode_handles(reference_modes)
+    if handles:
+        ax.legend(handles=handles, loc="upper left")
+    _set_modal_axis_limits(ax, df, reference_modes=reference_modes, representatives=representatives)
+    _apply_axis_style(ax)
+    _save_figure(fig, base_output, f"{method.lower()}_selected_cluster_map")
+    plt.close(fig)
+
+
+def _fixed_cluster_metrics(X_scaled, labels):
+    return _silhouette_for_cluster_labels(X_scaled, np.asarray(labels, dtype=int), min_assigned_ratio=0.0)
+
+
+def run_hdbscan_modal_analysis(results_path, output_path, reference_modes=None, hdbscan_settings=None):
+    base_output = os.path.join(output_path, "hdbscan")
+    _prepare_output_dirs(base_output)
+    df = _load_screened_data(results_path, output_path)
+    if df is None or len(df) < 3:
+        print("Not enough samples for HDBSCAN clustering.")
+        return None
+
+    settings = _resolve_fixed_settings(HDBSCAN_DEFAULT_SETTINGS, hdbscan_settings)
+    min_cluster_size = min(max(2, int(settings["min_cluster_size"])), len(df))
+    min_samples = min(max(1, int(settings["min_samples"])), len(df) - 1)
+    X_scaled = StandardScaler().fit_transform(df[["Frequency", "Damping"]].to_numpy(dtype=float))
+    labels = HDBSCAN(
+        min_cluster_size=min_cluster_size,
+        min_samples=min_samples,
+        cluster_selection_method=str(settings["cluster_selection_method"]),
+        metric=str(settings["metric"]),
+        allow_single_cluster=bool(settings["allow_single_cluster"]),
+        copy=bool(settings["copy"]),
+    ).fit_predict(X_scaled)
+    representatives, cluster_rows = _cluster_representatives(df, labels)
+    metrics = _fixed_cluster_metrics(X_scaled, labels)
+    selection_reason = "fixed_defaults"
+    metrics_row = {
+        "MinClusterSize": min_cluster_size,
+        "MinSamples": min_samples,
+        "ClusterSelectionMethod": settings["cluster_selection_method"],
+        "Metric": settings["metric"],
+        "AllowSingleCluster": bool(settings["allow_single_cluster"]),
+        "Copy": bool(settings["copy"]),
+        "Selected": True,
+        "SelectionReason": selection_reason,
+        **metrics,
+    }
+    pd.DataFrame([metrics_row]).to_csv(os.path.join(base_output, "hdbscan_metrics_summary.csv"), index=False)
+    pd.DataFrame(cluster_rows).to_csv(os.path.join(base_output, "cluster_representatives_sizes.csv"), index=False)
+    _save_clustered_reference_mad_outputs(df, labels, cluster_rows, base_output, reference_modes=reference_modes)
+    _save_fixed_cluster_map(
+        base_output, "HDBSCAN", df, labels, representatives, reference_modes,
+        f"HDBSCAN Cluster Map ($min\\_cluster\\_size={min_cluster_size}$, $min\\_samples={min_samples}$)\n"
+        f"Clusters: {metrics['Clusters']} | Noise: {metrics['NoisePoints']}",
+        include_noise=True,
+    )
+    return {"min_cluster_size": min_cluster_size, "min_samples": min_samples,
+            "silhouette": None if pd.isna(metrics["Silhouette"]) else float(metrics["Silhouette"]),
+            "assigned_ratio": float(metrics["AssignedRatio"]), "selection_reason": selection_reason}
+
+
+def run_gmm_modal_analysis(results_path, output_path, reference_modes=None, gmm_settings=None):
+    base_output = os.path.join(output_path, "gmm")
+    _prepare_output_dirs(base_output)
+    df = _load_screened_data(results_path, output_path)
+    if df is None or len(df) < 3:
+        print("Not enough samples for Gaussian Mixture clustering.")
+        return None
+
+    settings = _resolve_fixed_settings(GMM_DEFAULT_SETTINGS, gmm_settings)
+    n_components = _reference_component_count(reference_modes, len(df))
+    X_scaled = StandardScaler().fit_transform(df[["Frequency", "Damping"]].to_numpy(dtype=float))
+    model = GaussianMixture(
+        n_components=n_components,
+        covariance_type=str(settings["covariance_type"]),
+        init_params=str(settings["init_params"]),
+        n_init=max(1, int(settings["n_init"])),
+        random_state=int(settings["random_state"]),
+        max_iter=max(1, int(settings["max_iter"])),
+        reg_covar=float(settings["reg_covar"]),
+    )
+    labels = model.fit_predict(X_scaled)
+    representatives, cluster_rows = _cluster_representatives(df, labels)
+    metrics = _fixed_cluster_metrics(X_scaled, labels)
+    selection_reason = "fixed_reference_mode_count"
+    metrics_row = {
+        "SelectedK": n_components,
+        "CovarianceType": settings["covariance_type"],
+        "InitParams": settings["init_params"],
+        "NInit": int(settings["n_init"]),
+        "RandomState": int(settings["random_state"]),
+        "MaxIter": int(settings["max_iter"]),
+        "RegCovar": float(settings["reg_covar"]),
+        "BIC": float(model.bic(X_scaled)),
+        "AIC": float(model.aic(X_scaled)),
+        "LogLikelihood": float(model.lower_bound_),
+        "Selected": True,
+        "SelectionReason": selection_reason,
+        **metrics,
+    }
+    pd.DataFrame([metrics_row]).to_csv(os.path.join(base_output, "gmm_metrics_summary.csv"), index=False)
+    pd.DataFrame(cluster_rows).to_csv(os.path.join(base_output, "cluster_representatives_sizes.csv"), index=False)
+    _save_clustered_reference_mad_outputs(df, labels, cluster_rows, base_output, reference_modes=reference_modes)
+    _save_fixed_cluster_map(
+        base_output, "GMM", df, labels, representatives, reference_modes,
+        f"Gaussian Mixture Cluster Map ($k={n_components}$, full covariance)\nClusters: {metrics['Clusters']}",
+    )
+    return {"k": n_components, "bic": float(metrics_row["BIC"]),
+            "silhouette": None if pd.isna(metrics["Silhouette"]) else float(metrics["Silhouette"]),
+            "selection_reason": selection_reason}
+
+
+def run_agglomerative_modal_analysis(results_path, output_path, reference_modes=None, agglomerative_settings=None):
+    base_output = os.path.join(output_path, "agglomerative")
+    _prepare_output_dirs(base_output)
+    df = _load_screened_data(results_path, output_path)
+    if df is None or len(df) < 3:
+        print("Not enough samples for Agglomerative clustering.")
+        return None
+
+    settings = _resolve_fixed_settings(AGGLOMERATIVE_DEFAULT_SETTINGS, agglomerative_settings)
+    n_clusters = _reference_component_count(reference_modes, len(df))
+    X_scaled = StandardScaler().fit_transform(df[["Frequency", "Damping"]].to_numpy(dtype=float))
+    model = AgglomerativeClustering(
+        n_clusters=n_clusters,
+        linkage=str(settings["linkage"]),
+        metric=str(settings["metric"]),
+        compute_distances=bool(settings["compute_distances"]),
+    )
+    labels = model.fit_predict(X_scaled)
+    representatives, cluster_rows = _cluster_representatives(df, labels)
+    metrics = _fixed_cluster_metrics(X_scaled, labels)
+    selection_reason = "fixed_reference_mode_count"
+    metrics_row = {
+        "SelectedK": n_clusters,
+        "Linkage": settings["linkage"],
+        "Metric": settings["metric"],
+        "ComputeDistances": bool(settings["compute_distances"]),
+        "Selected": True,
+        "SelectionReason": selection_reason,
+        **metrics,
+    }
+    pd.DataFrame([metrics_row]).to_csv(os.path.join(base_output, "agglomerative_metrics_summary.csv"), index=False)
+    pd.DataFrame(cluster_rows).to_csv(os.path.join(base_output, "cluster_representatives_sizes.csv"), index=False)
+    _save_clustered_reference_mad_outputs(df, labels, cluster_rows, base_output, reference_modes=reference_modes)
+    _save_fixed_cluster_map(
+        base_output, "Agglomerative", df, labels, representatives, reference_modes,
+        f"Agglomerative Cluster Map ($k={n_clusters}$, Ward linkage)\nClusters: {metrics['Clusters']}",
+    )
+    return {"k": n_clusters,
+            "silhouette": None if pd.isna(metrics["Silhouette"]) else float(metrics["Silhouette"]),
+            "selection_reason": selection_reason}
 
 
 def run_silhouette_analysis(results_path, output_path, reference_modes=None):

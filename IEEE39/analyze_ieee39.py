@@ -33,7 +33,7 @@ def build_arg_parser():
               python IEEE39/analyze_ieee39.py --scenario load29 --time-cross global --time-cross-reference g2:Current --plots
               python IEEE39/analyze_ieee39.py --scenario load29 --fixed-orders 2 4 6 8 --taus 1 0.1 0.01
               python IEEE39/analyze_ieee39.py --scenario Load29_Pplus2_50s --skip-matrix-pencil --analysis-dir analysis/Load29_Pplus2_50s_0_to_end_reset
-              python IEEE39/analyze_ieee39.py --scenario ambient_seed1997 --data-dir results/Ambient_Mag0.1_T600s_dt10ms_seed1997 --output-dir analysis/ambient_seed1997 --analysis-method n4sid --n4sid-orders 10 20 30 40 50 --ambient-downsample-hz 5 --clustering --clustering-methods kmeans kmedoids optics dbscan
+              python IEEE39/analyze_ieee39.py --scenario ambient_seed1997 --data-dir results/Ambient_Mag0.1_T600s_dt10ms_seed1997 --output-dir analysis/ambient_seed1997 --analysis-method n4sid --n4sid-orders 10 20 30 40 50 --ambient-downsample-hz 5 --clustering --clustering-methods kmeans kmedoids optics dbscan hdbscan gmm agglomerative
 
             Notes:
               - --scenario is required for actual analysis runs; the script no longer defaults silently to 'all'.
@@ -85,7 +85,7 @@ def build_arg_parser():
     parser.add_argument("--n4sid-orders", nargs="+", type=int, default=None, help="Ambient N4SID model orders. Default: built-in ambient order sweep.")
     parser.add_argument("--ambient-downsample-hz", type=float, default=None, help="Ambient preprocessing downsample rate in Hz. Default: 5.")
     parser.add_argument("--ambient-no-detrend", action="store_true", help="Disable ambient detrending. Default ambient preprocessing detrends first.")
-    parser.add_argument("--clustering-methods", nargs="+", choices=["kmeans", "kmedoids", "optics", "dbscan"], default=None, help="Ambient clustering methods. Default: kmeans kmedoids optics dbscan.")
+    parser.add_argument("--clustering-methods", nargs="+", choices=["kmeans", "kmedoids", "optics", "dbscan", "hdbscan", "gmm", "agglomerative"], default=None, help="Ambient clustering methods. Default: kmeans kmedoids optics dbscan hdbscan gmm agglomerative.")
     return parser
 
 

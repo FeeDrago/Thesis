@@ -26,7 +26,7 @@ AMBIENT_DEFAULT_ORDER_GROUPS = [
 ]
 AMBIENT_DEFAULT_DOWNSAMPLE_HZ = 5.0
 AMBIENT_DEFAULT_DETREND = True
-AMBIENT_DEFAULT_CLUSTERING_METHODS = ["kmeans", "kmedoids", "optics", "dbscan"]
+AMBIENT_DEFAULT_CLUSTERING_METHODS = ["kmeans", "kmedoids", "optics", "dbscan", "hdbscan", "gmm", "agglomerative"]
 AMBIENT_DEFAULT_CLUSTERING_SCOPE = {"global": False, "by_control_area": True}
 AMBIENT_DEFAULT_OPTICS_SETTINGS = {
     "pm_values": [0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40],
@@ -41,6 +41,27 @@ AMBIENT_DEFAULT_DBSCAN_SETTINGS = {
     "multiply_by_orders": True,
     "min_npts": 2,
     "min_assigned_ratio": 0.50,
+}
+AMBIENT_DEFAULT_HDBSCAN_SETTINGS = {
+    "min_cluster_size": 20,
+    "min_samples": 10,
+    "cluster_selection_method": "eom",
+    "metric": "euclidean",
+    "allow_single_cluster": False,
+    "copy": True,
+}
+AMBIENT_DEFAULT_GMM_SETTINGS = {
+    "covariance_type": "full",
+    "init_params": "kmeans",
+    "n_init": 10,
+    "random_state": 42,
+    "max_iter": 300,
+    "reg_covar": 1e-6,
+}
+AMBIENT_DEFAULT_AGGLOMERATIVE_SETTINGS = {
+    "linkage": "ward",
+    "metric": "euclidean",
+    "compute_distances": True,
 }
 
 AMBIENT_REFERENCE_MODES = {
@@ -106,7 +127,8 @@ CLUSTERING_SELECTION_SUMMARY_COLUMNS = [
     "Scenario", "OrderGroup", "Orders", "Area", "Generators", "GeneratorCount",
     "ReferenceModeCount", "ReferenceModes", "Method", "Status",
     "SelectedK", "SilhouetteSelectedK", "Pe", "Pm", "Epsilon", "Xi",
-    "MinPts", "MinSamples", "Clusters", "NoisePoints", "AssignedPoints",
+    "MinPts", "MinSamples", "MinClusterSize", "CovarianceType", "Linkage",
+    "Clusters", "NoisePoints", "AssignedPoints",
     "AssignedRatio", "Silhouette", "SelectionReason", "ObjectiveName",
     "ObjectiveValue",
 ]
@@ -347,6 +369,24 @@ def _append_partitioning_summary_row(rows, base_row, method_dir, method_name):
     rows.append(row)
 
 
+def _append_fixed_method_summary_row(rows, base_row, method_dir, metrics_name, method_name):
+    selected = _selected_summary_row(method_dir / metrics_name)
+    row = dict(base_row)
+    if selected is None:
+        row["Status"] = "missing_selection"
+    else:
+        for column in (
+            "SelectedK", "MinSamples", "MinClusterSize", "CovarianceType", "Linkage",
+            "Clusters", "NoisePoints", "AssignedPoints", "AssignedRatio", "Silhouette",
+            "SelectionReason",
+        ):
+            row[column] = _summary_value(selected, column)
+        if method_name == "GMM":
+            row["ObjectiveName"] = "BIC"
+            row["ObjectiveValue"] = _summary_value(selected, "BIC")
+    rows.append(row)
+
+
 def save_ambient_clustering_selection_summary(base_output_dir, analysis_config=None):
     """Write one comparable clustering-selection row per order group, area, and method."""
     base_output_dir = Path(base_output_dir)
@@ -396,6 +436,30 @@ def save_ambient_clustering_selection_summary(base_output_dir, analysis_config=N
                     _ambient_summary_base_row(scenario, order_group, orders, area_name, generators, area_reference_modes, "OPTICS"),
                     area_dir / "optics",
                     "OPTICS",
+                )
+            if "hdbscan" in methods:
+                _append_fixed_method_summary_row(
+                    rows,
+                    _ambient_summary_base_row(scenario, order_group, orders, area_name, generators, area_reference_modes, "HDBSCAN"),
+                    area_dir / "hdbscan",
+                    "hdbscan_metrics_summary.csv",
+                    "HDBSCAN",
+                )
+            if "gmm" in methods:
+                _append_fixed_method_summary_row(
+                    rows,
+                    _ambient_summary_base_row(scenario, order_group, orders, area_name, generators, area_reference_modes, "GMM"),
+                    area_dir / "gmm",
+                    "gmm_metrics_summary.csv",
+                    "GMM",
+                )
+            if "agglomerative" in methods:
+                _append_fixed_method_summary_row(
+                    rows,
+                    _ambient_summary_base_row(scenario, order_group, orders, area_name, generators, area_reference_modes, "Agglomerative"),
+                    area_dir / "agglomerative",
+                    "agglomerative_metrics_summary.csv",
+                    "Agglomerative",
                 )
 
     summary = pd.DataFrame(rows, columns=CLUSTERING_SELECTION_SUMMARY_COLUMNS)
@@ -661,7 +725,7 @@ def identify_n4sid_modes(t, y, dt_s, order, block_rows=None):
     return modes, summary
 
 
-def _run_clustering_pipeline(results_path, output_path, reference_modes, methods, optics_settings=None, dbscan_settings=None):
+def _run_clustering_pipeline(results_path, output_path, reference_modes, methods, optics_settings=None, dbscan_settings=None, hdbscan_settings=None, gmm_settings=None, agglomerative_settings=None):
     from clustering_analysis import (
         _load_screened_data,
         _save_reference_mad_outputs,
@@ -669,6 +733,9 @@ def _run_clustering_pipeline(results_path, output_path, reference_modes, methods
         run_kmedoids_modal_analysis,
         run_optics_modal_analysis,
         run_dbscan_modal_analysis,
+        run_hdbscan_modal_analysis,
+        run_gmm_modal_analysis,
+        run_agglomerative_modal_analysis,
         run_silhouette_analysis,
     )
 
@@ -691,6 +758,9 @@ def _run_clustering_pipeline(results_path, output_path, reference_modes, methods
         "kmedoids": run_kmedoids_modal_analysis,
         "optics": run_optics_modal_analysis,
         "dbscan": run_dbscan_modal_analysis,
+        "hdbscan": run_hdbscan_modal_analysis,
+        "gmm": run_gmm_modal_analysis,
+        "agglomerative": run_agglomerative_modal_analysis,
     }
     for method in requested_methods:
         started = time.perf_counter()
@@ -708,6 +778,12 @@ def _run_clustering_pipeline(results_path, output_path, reference_modes, methods
                 reference_modes=reference_modes,
                 dbscan_settings=dbscan_settings,
             )
+        elif method == "hdbscan":
+            selection = runners[method](str(results_path), str(output_path), reference_modes=reference_modes, hdbscan_settings=hdbscan_settings)
+        elif method == "gmm":
+            selection = runners[method](str(results_path), str(output_path), reference_modes=reference_modes, gmm_settings=gmm_settings)
+        elif method == "agglomerative":
+            selection = runners[method](str(results_path), str(output_path), reference_modes=reference_modes, agglomerative_settings=agglomerative_settings)
         else:
             selection = runners[method](str(results_path), str(output_path), reference_modes=reference_modes)
         timings[method] = _timing_entry(time.perf_counter() - started)
@@ -728,7 +804,7 @@ def _run_clustering_pipeline(results_path, output_path, reference_modes, methods
     return timings
 
 
-def run_ambient_clustering_for_results(output_dir, results_path, df_results, reference_modes, methods, optics_settings=None, dbscan_settings=None, clustering_scope=None):
+def run_ambient_clustering_for_results(output_dir, results_path, df_results, reference_modes, methods, optics_settings=None, dbscan_settings=None, hdbscan_settings=None, gmm_settings=None, agglomerative_settings=None, clustering_scope=None):
     if df_results.empty:
         print(f"No ambient N4SID results for {output_dir}; skipping clustering.")
         return {}
@@ -745,6 +821,9 @@ def run_ambient_clustering_for_results(output_dir, results_path, df_results, ref
             methods=methods,
             optics_settings=optics_settings,
             dbscan_settings=dbscan_settings,
+            hdbscan_settings=hdbscan_settings,
+            gmm_settings=gmm_settings,
+            agglomerative_settings=agglomerative_settings,
         )
 
     if scope.get("by_control_area", False):
@@ -769,6 +848,9 @@ def run_ambient_clustering_for_results(output_dir, results_path, df_results, ref
                 methods=methods,
                 optics_settings=optics_settings,
                 dbscan_settings=dbscan_settings,
+                hdbscan_settings=hdbscan_settings,
+                gmm_settings=gmm_settings,
+                agglomerative_settings=agglomerative_settings,
             )
 
         _save_combined_reference_mad_summary(area_root, reference_modes)
@@ -797,6 +879,9 @@ def resolve_ambient_settings(scenario, args):
 
     optics_settings = dict(AMBIENT_DEFAULT_OPTICS_SETTINGS)
     dbscan_settings = dict(AMBIENT_DEFAULT_DBSCAN_SETTINGS)
+    hdbscan_settings = dict(AMBIENT_DEFAULT_HDBSCAN_SETTINGS)
+    gmm_settings = dict(AMBIENT_DEFAULT_GMM_SETTINGS)
+    agglomerative_settings = dict(AMBIENT_DEFAULT_AGGLOMERATIVE_SETTINGS)
     clustering_scope = _resolve_clustering_scope(getattr(args, "clustering_scope", "areas"))
 
     return {
@@ -810,6 +895,9 @@ def resolve_ambient_settings(scenario, args):
         "clustering_scope": clustering_scope,
         "optics_settings": optics_settings,
         "dbscan_settings": dbscan_settings,
+        "hdbscan_settings": hdbscan_settings,
+        "gmm_settings": gmm_settings,
+        "agglomerative_settings": agglomerative_settings,
         "reference_modes_source": reference_source,
         "reference_modes": reference_modes,
         "signals": signals,
@@ -948,6 +1036,9 @@ def run_ambient_n4sid_for_scenario(name, scenario, args):
                 methods=settings["clustering_methods"],
                 optics_settings=settings["optics_settings"],
                 dbscan_settings=settings["dbscan_settings"],
+                hdbscan_settings=settings["hdbscan_settings"],
+                gmm_settings=settings["gmm_settings"],
+                agglomerative_settings=settings["agglomerative_settings"],
                 clustering_scope=settings["clustering_scope"],
             )
         clustering_total_seconds = 0.0
@@ -992,6 +1083,9 @@ def run_ambient_n4sid_for_scenario(name, scenario, args):
             "clustering_scope": dict(settings["clustering_scope"]),
             "optics_settings": settings["optics_settings"],
             "dbscan_settings": settings["dbscan_settings"],
+            "hdbscan_settings": settings["hdbscan_settings"],
+            "gmm_settings": settings["gmm_settings"],
+            "agglomerative_settings": settings["agglomerative_settings"],
             "reference_modes_source": settings["reference_modes_source"],
             "reference_modes": settings["reference_modes"],
             "signal_summaries": signal_summary_rows,
@@ -1038,6 +1132,9 @@ def run_ambient_n4sid_for_scenario(name, scenario, args):
         "clustering_scope": dict(settings["clustering_scope"]),
         "optics_settings": settings["optics_settings"],
         "dbscan_settings": settings["dbscan_settings"],
+        "hdbscan_settings": settings["hdbscan_settings"],
+        "gmm_settings": settings["gmm_settings"],
+        "agglomerative_settings": settings["agglomerative_settings"],
         "reference_modes_source": settings["reference_modes_source"],
         "reference_modes": settings["reference_modes"],
         "sweeps": sweep_summaries,

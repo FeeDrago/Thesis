@@ -3,7 +3,11 @@ from pathlib import Path
 import pandas as pd
 
 from ambient_n4sid_analysis import (
+    AMBIENT_DEFAULT_AGGLOMERATIVE_SETTINGS,
     AMBIENT_DEFAULT_DBSCAN_SETTINGS,
+    AMBIENT_DEFAULT_GMM_SETTINGS,
+    AMBIENT_DEFAULT_HDBSCAN_SETTINGS,
+    AMBIENT_DEFAULT_CLUSTERING_METHODS,
     AMBIENT_DEFAULT_OPTICS_SETTINGS,
     CONTROL_AREAS,
     _load_json,
@@ -14,15 +18,22 @@ from ambient_n4sid_analysis import (
     _save_combined_reference_mad_summary,
     _save_json,
 )
+
 from clustering_analysis import (
     _load_screened_data,
     _save_reference_mad_outputs,
+    run_agglomerative_modal_analysis,
     run_dbscan_modal_analysis,
+    run_gmm_modal_analysis,
+    run_hdbscan_modal_analysis,
     run_kmeans_modal_analysis,
     run_kmedoids_modal_analysis,
     run_optics_modal_analysis,
     run_silhouette_analysis,
 )
+
+
+LEGACY_DEFAULT_CLUSTERING_METHODS = ["kmeans", "kmedoids", "optics", "dbscan"]
 
 
 def main():
@@ -44,7 +55,9 @@ def main():
         sweep_df = pd.read_csv(sweep_results_path)
         sweep_config_path = sweep_dir / "analysis_config.json"
         sweep_config = _load_json(sweep_config_path) if sweep_config_path.exists() else {}
-        methods = sweep_config.get("clustering_methods", analysis_config.get("clustering_methods", ["kmeans", "kmedoids", "optics"]))
+        methods = _extend_clustering_methods(
+            sweep_config.get("clustering_methods", analysis_config.get("clustering_methods"))
+        )
         base_optics_settings = _extend_pm_settings(
             sweep_config.get("optics_settings", analysis_config.get("optics_settings", {})),
             AMBIENT_DEFAULT_OPTICS_SETTINGS,
@@ -52,6 +65,18 @@ def main():
         base_dbscan_settings = _extend_pm_settings(
             sweep_config.get("dbscan_settings", analysis_config.get("dbscan_settings", {})),
             AMBIENT_DEFAULT_DBSCAN_SETTINGS,
+        )
+        base_hdbscan_settings = _extend_settings(
+            sweep_config.get("hdbscan_settings", analysis_config.get("hdbscan_settings", {})),
+            AMBIENT_DEFAULT_HDBSCAN_SETTINGS,
+        )
+        base_gmm_settings = _extend_settings(
+            sweep_config.get("gmm_settings", analysis_config.get("gmm_settings", {})),
+            AMBIENT_DEFAULT_GMM_SETTINGS,
+        )
+        base_agglomerative_settings = _extend_settings(
+            sweep_config.get("agglomerative_settings", analysis_config.get("agglomerative_settings", {})),
+            AMBIENT_DEFAULT_AGGLOMERATIVE_SETTINGS,
         )
 
         area_root = sweep_dir / "clustering" / "by_control_area"
@@ -90,22 +115,51 @@ def main():
                     reference_modes=area_reference_modes,
                     optics_settings=base_optics_settings,
                 )
+            if "hdbscan" in methods:
+                run_hdbscan_modal_analysis(
+                    str(area_results_path), str(area_dir), reference_modes=area_reference_modes,
+                    hdbscan_settings=base_hdbscan_settings,
+                )
+            if "gmm" in methods:
+                run_gmm_modal_analysis(
+                    str(area_results_path), str(area_dir), reference_modes=area_reference_modes,
+                    gmm_settings=base_gmm_settings,
+                )
+            if "agglomerative" in methods:
+                run_agglomerative_modal_analysis(
+                    str(area_results_path), str(area_dir), reference_modes=area_reference_modes,
+                    agglomerative_settings=base_agglomerative_settings,
+                )
 
         _save_combined_reference_mad_summary(area_root, reference_modes)
 
         sweep_config["reference_modes_source"] = reference_source
         sweep_config["reference_modes"] = reference_modes
+        sweep_config["clustering_methods"] = methods
         sweep_config["optics_settings"] = base_optics_settings
         sweep_config["dbscan_settings"] = base_dbscan_settings
+        sweep_config["hdbscan_settings"] = base_hdbscan_settings
+        sweep_config["gmm_settings"] = base_gmm_settings
+        sweep_config["agglomerative_settings"] = base_agglomerative_settings
         _save_json(sweep_config_path, sweep_config)
 
     analysis_config["reference_modes_source"] = reference_source
     analysis_config["reference_modes"] = reference_modes
+    analysis_config["clustering_methods"] = _extend_clustering_methods(analysis_config.get("clustering_methods"))
     analysis_config["optics_settings"] = _extend_pm_settings(
         analysis_config.get("optics_settings", {}), AMBIENT_DEFAULT_OPTICS_SETTINGS
     )
     analysis_config["dbscan_settings"] = _extend_pm_settings(
         analysis_config.get("dbscan_settings", {}), AMBIENT_DEFAULT_DBSCAN_SETTINGS
+    )
+    analysis_config["hdbscan_settings"] = _extend_settings(
+        analysis_config.get("hdbscan_settings", {}), AMBIENT_DEFAULT_HDBSCAN_SETTINGS
+    )
+    analysis_config["gmm_settings"] = _extend_settings(
+        analysis_config.get("gmm_settings", {}), AMBIENT_DEFAULT_GMM_SETTINGS
+    )
+    analysis_config["agglomerative_settings"] = _extend_settings(
+        analysis_config.get("agglomerative_settings", {}), AMBIENT_DEFAULT_AGGLOMERATIVE_SETTINGS
     )
     _save_json(config_path, analysis_config)
     save_ambient_clustering_selection_summary(base_output_dir, analysis_config)
@@ -119,6 +173,22 @@ def _extend_pm_settings(settings, defaults):
         | {float(value) for value in (settings or {}).get("pm_values", [])}
     )
     merged["render_all_parameter_maps"] = False
+    return merged
+
+
+def _extend_clustering_methods(methods):
+    """Migrate only the historical default method set; preserve explicit subsets."""
+    if methods is None:
+        return list(AMBIENT_DEFAULT_CLUSTERING_METHODS)
+    resolved = list(methods)
+    if set(resolved) == set(LEGACY_DEFAULT_CLUSTERING_METHODS) and len(resolved) == len(LEGACY_DEFAULT_CLUSTERING_METHODS):
+        return [*resolved, *[method for method in AMBIENT_DEFAULT_CLUSTERING_METHODS if method not in resolved]]
+    return resolved
+
+
+def _extend_settings(settings, defaults):
+    merged = dict(defaults)
+    merged.update(dict(settings or {}))
     return merged
 
 
