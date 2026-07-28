@@ -63,6 +63,13 @@ AMBIENT_DEFAULT_AGGLOMERATIVE_SETTINGS = {
     "metric": "euclidean",
     "compute_distances": True,
 }
+AMBIENT_PAPER_MAD_SETTINGS = {
+    "definition": "median(abs(lambda_hat - lambda_reference))",
+    "pole_coordinates": "sigma_j_omega",
+    "omega_from_frequency": "2*pi*frequency_hz",
+    "units": "rad/s",
+    "noise_policy": "exclude_density_noise",
+}
 
 AMBIENT_REFERENCE_MODES = {
     "Mode 1": {"Frequency": 0.6062, "Damping": -0.0800, "Damping_Factor": 0.0210, "Generator_Involvement": "1-9 vs. 10", "relevant_areas": [1, 2, 3]},
@@ -467,41 +474,26 @@ def save_ambient_clustering_selection_summary(base_output_dir, analysis_config=N
     return summary
 
 
-def _save_combined_reference_mad_summary(area_root, reference_modes):
-    assignment_files = sorted(area_root.glob("area_*/reference_mad/mode_estimates_with_reference_assignment.csv"))
-    if not assignment_files:
-        return
-
-    combined_dir = area_root / "reference_mad"
-    combined_dir.mkdir(parents=True, exist_ok=True)
-
-    assigned_df = pd.concat([pd.read_csv(path) for path in assignment_files], ignore_index=True)
-    assigned_df.to_csv(combined_dir / "mode_estimates_with_reference_assignment.csv", index=False)
-
-    summary = (
-        assigned_df.groupby("Reference_Mode", as_index=False)
-        .agg(
-            Reference_Frequency=("Reference_Frequency", "first"),
-            Reference_Damping=("Reference_Damping", "first"),
-            Count=("Distance_to_Reference", "size"),
-            MAD=("Distance_to_Reference", "median"),
-            Mean_Distance=("Distance_to_Reference", "mean"),
-            Max_Distance=("Distance_to_Reference", "max"),
-        )
-    )
-
-    mode_names = list(reference_modes.keys())
-    complete_summary = pd.DataFrame({
-        "Reference_Mode": mode_names,
-        "Reference_Frequency": [float(reference_modes[name]["Frequency"]) for name in mode_names],
-        "Reference_Damping": [float(reference_modes[name]["Damping"]) for name in mode_names],
-    }).merge(
-        summary,
-        on=["Reference_Mode", "Reference_Frequency", "Reference_Damping"],
-        how="left",
-    )
-    complete_summary["Count"] = complete_summary["Count"].fillna(0).astype(int)
-    complete_summary.to_csv(combined_dir / "reference_mad_summary_overall.csv", index=False)
+def _save_aggregated_paper_mad(output_dir, reference_modes, method_collectors):
+    """Write one Eq. (10)-style MAD table per method across all relevant areas."""
+    output_dir = Path(output_dir)
+    mode_names = list(reference_modes)
+    for method, assignments in method_collectors.items():
+        assignment_df = pd.DataFrame(assignments)
+        rows = []
+        for mode in mode_names:
+            distances = (
+                assignment_df.loc[assignment_df["Mode"] == mode, "Distance_rad_s"]
+                if not assignment_df.empty else pd.Series(dtype=float)
+            )
+            rows.append({
+                "Mode": mode,
+                "Estimates": int(len(distances)),
+                "MAD": None if distances.empty else float(distances.median()),
+            })
+        mad_dir = output_dir / "mad" / method
+        mad_dir.mkdir(parents=True, exist_ok=True)
+        pd.DataFrame(rows, columns=["Mode", "Estimates", "MAD"]).to_csv(mad_dir / "mad.csv", index=False)
 
 
 def _raw_sample_hz(time_values):
@@ -725,10 +717,9 @@ def identify_n4sid_modes(t, y, dt_s, order, block_rows=None):
     return modes, summary
 
 
-def _run_clustering_pipeline(results_path, output_path, reference_modes, methods, optics_settings=None, dbscan_settings=None, hdbscan_settings=None, gmm_settings=None, agglomerative_settings=None):
+def _run_clustering_pipeline(results_path, output_path, reference_modes, methods, optics_settings=None, dbscan_settings=None, hdbscan_settings=None, gmm_settings=None, agglomerative_settings=None, paper_mad_collectors=None):
     from clustering_analysis import (
         _load_screened_data,
-        _save_reference_mad_outputs,
         run_kmeans_modal_analysis,
         run_kmedoids_modal_analysis,
         run_optics_modal_analysis,
@@ -748,11 +739,6 @@ def _run_clustering_pipeline(results_path, output_path, reference_modes, methods
     df_for_mad = _load_screened_data(str(results_path), str(output_path))
     timings["screen_and_load"] = _timing_entry(time.perf_counter() - screen_start)
 
-    ref_start = time.perf_counter()
-    if df_for_mad is not None:
-        _save_reference_mad_outputs(df_for_mad, str(output_path), reference_modes=reference_modes)
-    timings["reference_mad"] = _timing_entry(time.perf_counter() - ref_start, skipped=df_for_mad is None)
-
     runners = {
         "kmeans": run_kmeans_modal_analysis,
         "kmedoids": run_kmedoids_modal_analysis,
@@ -764,12 +750,14 @@ def _run_clustering_pipeline(results_path, output_path, reference_modes, methods
     }
     for method in requested_methods:
         started = time.perf_counter()
+        paper_mad_collector = None if paper_mad_collectors is None else paper_mad_collectors.setdefault(method, [])
         if method == "optics":
             selection = runners[method](
                 str(results_path),
                 str(output_path),
                 reference_modes=reference_modes,
                 optics_settings=optics_settings,
+                paper_mad_collector=paper_mad_collector,
             )
         elif method == "dbscan":
             selection = runners[method](
@@ -777,15 +765,16 @@ def _run_clustering_pipeline(results_path, output_path, reference_modes, methods
                 str(output_path),
                 reference_modes=reference_modes,
                 dbscan_settings=dbscan_settings,
+                paper_mad_collector=paper_mad_collector,
             )
         elif method == "hdbscan":
-            selection = runners[method](str(results_path), str(output_path), reference_modes=reference_modes, hdbscan_settings=hdbscan_settings)
+            selection = runners[method](str(results_path), str(output_path), reference_modes=reference_modes, hdbscan_settings=hdbscan_settings, paper_mad_collector=paper_mad_collector)
         elif method == "gmm":
-            selection = runners[method](str(results_path), str(output_path), reference_modes=reference_modes, gmm_settings=gmm_settings)
+            selection = runners[method](str(results_path), str(output_path), reference_modes=reference_modes, gmm_settings=gmm_settings, paper_mad_collector=paper_mad_collector)
         elif method == "agglomerative":
-            selection = runners[method](str(results_path), str(output_path), reference_modes=reference_modes, agglomerative_settings=agglomerative_settings)
+            selection = runners[method](str(results_path), str(output_path), reference_modes=reference_modes, agglomerative_settings=agglomerative_settings, paper_mad_collector=paper_mad_collector)
         else:
-            selection = runners[method](str(results_path), str(output_path), reference_modes=reference_modes)
+            selection = runners[method](str(results_path), str(output_path), reference_modes=reference_modes, paper_mad_collector=paper_mad_collector)
         timings[method] = _timing_entry(time.perf_counter() - started)
         if selection is not None:
             selections[method] = selection
@@ -829,6 +818,7 @@ def run_ambient_clustering_for_results(output_dir, results_path, df_results, ref
     if scope.get("by_control_area", False):
         area_root = output_dir / "clustering" / "by_control_area"
         area_timings = {}
+        paper_mad_collectors = {method: [] for method in methods}
         for area_name, gens in CONTROL_AREAS.items():
             area_out = area_root / area_name
             area_out.mkdir(parents=True, exist_ok=True)
@@ -851,9 +841,10 @@ def run_ambient_clustering_for_results(output_dir, results_path, df_results, ref
                 hdbscan_settings=hdbscan_settings,
                 gmm_settings=gmm_settings,
                 agglomerative_settings=agglomerative_settings,
+                paper_mad_collectors=paper_mad_collectors,
             )
 
-        _save_combined_reference_mad_summary(area_root, reference_modes)
+        _save_aggregated_paper_mad(output_dir, reference_modes, paper_mad_collectors)
         timings["by_control_area"] = area_timings
     return timings
 
@@ -898,6 +889,7 @@ def resolve_ambient_settings(scenario, args):
         "hdbscan_settings": hdbscan_settings,
         "gmm_settings": gmm_settings,
         "agglomerative_settings": agglomerative_settings,
+        "paper_mad": dict(AMBIENT_PAPER_MAD_SETTINGS),
         "reference_modes_source": reference_source,
         "reference_modes": reference_modes,
         "signals": signals,
@@ -1086,6 +1078,7 @@ def run_ambient_n4sid_for_scenario(name, scenario, args):
             "hdbscan_settings": settings["hdbscan_settings"],
             "gmm_settings": settings["gmm_settings"],
             "agglomerative_settings": settings["agglomerative_settings"],
+            "paper_mad": settings["paper_mad"],
             "reference_modes_source": settings["reference_modes_source"],
             "reference_modes": settings["reference_modes"],
             "signal_summaries": signal_summary_rows,
@@ -1135,6 +1128,7 @@ def run_ambient_n4sid_for_scenario(name, scenario, args):
         "hdbscan_settings": settings["hdbscan_settings"],
         "gmm_settings": settings["gmm_settings"],
         "agglomerative_settings": settings["agglomerative_settings"],
+        "paper_mad": settings["paper_mad"],
         "reference_modes_source": settings["reference_modes_source"],
         "reference_modes": settings["reference_modes"],
         "sweeps": sweep_summaries,

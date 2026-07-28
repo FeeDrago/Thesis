@@ -563,7 +563,7 @@ def _save_metrics_summary(base_output, metrics_rows, filename):
     pd.DataFrame(metrics_rows).to_csv(os.path.join(base_output, filename), index=False)
 
 
-def run_kmeans_modal_analysis(results_path, output_path, reference_modes=None):
+def run_kmeans_modal_analysis(results_path, output_path, reference_modes=None, paper_mad_collector=None):
     base_output = os.path.join(output_path, "kmeans")
     _prepare_output_dirs(base_output)
 
@@ -761,9 +761,11 @@ def run_kmeans_modal_analysis(results_path, output_path, reference_modes=None):
     metrics_df["k_selected_by_max_chord"] = metrics_df["k"] == k_opt
     metrics_df.to_csv(os.path.join(base_output, "kmeans_metrics_summary.csv"), index=False)
     pd.DataFrame(cluster_stats).to_csv(os.path.join(base_output, "cluster_centers_sizes.csv"), index=False)
+    _, selected_cluster_rows = _cluster_representatives(df, labels_opt)
+    _collect_paper_mad_assignments(df, labels_opt, selected_cluster_rows, reference_modes, paper_mad_collector)
 
 
-def run_kmedoids_modal_analysis(results_path, output_path, reference_modes=None):
+def run_kmedoids_modal_analysis(results_path, output_path, reference_modes=None, paper_mad_collector=None):
     base_output = os.path.join(output_path, "kmedoids")
     _prepare_output_dirs(base_output)
 
@@ -969,6 +971,8 @@ def run_kmedoids_modal_analysis(results_path, output_path, reference_modes=None)
     metrics_df["k_selected_by_max_chord"] = metrics_df["k"] == k_opt
     metrics_df.to_csv(os.path.join(base_output, "kmedoids_metrics_summary.csv"), index=False)
     pd.DataFrame(cluster_stats).to_csv(os.path.join(base_output, "cluster_medoids_sizes.csv"), index=False)
+    _, selected_cluster_rows = _cluster_representatives(df, labels_opt)
+    _collect_paper_mad_assignments(df, labels_opt, selected_cluster_rows, reference_modes, paper_mad_collector)
 
 
 def run_optics_modal_analysis(results_path, output_path, reference_modes=None, optics_settings=None):
@@ -1350,14 +1354,9 @@ def _cluster_representatives(df, labels, extra=None):
     return values, rows
 
 
-def _save_clustered_reference_mad_outputs(df, labels, cluster_rows, base_output, reference_modes=None):
-    """Save post-clustering MAD in the (sigma, frequency) plane.
-
-    Only non-noise estimates are retained.  A cluster's representative is
-    assigned to its nearest reference mode and that assignment is shared by
-    every estimate belonging to the cluster.
-    """
-    if not reference_modes:
+def _collect_paper_mad_assignments(df, labels, cluster_rows, reference_modes, collector):
+    """Collect Eq. (10)-style complex-pole distances without writing per-area output."""
+    if collector is None or not reference_modes:
         return
 
     labels = np.asarray(labels, dtype=int)
@@ -1375,16 +1374,20 @@ def _save_clustered_reference_mad_outputs(df, labels, cluster_rows, base_output,
         "Reference_Frequency": [float(reference_modes[name]["Frequency"]) for name in reference_names],
         "Reference_Damping": [float(reference_modes[name]["Damping"]) for name in reference_names],
     })
-    cluster_points = cluster_df[["Frequency", "Damping"]].to_numpy(dtype=float)
-    reference_points = reference_df[["Reference_Frequency", "Reference_Damping"]].to_numpy(dtype=float)
+    cluster_points = np.column_stack([
+        cluster_df["Damping"].to_numpy(dtype=float),
+        2.0 * np.pi * cluster_df["Frequency"].to_numpy(dtype=float),
+    ])
+    reference_points = np.column_stack([
+        reference_df["Reference_Damping"].to_numpy(dtype=float),
+        2.0 * np.pi * reference_df["Reference_Frequency"].to_numpy(dtype=float),
+    ])
     distances = np.sqrt(np.sum((cluster_points[:, None, :] - reference_points[None, :, :]) ** 2, axis=2))
     nearest_idx = np.argmin(distances, axis=1)
     cluster_df = cluster_df.copy()
     cluster_df["Reference_Mode"] = [reference_names[idx] for idx in nearest_idx]
-    cluster_df["Reference_Frequency"] = reference_points[nearest_idx, 0]
-    cluster_df["Reference_Damping"] = reference_points[nearest_idx, 1]
-    cluster_df["RepresentativeDistanceToReference"] = distances[np.arange(len(cluster_df)), nearest_idx]
-
+    cluster_df["Reference_Frequency"] = reference_df["Reference_Frequency"].to_numpy(dtype=float)[nearest_idx]
+    cluster_df["Reference_Damping"] = reference_df["Reference_Damping"].to_numpy(dtype=float)[nearest_idx]
     assigned_df = df.loc[assigned_mask].copy()
     assigned_df["Cluster"] = labels[assigned_mask] + 1
     assignment_columns = [
@@ -1392,39 +1395,15 @@ def _save_clustered_reference_mad_outputs(df, labels, cluster_rows, base_output,
         "Reference_Mode",
         "Reference_Frequency",
         "Reference_Damping",
-        "RepresentativeDistanceToReference",
     ]
     assigned_df = assigned_df.merge(cluster_df[assignment_columns], on="Cluster", how="left", validate="many_to_one")
-    assigned_df["Distance_to_Reference"] = np.sqrt(
-        (assigned_df["Frequency"] - assigned_df["Reference_Frequency"]) ** 2
-        + (assigned_df["Damping"] - assigned_df["Reference_Damping"]) ** 2
+    distances = np.sqrt(
+        (assigned_df["Damping"].to_numpy(dtype=float) - assigned_df["Reference_Damping"].to_numpy(dtype=float)) ** 2
+        + (2.0 * np.pi * (assigned_df["Frequency"].to_numpy(dtype=float) - assigned_df["Reference_Frequency"].to_numpy(dtype=float))) ** 2
     )
-
-    reference_dir = os.path.join(base_output, "reference_mad")
-    os.makedirs(reference_dir, exist_ok=True)
-    assigned_df.to_csv(
-        os.path.join(reference_dir, "clustered_mode_estimates_with_reference_assignment.csv"),
-        index=False,
-    )
-    cluster_df.to_csv(
-        os.path.join(reference_dir, "cluster_reference_assignment.csv"),
-        index=False,
-    )
-
-    overall = (
-        assigned_df.groupby("Reference_Mode", as_index=False)
-        .agg(
-            Reference_Frequency=("Reference_Frequency", "first"),
-            Reference_Damping=("Reference_Damping", "first"),
-            Count=("Distance_to_Reference", "size"),
-            MAD=("Distance_to_Reference", "median"),
-            Mean_Distance=("Distance_to_Reference", "mean"),
-            Max_Distance=("Distance_to_Reference", "max"),
-        )
-    )
-    _complete_reference_mode_summary(overall, reference_modes).to_csv(
-        os.path.join(reference_dir, "reference_mad_summary_overall.csv"),
-        index=False,
+    collector.extend(
+        {"Mode": mode, "Distance_rad_s": float(distance)}
+        for mode, distance in zip(assigned_df["Reference_Mode"], distances)
     )
 
 
@@ -1505,7 +1484,7 @@ def _save_selected_density_map(base_output, method, df, selected, reference_mode
     plt.close(fig)
 
 
-def run_optics_modal_analysis(results_path, output_path, reference_modes=None, optics_settings=None):
+def run_optics_modal_analysis(results_path, output_path, reference_modes=None, optics_settings=None, paper_mad_collector=None):
     base_output = os.path.join(output_path, "optics")
     _prepare_output_dirs(base_output)
     optics_df = _load_screened_data(results_path, output_path)
@@ -1547,12 +1526,12 @@ def run_optics_modal_analysis(results_path, output_path, reference_modes=None, o
     selected_row = metrics_df.loc[best_idx]
     selected = stored[(float(selected_row["Pm"]), float(selected_row["Xi"]))]
     pd.DataFrame(selected["cluster_rows"]).to_csv(os.path.join(base_output, "cluster_representatives_sizes.csv"), index=False)
-    _save_clustered_reference_mad_outputs(
+    _collect_paper_mad_assignments(
         optics_df,
         selected["labels"],
         selected["cluster_rows"],
-        base_output,
         reference_modes=reference_modes,
+        collector=paper_mad_collector,
     )
     _save_selected_density_map(base_output, "OPTICS", optics_df, selected, reference_modes,
                                f"$min\\_samples={int(selected_row['MinSamples'])}$, xi={selected_row['Xi']:.2f}")
@@ -1561,7 +1540,7 @@ def run_optics_modal_analysis(results_path, output_path, reference_modes=None, o
             "assigned_ratio": float(selected_row["AssignedRatio"]), "selection_reason": selection_reason}
 
 
-def run_dbscan_modal_analysis(results_path, output_path, reference_modes=None, dbscan_settings=None):
+def run_dbscan_modal_analysis(results_path, output_path, reference_modes=None, dbscan_settings=None, paper_mad_collector=None):
     base_output = os.path.join(output_path, "dbscan")
     _prepare_output_dirs(base_output)
     dbscan_df = _load_screened_data(results_path, output_path)
@@ -1598,12 +1577,12 @@ def run_dbscan_modal_analysis(results_path, output_path, reference_modes=None, d
     selected_row = metrics_df.loc[best_idx]
     selected = stored[(float(selected_row["Pe"]), float(selected_row["Pm"]))]
     pd.DataFrame(selected["cluster_rows"]).to_csv(os.path.join(base_output, "cluster_representatives_sizes.csv"), index=False)
-    _save_clustered_reference_mad_outputs(
+    _collect_paper_mad_assignments(
         dbscan_df,
         selected["labels"],
         selected["cluster_rows"],
-        base_output,
         reference_modes=reference_modes,
+        collector=paper_mad_collector,
     )
     _save_selected_density_map(base_output, "DBSCAN", dbscan_df, selected, reference_modes,
                                f"$\\epsilon={selected_row['Epsilon']:.3f}$, $N_{{pts}}={int(selected_row['MinPts'])}$")
@@ -1655,7 +1634,7 @@ def _fixed_cluster_metrics(X_scaled, labels):
     return _silhouette_for_cluster_labels(X_scaled, np.asarray(labels, dtype=int), min_assigned_ratio=0.0)
 
 
-def run_hdbscan_modal_analysis(results_path, output_path, reference_modes=None, hdbscan_settings=None):
+def run_hdbscan_modal_analysis(results_path, output_path, reference_modes=None, hdbscan_settings=None, paper_mad_collector=None):
     base_output = os.path.join(output_path, "hdbscan")
     _prepare_output_dirs(base_output)
     df = _load_screened_data(results_path, output_path)
@@ -1691,7 +1670,7 @@ def run_hdbscan_modal_analysis(results_path, output_path, reference_modes=None, 
     }
     pd.DataFrame([metrics_row]).to_csv(os.path.join(base_output, "hdbscan_metrics_summary.csv"), index=False)
     pd.DataFrame(cluster_rows).to_csv(os.path.join(base_output, "cluster_representatives_sizes.csv"), index=False)
-    _save_clustered_reference_mad_outputs(df, labels, cluster_rows, base_output, reference_modes=reference_modes)
+    _collect_paper_mad_assignments(df, labels, cluster_rows, reference_modes, paper_mad_collector)
     _save_fixed_cluster_map(
         base_output, "HDBSCAN", df, labels, representatives, reference_modes,
         f"HDBSCAN Cluster Map ($min\\_cluster\\_size={min_cluster_size}$, $min\\_samples={min_samples}$)\n"
@@ -1703,7 +1682,7 @@ def run_hdbscan_modal_analysis(results_path, output_path, reference_modes=None, 
             "assigned_ratio": float(metrics["AssignedRatio"]), "selection_reason": selection_reason}
 
 
-def run_gmm_modal_analysis(results_path, output_path, reference_modes=None, gmm_settings=None):
+def run_gmm_modal_analysis(results_path, output_path, reference_modes=None, gmm_settings=None, paper_mad_collector=None):
     base_output = os.path.join(output_path, "gmm")
     _prepare_output_dirs(base_output)
     df = _load_screened_data(results_path, output_path)
@@ -1744,7 +1723,7 @@ def run_gmm_modal_analysis(results_path, output_path, reference_modes=None, gmm_
     }
     pd.DataFrame([metrics_row]).to_csv(os.path.join(base_output, "gmm_metrics_summary.csv"), index=False)
     pd.DataFrame(cluster_rows).to_csv(os.path.join(base_output, "cluster_representatives_sizes.csv"), index=False)
-    _save_clustered_reference_mad_outputs(df, labels, cluster_rows, base_output, reference_modes=reference_modes)
+    _collect_paper_mad_assignments(df, labels, cluster_rows, reference_modes, paper_mad_collector)
     _save_fixed_cluster_map(
         base_output, "GMM", df, labels, representatives, reference_modes,
         f"Gaussian Mixture Cluster Map ($k={n_components}$, full covariance)\nClusters: {metrics['Clusters']}",
@@ -1754,7 +1733,7 @@ def run_gmm_modal_analysis(results_path, output_path, reference_modes=None, gmm_
             "selection_reason": selection_reason}
 
 
-def run_agglomerative_modal_analysis(results_path, output_path, reference_modes=None, agglomerative_settings=None):
+def run_agglomerative_modal_analysis(results_path, output_path, reference_modes=None, agglomerative_settings=None, paper_mad_collector=None):
     base_output = os.path.join(output_path, "agglomerative")
     _prepare_output_dirs(base_output)
     df = _load_screened_data(results_path, output_path)
@@ -1786,7 +1765,7 @@ def run_agglomerative_modal_analysis(results_path, output_path, reference_modes=
     }
     pd.DataFrame([metrics_row]).to_csv(os.path.join(base_output, "agglomerative_metrics_summary.csv"), index=False)
     pd.DataFrame(cluster_rows).to_csv(os.path.join(base_output, "cluster_representatives_sizes.csv"), index=False)
-    _save_clustered_reference_mad_outputs(df, labels, cluster_rows, base_output, reference_modes=reference_modes)
+    _collect_paper_mad_assignments(df, labels, cluster_rows, reference_modes, paper_mad_collector)
     _save_fixed_cluster_map(
         base_output, "Agglomerative", df, labels, representatives, reference_modes,
         f"Agglomerative Cluster Map ($k={n_clusters}$, Ward linkage)\nClusters: {metrics['Clusters']}",
