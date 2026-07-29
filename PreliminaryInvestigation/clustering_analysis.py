@@ -61,16 +61,16 @@ HDBSCAN_DEFAULT_SETTINGS = {
 GMM_DEFAULT_SETTINGS = {
     "covariance_type": "full",
     "init_params": "kmeans",
-    "n_init": 10,
+    "n_init": 1,
     "random_state": 42,
-    "max_iter": 300,
+    "max_iter": 100,
     "reg_covar": 1e-6,
 }
 
 AGGLOMERATIVE_DEFAULT_SETTINGS = {
     "linkage": "ward",
     "metric": "euclidean",
-    "compute_distances": True,
+    "compute_distances": False,
 }
 
 REFERENCE_MODES = {
@@ -1644,7 +1644,8 @@ def run_hdbscan_modal_analysis(results_path, output_path, reference_modes=None, 
 
     settings = _resolve_fixed_settings(HDBSCAN_DEFAULT_SETTINGS, hdbscan_settings)
     min_cluster_size = min(max(2, int(settings["min_cluster_size"])), len(df))
-    min_samples = min(max(1, int(settings["min_samples"])), len(df) - 1)
+    configured_min_samples = settings["min_samples"]
+    min_samples = None if configured_min_samples is None else min(max(1, int(configured_min_samples)), len(df) - 1)
     X_scaled = StandardScaler().fit_transform(df[["Frequency", "Damping"]].to_numpy(dtype=float))
     labels = HDBSCAN(
         min_cluster_size=min_cluster_size,
@@ -1652,7 +1653,7 @@ def run_hdbscan_modal_analysis(results_path, output_path, reference_modes=None, 
         cluster_selection_method=str(settings["cluster_selection_method"]),
         metric=str(settings["metric"]),
         allow_single_cluster=bool(settings["allow_single_cluster"]),
-        copy=bool(settings["copy"]),
+        copy=settings["copy"],
     ).fit_predict(X_scaled)
     representatives, cluster_rows = _cluster_representatives(df, labels)
     metrics = _fixed_cluster_metrics(X_scaled, labels)
@@ -1663,7 +1664,7 @@ def run_hdbscan_modal_analysis(results_path, output_path, reference_modes=None, 
         "ClusterSelectionMethod": settings["cluster_selection_method"],
         "Metric": settings["metric"],
         "AllowSingleCluster": bool(settings["allow_single_cluster"]),
-        "Copy": bool(settings["copy"]),
+        "Copy": settings["copy"],
         "Selected": True,
         "SelectionReason": selection_reason,
         **metrics,
@@ -1698,7 +1699,7 @@ def run_gmm_modal_analysis(results_path, output_path, reference_modes=None, gmm_
         covariance_type=str(settings["covariance_type"]),
         init_params=str(settings["init_params"]),
         n_init=max(1, int(settings["n_init"])),
-        random_state=int(settings["random_state"]),
+        random_state=settings["random_state"],
         max_iter=max(1, int(settings["max_iter"])),
         reg_covar=float(settings["reg_covar"]),
     )
@@ -1711,7 +1712,7 @@ def run_gmm_modal_analysis(results_path, output_path, reference_modes=None, gmm_
         "CovarianceType": settings["covariance_type"],
         "InitParams": settings["init_params"],
         "NInit": int(settings["n_init"]),
-        "RandomState": int(settings["random_state"]),
+        "RandomState": settings["random_state"],
         "MaxIter": int(settings["max_iter"]),
         "RegCovar": float(settings["reg_covar"]),
         "BIC": float(model.bic(X_scaled)),

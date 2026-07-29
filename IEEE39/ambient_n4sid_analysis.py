@@ -53,15 +53,15 @@ AMBIENT_DEFAULT_HDBSCAN_SETTINGS = {
 AMBIENT_DEFAULT_GMM_SETTINGS = {
     "covariance_type": "full",
     "init_params": "kmeans",
-    "n_init": 10,
+    "n_init": 1,
     "random_state": 42,
-    "max_iter": 300,
+    "max_iter": 100,
     "reg_covar": 1e-6,
 }
 AMBIENT_DEFAULT_AGGLOMERATIVE_SETTINGS = {
     "linkage": "ward",
     "metric": "euclidean",
-    "compute_distances": True,
+    "compute_distances": False,
 }
 AMBIENT_PAPER_MAD_SETTINGS = {
     "definition": "median(abs(lambda_hat - lambda_reference))",
