@@ -131,13 +131,8 @@ ORDER_SUMMARY_COLUMNS = [
     "Message",
 ]
 CLUSTERING_SELECTION_SUMMARY_COLUMNS = [
-    "Scenario", "OrderGroup", "Orders", "Area", "Generators", "GeneratorCount",
-    "ReferenceModeCount", "ReferenceModes", "Method", "Status",
-    "SelectedK", "SilhouetteSelectedK", "Pe", "Pm", "Epsilon", "Xi",
-    "MinPts", "MinSamples", "MinClusterSize", "CovarianceType", "Linkage",
-    "Clusters", "NoisePoints", "AssignedPoints",
-    "AssignedRatio", "Silhouette", "SelectionReason", "ObjectiveName",
-    "ObjectiveValue",
+    "OrderGroup", "Area", "Method", "Parameters", "Clusters", "NoisePoints",
+    "AssignedPoints", "AssignedRatio", "Silhouette",
 ]
 
 
@@ -318,17 +313,19 @@ def _summary_value(row, column):
 
 def _ambient_summary_base_row(scenario, order_group, orders, area_name, generators, reference_modes, method):
     return {
-        "Scenario": scenario,
         "OrderGroup": order_group,
-        "Orders": ", ".join(str(order) for order in orders),
         "Area": area_name,
-        "Generators": ", ".join(generators),
-        "GeneratorCount": len(generators),
-        "ReferenceModeCount": len(reference_modes),
-        "ReferenceModes": "; ".join(reference_modes),
         "Method": method,
-        "Status": "ok",
     }
+
+
+def _summary_parameters(**values):
+    """Format only the selected method settings for the compact summary CSV."""
+    parts = []
+    for name, value in values.items():
+        if value is not None and not pd.isna(value):
+            parts.append(f"{name}={value}")
+    return "; ".join(parts)
 
 
 def _append_density_summary_row(rows, base_row, method_dir, method_name):
@@ -336,13 +333,19 @@ def _append_density_summary_row(rows, base_row, method_dir, method_name):
     selected = _selected_summary_row(method_dir / metrics_name)
     row = dict(base_row)
     if selected is None:
-        row["Status"] = "missing_selection"
+        row["Parameters"] = "missing selection"
     else:
         for column in (
-            "Pe", "Pm", "Epsilon", "Xi", "MinPts", "MinSamples", "Clusters",
-            "NoisePoints", "AssignedPoints", "AssignedRatio", "Silhouette", "SelectionReason",
+            "Clusters", "NoisePoints", "AssignedPoints", "AssignedRatio", "Silhouette",
         ):
             row[column] = _summary_value(selected, column)
+        parameter_columns = (
+            ("pe", "Pe"), ("pm", "Pm"), ("epsilon", "Epsilon"),
+            ("xi", "Xi"), ("min_samples", "MinSamples"),
+        )
+        row["Parameters"] = _summary_parameters(**{
+            name: _summary_value(selected, column) for name, column in parameter_columns
+        })
     rows.append(row)
 
 
@@ -358,20 +361,16 @@ def _append_partitioning_summary_row(rows, base_row, method_dir, method_name):
             selected_rows = metrics[selected_mask.astype(str).str.lower().eq("true")]
             selected = None if selected_rows.empty else selected_rows.iloc[0]
     if selected is None:
-        row["Status"] = "missing_selection"
+        row["Parameters"] = "missing selection"
     else:
-        objective = "WCSS" if method_name == "K-Means" else "Cost"
-        row["SelectedK"] = _summary_value(selected, "k")
         row["Clusters"] = _summary_value(selected, "k")
-        row["ObjectiveName"] = objective
-        row["ObjectiveValue"] = _summary_value(selected, objective)
+        row["Parameters"] = _summary_parameters(k=_summary_value(selected, "k"))
 
     silhouette_path = method_dir.parent / "silhouette" / "silhouette_optimal_k_summary.csv"
     if silhouette_path.exists():
         silhouette = pd.read_csv(silhouette_path)
         match = silhouette[silhouette["Method"].astype(str).str.lower().eq(method_name.lower())]
         if not match.empty:
-            row["SilhouetteSelectedK"] = _summary_value(match.iloc[0], "k_opt")
             row["Silhouette"] = _summary_value(match.iloc[0], "Silhouette")
     rows.append(row)
 
@@ -380,17 +379,27 @@ def _append_fixed_method_summary_row(rows, base_row, method_dir, metrics_name, m
     selected = _selected_summary_row(method_dir / metrics_name)
     row = dict(base_row)
     if selected is None:
-        row["Status"] = "missing_selection"
+        row["Parameters"] = "missing selection"
     else:
         for column in (
-            "SelectedK", "MinSamples", "MinClusterSize", "CovarianceType", "Linkage",
             "Clusters", "NoisePoints", "AssignedPoints", "AssignedRatio", "Silhouette",
-            "SelectionReason",
         ):
             row[column] = _summary_value(selected, column)
-        if method_name == "GMM":
-            row["ObjectiveName"] = "BIC"
-            row["ObjectiveValue"] = _summary_value(selected, "BIC")
+        if method_name == "HDBSCAN":
+            row["Parameters"] = _summary_parameters(
+                min_cluster_size=_summary_value(selected, "MinClusterSize"),
+                min_samples=_summary_value(selected, "MinSamples"),
+            )
+        elif method_name == "GMM":
+            row["Parameters"] = _summary_parameters(
+                k=_summary_value(selected, "SelectedK"),
+                covariance=_summary_value(selected, "CovarianceType"),
+            )
+        else:
+            row["Parameters"] = _summary_parameters(
+                k=_summary_value(selected, "SelectedK"),
+                linkage=_summary_value(selected, "Linkage"),
+            )
     rows.append(row)
 
 
