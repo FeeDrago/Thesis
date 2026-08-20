@@ -1,0 +1,51 @@
+\documentclass[a4paper,12pt,twoside,openright]{report}
+
+% Συμπλήρωσε τα παρακάτω στοιχεία πριν από την τελική παράδοση.
+\newcommand{\thesistitle}{[ΤΙΤΛΟΣ ΔΙΠΛΩΜΑΤΙΚΗΣ ΕΡΓΑΣΙΑΣ]}
+\newcommand{\thesistitleEN}{[THESIS TITLE IN ENGLISH]}
+\newcommand{\student}{[ΟΝΟΜΑΤΕΠΩΝΥΜΟ ΦΟΙΤΗΤΗ]}
+\newcommand{\supervisors}{[ΟΝΟΜΑΤΕΠΩΝΥΜΟ ΕΠΙΒΛΕΠΟΝΤΑ, ΒΑΘΜΙΔΑ]}
+\newcommand{\cosupervisors}{[ΟΝΟΜΑΤΕΠΩΝΥΜΟ ΣΥΝΕΠΙΒΛΕΠΟΝΤΑ, ΒΑΘΜΙΔΑ]}
+\newcommand{\placedate}{[ΠΟΛΗ, ΜΗΝΑΣ ΕΤΟΣ]}
+
+\input{util/preamble.tex}
+
+\begin{document}
+
+% Εξώφυλλο και προκαταρκτικές σελίδες του template.
+\input{cover/titlepage.tex}
+\pagestyle{noboxheader}
+
+\newpage
+\TopTitleChapter{}{Περίληψη}
+\input{frontmatter/abstractGR.tex}
+
+\TopTitleChapter{\thesistitleEN}{Abstract}
+\input{frontmatter/abstractEN.tex}
+
+\newpage
+\TopTitleChapter{}{Ευχαριστίες}
+\input{frontmatter/thanks.tex}
+
+\renewcommand{\contentsname}{\textsc{Περιεχόμενα}}
+\tableofcontents
+\renewcommand{\listfigurename}{\textsc{Λίστα Σχημάτων}}
+\listoffigures
+\renewcommand{\listtablename}{\textsc{Λίστα Πινάκων}}
+\listoftables
+\cleardoublepage
+\pagestyle{mystyle}
+
+% Κύριο σώμα εργασίας.
+\newpage
+\pagenumbering{arabic}
+\setcounter{page}{1}
+\input{chapters/01_introduction.tex}
+\input{chapters/02_theory.tex}
+
+\cleardoublepage
+\MyNumberlessChapter{Βιβλιογραφία}
+\renewcommand{\bibname}{}
+\printbibliography[heading=none]
+
+\end{document}
