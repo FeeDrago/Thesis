@@ -33,35 +33,35 @@ AMBIENT_DEFAULT_OPTICS_SETTINGS = {
     "xi_values": [round(value, 2) for value in np.arange(0.02, 0.401, 0.02)],
     "multiply_by_orders": True,
     "min_npts": 2,
-    "min_assigned_ratio": 0.50,
 }
 AMBIENT_DEFAULT_DBSCAN_SETTINGS = {
-    "pe_values": [round(value, 3) for value in np.arange(0.01, 0.051, 0.005)],
+    "pe_values": [round(value, 3) for value in np.arange(0.01, 0.151, 0.005)],
     "pm_values": [0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40],
     "multiply_by_orders": True,
     "min_npts": 2,
-    "min_assigned_ratio": 0.50,
 }
 AMBIENT_DEFAULT_HDBSCAN_SETTINGS = {
-    "min_cluster_size": 20,
-    "min_samples": 10,
-    "cluster_selection_method": "eom",
+    "pe_values": [round(value, 3) for value in np.arange(0.01, 0.151, 0.005)],
+    "pm_values": [0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40],
+    "multiply_by_orders": True,
+    "min_npts": 2,
+    "cluster_selection_methods": ["eom", "leaf"],
     "metric": "euclidean",
     "allow_single_cluster": False,
     "copy": True,
 }
 AMBIENT_DEFAULT_GMM_SETTINGS = {
     "covariance_type": "full",
-    "init_params": "kmeans",
-    "n_init": 1,
+    "init_params": "k-means++",
+    "n_init": 10,
     "random_state": 42,
     "max_iter": 100,
-    "reg_covar": 1e-6,
+    "reg_covar": 1e-4,
 }
 AMBIENT_DEFAULT_AGGLOMERATIVE_SETTINGS = {
-    "linkage": "ward",
+    "pe_values": [round(value, 3) for value in np.arange(0.01, 0.151, 0.005)],
+    "linkages": ["average", "complete"],
     "metric": "euclidean",
-    "compute_distances": False,
 }
 AMBIENT_PAPER_MAD_SETTINGS = {
     "definition": "median(abs(lambda_hat - lambda_reference))",
@@ -132,7 +132,7 @@ ORDER_SUMMARY_COLUMNS = [
 ]
 CLUSTERING_SELECTION_SUMMARY_COLUMNS = [
     "OrderGroup", "Area", "Method", "Parameters", "Clusters", "NoisePoints",
-    "AssignedPoints", "AssignedRatio", "Silhouette",
+    "AssignedPoints", "AssignedRatio", "Silhouette", "Reference_V_Measure", "Reference_ARI",
 ]
 
 
@@ -333,10 +333,10 @@ def _append_density_summary_row(rows, base_row, method_dir, method_name):
     selected = _selected_summary_row(method_dir / metrics_name)
     row = dict(base_row)
     if selected is None:
-        row["Parameters"] = "missing selection"
+        row["Parameters"] = "no valid silhouette candidate"
     else:
         for column in (
-            "Clusters", "NoisePoints", "AssignedPoints", "AssignedRatio", "Silhouette",
+            "Clusters", "NoisePoints", "AssignedPoints", "AssignedRatio", "Silhouette", "Reference_V_Measure", "Reference_ARI",
         ):
             row[column] = _summary_value(selected, column)
         parameter_columns = (
@@ -354,24 +354,13 @@ def _append_partitioning_summary_row(rows, base_row, method_dir, method_name):
     selected = _selected_summary_row(method_dir / metrics_name)
     row = dict(base_row)
     if selected is None:
-        metrics_path = method_dir / metrics_name
-        if metrics_path.exists():
-            metrics = pd.read_csv(metrics_path)
-            selected_mask = metrics.get("k_selected_by_max_chord", pd.Series(False, index=metrics.index))
-            selected_rows = metrics[selected_mask.astype(str).str.lower().eq("true")]
-            selected = None if selected_rows.empty else selected_rows.iloc[0]
-    if selected is None:
-        row["Parameters"] = "missing selection"
+        row["Parameters"] = "no valid silhouette candidate"
     else:
-        row["Clusters"] = _summary_value(selected, "k")
+        for column in (
+            "Clusters", "NoisePoints", "AssignedPoints", "AssignedRatio", "Silhouette", "Reference_V_Measure", "Reference_ARI",
+        ):
+            row[column] = _summary_value(selected, column)
         row["Parameters"] = _summary_parameters(k=_summary_value(selected, "k"))
-
-    silhouette_path = method_dir.parent / "silhouette" / "silhouette_optimal_k_summary.csv"
-    if silhouette_path.exists():
-        silhouette = pd.read_csv(silhouette_path)
-        match = silhouette[silhouette["Method"].astype(str).str.lower().eq(method_name.lower())]
-        if not match.empty:
-            row["Silhouette"] = _summary_value(match.iloc[0], "Silhouette")
     rows.append(row)
 
 
@@ -379,32 +368,38 @@ def _append_fixed_method_summary_row(rows, base_row, method_dir, metrics_name, m
     selected = _selected_summary_row(method_dir / metrics_name)
     row = dict(base_row)
     if selected is None:
-        row["Parameters"] = "missing selection"
+        row["Parameters"] = "no valid selection candidate"
     else:
         for column in (
-            "Clusters", "NoisePoints", "AssignedPoints", "AssignedRatio", "Silhouette",
+            "Clusters", "NoisePoints", "AssignedPoints", "AssignedRatio", "Silhouette", "Reference_V_Measure", "Reference_ARI",
         ):
             row[column] = _summary_value(selected, column)
         if method_name == "HDBSCAN":
             row["Parameters"] = _summary_parameters(
+                pe=_summary_value(selected, "Pe"),
+                pm=_summary_value(selected, "Pm"),
+                epsilon=_summary_value(selected, "Epsilon"),
                 min_cluster_size=_summary_value(selected, "MinClusterSize"),
                 min_samples=_summary_value(selected, "MinSamples"),
+                cluster_selection_method=_summary_value(selected, "ClusterSelectionMethod"),
             )
         elif method_name == "GMM":
             row["Parameters"] = _summary_parameters(
                 k=_summary_value(selected, "SelectedK"),
+                bic=_summary_value(selected, "BIC"),
                 covariance=_summary_value(selected, "CovarianceType"),
             )
         else:
             row["Parameters"] = _summary_parameters(
-                k=_summary_value(selected, "SelectedK"),
+                pe=_summary_value(selected, "Pe"),
+                epsilon=_summary_value(selected, "Epsilon"),
                 linkage=_summary_value(selected, "Linkage"),
             )
     rows.append(row)
 
 
 def save_ambient_clustering_selection_summary(base_output_dir, analysis_config=None):
-    """Write one comparable clustering-selection row per order group, area, and method."""
+    """Write one comparable clustering row per order group, area, and method."""
     base_output_dir = Path(base_output_dir)
     if analysis_config is None:
         analysis_config = _load_json(base_output_dir / "analysis_config.json")
@@ -421,10 +416,24 @@ def save_ambient_clustering_selection_summary(base_output_dir, analysis_config=N
         methods = list(sweep_config.get("clustering_methods", analysis_config.get("clustering_methods", [])))
         reference_modes = dict(sweep_config.get("reference_modes") or all_reference_modes)
         area_root = sweep_dir / "clustering" / "by_control_area"
+        clustering_scope = dict(sweep_config.get("clustering_scope") or analysis_config.get("clustering_scope") or AMBIENT_DEFAULT_CLUSTERING_SCOPE)
+        summary_targets = []
+        if clustering_scope.get("global", False):
+            summary_targets.append((
+                "global",
+                [f"g{i}" for i in range(1, 11)],
+                reference_modes,
+                sweep_dir / "clustering" / "global",
+            ))
+        if clustering_scope.get("by_control_area", False):
+            summary_targets.extend((
+                area_name,
+                generators,
+                _reference_modes_for_control_area(reference_modes, area_name),
+                area_root / area_name,
+            ) for area_name, generators in CONTROL_AREAS.items())
 
-        for area_name, generators in CONTROL_AREAS.items():
-            area_dir = area_root / area_name
-            area_reference_modes = _reference_modes_for_control_area(reference_modes, area_name)
+        for area_name, generators, area_reference_modes, area_dir in summary_targets:
             if "kmeans" in methods:
                 _append_partitioning_summary_row(
                     rows,
@@ -479,7 +488,7 @@ def save_ambient_clustering_selection_summary(base_output_dir, analysis_config=N
                 )
 
     summary = pd.DataFrame(rows, columns=CLUSTERING_SELECTION_SUMMARY_COLUMNS)
-    summary.to_csv(base_output_dir / "clustering_selection_summary.csv", index=False)
+    summary.to_csv(base_output_dir / "clustering_summary.csv", index=False)
     return summary
 
 
@@ -736,7 +745,6 @@ def _run_clustering_pipeline(results_path, output_path, reference_modes, methods
         run_hdbscan_modal_analysis,
         run_gmm_modal_analysis,
         run_agglomerative_modal_analysis,
-        run_silhouette_analysis,
     )
 
     requested_methods = list(methods or [])
@@ -788,14 +796,9 @@ def _run_clustering_pipeline(results_path, output_path, reference_modes, methods
         if selection is not None:
             selections[method] = selection
 
-    silhouette_skipped = True
-    silhouette_elapsed = 0.0
-    if {"kmeans", "kmedoids"}.issubset(set(requested_methods)):
-        silhouette_start = time.perf_counter()
-        run_silhouette_analysis(str(results_path), str(output_path), reference_modes=reference_modes)
-        silhouette_elapsed = time.perf_counter() - silhouette_start
-        silhouette_skipped = False
-    timings["silhouette"] = _timing_entry(silhouette_elapsed, skipped=silhouette_skipped)
+    # k-means and k-medoids now select K in their own paper-faithful tuning
+    # sweeps, so no competing standalone silhouette analysis is produced.
+    timings["silhouette"] = _timing_entry(0.0, skipped=True)
 
     timings["total"] = _timing_entry(sum(entry["seconds"] for entry in timings.values()))
     timings["selections"] = selections

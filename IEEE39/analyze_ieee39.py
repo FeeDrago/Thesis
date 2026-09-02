@@ -123,11 +123,19 @@ from scipy.signal import detrend
 
 from analysis_evaluator import update_analysis_config_with_evaluation
 from ambient_n4sid_analysis import (
+    AMBIENT_DEFAULT_CLUSTERING_METHODS,
+    AMBIENT_DEFAULT_AGGLOMERATIVE_SETTINGS,
+    AMBIENT_DEFAULT_DBSCAN_SETTINGS,
+    AMBIENT_DEFAULT_GMM_SETTINGS,
+    AMBIENT_DEFAULT_HDBSCAN_SETTINGS,
+    AMBIENT_DEFAULT_OPTICS_SETTINGS,
     AMBIENT_DEFAULT_SIGNALS,
     _load_reference_modes as _load_ambient_reference_modes,
     load_existing_ambient_results_for_scenario,
     preprocess_ambient_signal,
+    run_ambient_clustering_for_results,
     run_ambient_n4sid_for_scenario,
+    save_ambient_clustering_selection_summary,
 )
 
 
@@ -2122,12 +2130,34 @@ def main():
                 refresh_existing_ambient_clustering = bool(args.skip_n4sid)
                 if refresh_existing_ambient_clustering and any(effective_clustering.values()):
                     clustering_start = time.perf_counter()
-                    clustering_details = run_clustering_for_scenario(
-                        sweep_dir,
-                        sweep_results_path,
-                        sweep_df,
-                        sweep_scenario,
+                    # Reuse the ambient-specific pipeline: the generic IEEE39
+                    # pipeline only implements k-means and k-medoids.
+                    ambient_methods = list(
+                        args.clustering_methods
+                        or sweep_config.get("clustering_methods")
+                        or AMBIENT_DEFAULT_CLUSTERING_METHODS
                     )
+                    _, ambient_reference_modes = _load_ambient_reference_modes(scenario["data_dir"])
+                    clustering_details = run_ambient_clustering_for_results(
+                        output_dir=sweep_dir,
+                        results_path=sweep_results_path,
+                        df_results=sweep_df,
+                        reference_modes=ambient_reference_modes,
+                        methods=ambient_methods,
+                        optics_settings=AMBIENT_DEFAULT_OPTICS_SETTINGS,
+                        dbscan_settings=AMBIENT_DEFAULT_DBSCAN_SETTINGS,
+                        hdbscan_settings=AMBIENT_DEFAULT_HDBSCAN_SETTINGS,
+                        gmm_settings=AMBIENT_DEFAULT_GMM_SETTINGS,
+                        agglomerative_settings=AMBIENT_DEFAULT_AGGLOMERATIVE_SETTINGS,
+                        clustering_scope=effective_clustering,
+                    )
+                    sweep_config["clustering_methods"] = ambient_methods
+                    sweep_config["clustering_scope"] = dict(effective_clustering)
+                    sweep_config["optics_settings"] = dict(AMBIENT_DEFAULT_OPTICS_SETTINGS)
+                    sweep_config["dbscan_settings"] = dict(AMBIENT_DEFAULT_DBSCAN_SETTINGS)
+                    sweep_config["hdbscan_settings"] = dict(AMBIENT_DEFAULT_HDBSCAN_SETTINGS)
+                    sweep_config["gmm_settings"] = dict(AMBIENT_DEFAULT_GMM_SETTINGS)
+                    sweep_config["agglomerative_settings"] = dict(AMBIENT_DEFAULT_AGGLOMERATIVE_SETTINGS)
                     clustering_elapsed = time.perf_counter() - clustering_start
                     sweep_clustering_seconds += clustering_elapsed
 
@@ -2157,6 +2187,13 @@ def main():
                 skipped=not (bool(args.skip_n4sid) and any(effective_clustering.values())),
             )
             analysis_config["evaluation"] = {"sweeps": sweep_evaluations}
+            if args.skip_n4sid and any(effective_clustering.values()):
+                analysis_config["optics_settings"] = dict(AMBIENT_DEFAULT_OPTICS_SETTINGS)
+                analysis_config["dbscan_settings"] = dict(AMBIENT_DEFAULT_DBSCAN_SETTINGS)
+                analysis_config["hdbscan_settings"] = dict(AMBIENT_DEFAULT_HDBSCAN_SETTINGS)
+                analysis_config["gmm_settings"] = dict(AMBIENT_DEFAULT_GMM_SETTINGS)
+                analysis_config["agglomerative_settings"] = dict(AMBIENT_DEFAULT_AGGLOMERATIVE_SETTINGS)
+                save_ambient_clustering_selection_summary(output_dir, analysis_config)
         else:
             if disturbance_type == "ambient" and _ambient_cli_overrides_requested(args):
                 print(

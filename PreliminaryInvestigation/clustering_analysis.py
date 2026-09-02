@@ -5,7 +5,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.cluster import AgglomerativeClustering, DBSCAN, HDBSCAN, KMeans, OPTICS
 from sklearn.mixture import GaussianMixture
-from sklearn.metrics import silhouette_score, silhouette_samples
+from sklearn.metrics import adjusted_rand_score, silhouette_score, silhouette_samples, v_measure_score
 from sklearn.preprocessing import StandardScaler
 import kmedoids
 from matplotlib.lines import Line2D
@@ -42,35 +42,37 @@ OPTICS_DEFAULT_SETTINGS = {
 }
 
 DBSCAN_DEFAULT_SETTINGS = {
-    "pe_values": [round(value, 3) for value in np.arange(0.01, 0.051, 0.005)],
+    "pe_values": [round(value, 3) for value in np.arange(0.01, 0.151, 0.005)],
     "pm_values": [0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40],
     "multiply_by_orders": True,
     "min_npts": 2,
     "min_assigned_ratio": 0.50,
 }
 
-HDBSCAN_DEFAULT_SETTINGS = {
-    "min_cluster_size": 20,
-    "min_samples": 10,
-    "cluster_selection_method": "eom",
-    "metric": "euclidean",
-    "allow_single_cluster": False,
-    "copy": True,
-}
-
 GMM_DEFAULT_SETTINGS = {
     "covariance_type": "full",
-    "init_params": "kmeans",
-    "n_init": 1,
+    "init_params": "k-means++",
+    "n_init": 10,
     "random_state": 42,
     "max_iter": 100,
-    "reg_covar": 1e-6,
+    "reg_covar": 1e-4,
 }
 
 AGGLOMERATIVE_DEFAULT_SETTINGS = {
-    "linkage": "ward",
+    "pe_values": [round(value, 3) for value in np.arange(0.01, 0.151, 0.005)],
+    "linkages": ["average", "complete"],
     "metric": "euclidean",
-    "compute_distances": False,
+}
+
+HDBSCAN_DEFAULT_SETTINGS = {
+    "pe_values": [round(value, 3) for value in np.arange(0.01, 0.151, 0.005)],
+    "pm_values": [0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40],
+    "multiply_by_orders": True,
+    "min_npts": 2,
+    "cluster_selection_methods": ["eom", "leaf"],
+    "metric": "euclidean",
+    "allow_single_cluster": False,
+    "copy": True,
 }
 
 REFERENCE_MODES = {
@@ -446,6 +448,48 @@ def _assign_reference_modes(df, reference_modes=None):
     return df
 
 
+def _reference_v_measure(df, labels, reference_modes=None):
+    """Compare cluster labels with nearest-PowerFactory-mode labels.
+
+    Density-based noise points are excluded, consistently with the MAD
+    aggregation. ``np.nan`` indicates that no locally relevant references
+    were supplied.
+    """
+    if not reference_modes:
+        return np.nan
+
+    labels = np.asarray(labels, dtype=int)
+    if len(labels) != len(df):
+        raise ValueError("Cluster-label count must equal the number of estimates.")
+    assigned_mask = labels >= 0
+    if not np.any(assigned_mask):
+        return np.nan
+
+    reference_labels = _assign_reference_modes(df, reference_modes)["Reference_Mode"].to_numpy()
+    return float(v_measure_score(reference_labels[assigned_mask], labels[assigned_mask]))
+
+
+def _reference_ari(df, labels, reference_modes=None):
+    """Compare clustering labels with nearest-reference-mode labels using ARI.
+
+    Density-based noise points are excluded, consistently with the V-measure
+    and MAD calculations. The reference labels are a PowerFactory-derived
+    proxy rather than independently observed ground-truth labels.
+    """
+    if not reference_modes:
+        return np.nan
+
+    labels = np.asarray(labels, dtype=int)
+    if len(labels) != len(df):
+        raise ValueError("Cluster-label count must equal the number of estimates.")
+    assigned_mask = labels >= 0
+    if not np.any(assigned_mask):
+        return np.nan
+
+    reference_labels = _assign_reference_modes(df, reference_modes)["Reference_Mode"].to_numpy()
+    return float(adjusted_rand_score(reference_labels[assigned_mask], labels[assigned_mask]))
+
+
 def _complete_reference_mode_summary(summary_df, reference_modes):
     if reference_modes is None:
         return summary_df
@@ -590,6 +634,8 @@ def run_kmeans_modal_analysis(results_path, output_path, reference_modes=None, p
         metrics_rows.append({
             "k": int(k),
             "WCSS": inertia,
+            "Reference_V_Measure": _reference_v_measure(df, labels, reference_modes),
+            "Reference_ARI": _reference_ari(df, labels, reference_modes),
         })
 
         for c in range(k):
@@ -793,6 +839,8 @@ def run_kmedoids_modal_analysis(results_path, output_path, reference_modes=None,
         metrics_rows.append({
             "k": int(k),
             "Cost": cost,
+            "Reference_V_Measure": _reference_v_measure(df, labels, reference_modes),
+            "Reference_ARI": _reference_ari(df, labels, reference_modes),
         })
 
         for c in range(k):
@@ -1507,6 +1555,8 @@ def run_optics_modal_analysis(results_path, output_path, reference_modes=None, o
                 warnings.simplefilter("ignore", RuntimeWarning)
                 labels = OPTICS(min_samples=min_samples, cluster_method="xi", xi=xi).fit_predict(X_scaled)
             metrics = _silhouette_for_cluster_labels(X_scaled, labels, settings["min_assigned_ratio"])
+            metrics["Reference_V_Measure"] = _reference_v_measure(optics_df, labels, reference_modes)
+            metrics["Reference_ARI"] = _reference_ari(optics_df, labels, reference_modes)
             row = {"Pm": pm, "MinSamples": min_samples, "Xi": xi, "Nsignals": n_signals,
                    "NOrders": n_orders, "MultiplyByOrders": settings["multiply_by_orders"], **metrics}
             rows.append(row)
@@ -1561,6 +1611,8 @@ def run_dbscan_modal_analysis(results_path, output_path, reference_modes=None, d
             min_samples = _density_min_samples(pm, n_signals, n_orders, settings)
             labels = DBSCAN(eps=epsilon, min_samples=min_samples).fit_predict(X_dbscan)
             metrics = _silhouette_for_cluster_labels(X_scaled, labels, settings["min_assigned_ratio"])
+            metrics["Reference_V_Measure"] = _reference_v_measure(dbscan_df, labels, reference_modes)
+            metrics["Reference_ARI"] = _reference_ari(dbscan_df, labels, reference_modes)
             row = {"Pe": pe, "Pm": pm, "Epsilon": epsilon, "MinPts": min_samples, "MinSamples": min_samples,
                    "Nsignals": n_signals, "NOrders": n_orders, "MultiplyByOrders": settings["multiply_by_orders"], **metrics}
             rows.append(row)
@@ -1630,8 +1682,11 @@ def _save_fixed_cluster_map(base_output, method, df, labels, representatives, re
     plt.close(fig)
 
 
-def _fixed_cluster_metrics(X_scaled, labels):
-    return _silhouette_for_cluster_labels(X_scaled, np.asarray(labels, dtype=int), min_assigned_ratio=0.0)
+def _fixed_cluster_metrics(X_scaled, df, labels, reference_modes=None):
+    metrics = _silhouette_for_cluster_labels(X_scaled, np.asarray(labels, dtype=int), min_assigned_ratio=0.0)
+    metrics["Reference_V_Measure"] = _reference_v_measure(df, labels, reference_modes)
+    metrics["Reference_ARI"] = _reference_ari(df, labels, reference_modes)
+    return metrics
 
 
 def run_hdbscan_modal_analysis(results_path, output_path, reference_modes=None, hdbscan_settings=None, paper_mad_collector=None):
@@ -1656,7 +1711,7 @@ def run_hdbscan_modal_analysis(results_path, output_path, reference_modes=None, 
         copy=settings["copy"],
     ).fit_predict(X_scaled)
     representatives, cluster_rows = _cluster_representatives(df, labels)
-    metrics = _fixed_cluster_metrics(X_scaled, labels)
+    metrics = _fixed_cluster_metrics(X_scaled, df, labels, reference_modes)
     selection_reason = "fixed_defaults"
     metrics_row = {
         "MinClusterSize": min_cluster_size,
@@ -1705,7 +1760,7 @@ def run_gmm_modal_analysis(results_path, output_path, reference_modes=None, gmm_
     )
     labels = model.fit_predict(X_scaled)
     representatives, cluster_rows = _cluster_representatives(df, labels)
-    metrics = _fixed_cluster_metrics(X_scaled, labels)
+    metrics = _fixed_cluster_metrics(X_scaled, df, labels, reference_modes)
     selection_reason = "fixed_reference_mode_count"
     metrics_row = {
         "SelectedK": n_components,
@@ -1753,7 +1808,7 @@ def run_agglomerative_modal_analysis(results_path, output_path, reference_modes=
     )
     labels = model.fit_predict(X_scaled)
     representatives, cluster_rows = _cluster_representatives(df, labels)
-    metrics = _fixed_cluster_metrics(X_scaled, labels)
+    metrics = _fixed_cluster_metrics(X_scaled, df, labels, reference_modes)
     selection_reason = "fixed_reference_mode_count"
     metrics_row = {
         "SelectedK": n_clusters,
@@ -1774,6 +1829,315 @@ def run_agglomerative_modal_analysis(results_path, output_path, reference_modes=
     return {"k": n_clusters,
             "silhouette": None if pd.isna(metrics["Silhouette"]) else float(metrics["Silhouette"]),
             "selection_reason": selection_reason}
+
+
+def _paper_pole_coordinates(df):
+    """Return the paper's pole coordinates [sigma, omega] in rad/s."""
+    return np.column_stack([
+        df["Damping"].to_numpy(dtype=float),
+        2.0 * np.pi * df["Frequency"].to_numpy(dtype=float),
+    ])
+
+
+def _paper_silhouette_metrics(X, labels):
+    labels = np.asarray(labels, dtype=int)
+    assigned_mask = labels >= 0
+    assigned_count = int(np.sum(assigned_mask))
+    assigned_labels = labels[assigned_mask]
+    clusters = int(len(np.unique(assigned_labels))) if assigned_count else 0
+    valid = clusters >= 2 and assigned_count > clusters
+    silhouette = float(silhouette_score(X[assigned_mask], assigned_labels)) if valid else np.nan
+    return {
+        "Clusters": clusters,
+        "NoisePoints": int(len(labels) - assigned_count),
+        "AssignedPoints": assigned_count,
+        "AssignedRatio": float(assigned_count / len(labels)) if len(labels) else 0.0,
+        "Silhouette": silhouette,
+        "ValidSilhouette": bool(valid),
+        "Eligible": bool(valid),
+    }
+
+
+def _select_max_silhouette(metrics_df):
+    valid = metrics_df[metrics_df["ValidSilhouette"].astype(bool)].copy()
+    if valid.empty:
+        return None
+    return int(valid.sort_values("Silhouette", ascending=False, kind="stable").index[0])
+
+
+def _paper_density_settings(defaults, overrides=None, include_xi=False):
+    settings = dict(defaults)
+    if overrides:
+        for key in ("pe_values", "pm_values", "xi_values", "linkages", "cluster_selection_methods", "multiply_by_orders", "min_npts"):
+            if key in overrides:
+                settings[key] = overrides[key]
+    if "pe_values" in settings:
+        settings["pe_values"] = [float(value) for value in settings["pe_values"]]
+    if "pm_values" in settings:
+        settings["pm_values"] = [float(value) for value in settings["pm_values"]]
+    if include_xi:
+        settings["xi_values"] = [float(value) for value in settings["xi_values"]]
+    if "min_npts" in settings:
+        settings["min_npts"] = max(2, int(settings["min_npts"]))
+    if "multiply_by_orders" in settings:
+        settings["multiply_by_orders"] = bool(settings["multiply_by_orders"])
+    return settings
+
+
+def _save_paper_selection(base_output, method, df, labels, reference_modes, title, collector=None):
+    representatives, cluster_rows = _cluster_representatives(df, labels)
+    pd.DataFrame(cluster_rows).to_csv(os.path.join(base_output, "cluster_representatives_sizes.csv"), index=False)
+    _collect_paper_mad_assignments(df, labels, cluster_rows, reference_modes, collector)
+    _save_fixed_cluster_map(
+        base_output, method, df, labels, representatives, reference_modes, title,
+        include_noise=bool(np.any(np.asarray(labels) < 0)),
+    )
+
+
+def _run_partitioning_paper_tuning(results_path, output_path, method, reference_modes=None, paper_mad_collector=None):
+    base_output = os.path.join(output_path, method)
+    _prepare_output_dirs(base_output)
+    df = _load_screened_data(results_path, output_path)
+    if df is None or len(df) < 3:
+        print(f"Not enough samples for {method} clustering.")
+        return None
+
+    X = _paper_pole_coordinates(df)
+    max_k = min(10, len(df) - 1)
+    rows, stored = [], {}
+    for k in range(2, max_k + 1):
+        if method == "kmeans":
+            labels = KMeans(n_clusters=k, random_state=42, n_init=10).fit_predict(X)
+        else:
+            labels, _, _ = _pam_kmedoids(_pairwise_distances(X), n_clusters=k, random_state=42)
+        metrics = _paper_silhouette_metrics(X, labels)
+        metrics.update({
+            "k": k,
+            "Reference_V_Measure": _reference_v_measure(df, labels, reference_modes),
+            "Reference_ARI": _reference_ari(df, labels, reference_modes),
+        })
+        rows.append(metrics)
+        stored[k] = labels
+
+    metrics_df = pd.DataFrame(rows)
+    selected_idx = _select_max_silhouette(metrics_df)
+    metrics_df["Selected"] = metrics_df.index == selected_idx if selected_idx is not None else False
+    metrics_df["SelectionReason"] = "max_silhouette" if selected_idx is not None else "no_valid_silhouette_candidate"
+    metrics_df.to_csv(os.path.join(base_output, f"{method}_metrics_summary.csv"), index=False)
+    if selected_idx is None:
+        return None
+
+    selected = metrics_df.loc[selected_idx]
+    labels = stored[int(selected["k"])]
+    display_name = "k-Means" if method == "kmeans" else "k-Medoids"
+    _save_paper_selection(
+        base_output, display_name, df, labels, reference_modes,
+        f"Selected {display_name} Cluster Map ($k={int(selected['k'])}$)\nSilhouette: {selected['Silhouette']:.3f}",
+        paper_mad_collector,
+    )
+    return {"k": int(selected["k"]), "silhouette": float(selected["Silhouette"]), "selection_reason": "max_silhouette"}
+
+
+def run_kmeans_modal_analysis(results_path, output_path, reference_modes=None, paper_mad_collector=None):
+    return _run_partitioning_paper_tuning(results_path, output_path, "kmeans", reference_modes, paper_mad_collector)
+
+
+def run_kmedoids_modal_analysis(results_path, output_path, reference_modes=None, paper_mad_collector=None):
+    return _run_partitioning_paper_tuning(results_path, output_path, "kmedoids", reference_modes, paper_mad_collector)
+
+
+def run_optics_modal_analysis(results_path, output_path, reference_modes=None, optics_settings=None, paper_mad_collector=None):
+    base_output = os.path.join(output_path, "optics")
+    _prepare_output_dirs(base_output)
+    df = _load_screened_data(results_path, output_path)
+    if df is None or len(df) < 3:
+        print("Not enough samples for OPTICS clustering.")
+        return None
+    settings = _paper_density_settings(OPTICS_DEFAULT_SETTINGS, optics_settings, include_xi=True)
+    X = _paper_pole_coordinates(df)
+    n_signals, n_orders = _density_inputs(df)
+    rows, stored = [], {}
+    for pm in settings["pm_values"]:
+        npts = _density_min_samples(pm, n_signals, n_orders, settings)
+        if npts >= len(df):
+            continue
+        for xi in settings["xi_values"]:
+            labels = OPTICS(min_samples=npts, cluster_method="xi", xi=xi).fit_predict(X)
+            metrics = _paper_silhouette_metrics(X, labels)
+            metrics.update({"Pm": pm, "MinSamples": npts, "Xi": xi, "Nsignals": n_signals, "NOrders": n_orders,
+                            "MultiplyByOrders": settings["multiply_by_orders"],
+                            "Reference_V_Measure": _reference_v_measure(df, labels, reference_modes),
+                            "Reference_ARI": _reference_ari(df, labels, reference_modes)})
+            rows.append(metrics)
+            stored[(pm, xi)] = labels
+    metrics_df = pd.DataFrame(rows)
+    if metrics_df.empty:
+        print("No valid OPTICS parameter combinations.")
+        return None
+    selected_idx = _select_max_silhouette(metrics_df)
+    metrics_df["Selected"] = metrics_df.index == selected_idx if selected_idx is not None else False
+    metrics_df["SelectionReason"] = "max_silhouette" if selected_idx is not None else "no_valid_silhouette_candidate"
+    metrics_df.to_csv(os.path.join(base_output, "optics_metrics_summary.csv"), index=False)
+    if selected_idx is None:
+        return None
+    selected = metrics_df.loc[selected_idx]
+    labels = stored[(float(selected["Pm"]), float(selected["Xi"]))]
+    _save_paper_selection(base_output, "OPTICS", df, labels, reference_modes,
+                          f"Selected OPTICS Cluster Map ($min\\_samples={int(selected['MinSamples'])}$, xi={selected['Xi']:.2f})\nSilhouette: {selected['Silhouette']:.3f}", paper_mad_collector)
+    return {"pm": float(selected["Pm"]), "min_samples": int(selected["MinSamples"]), "xi": float(selected["Xi"]),
+            "silhouette": float(selected["Silhouette"]), "selection_reason": "max_silhouette"}
+
+
+def run_dbscan_modal_analysis(results_path, output_path, reference_modes=None, dbscan_settings=None, paper_mad_collector=None):
+    base_output = os.path.join(output_path, "dbscan")
+    _prepare_output_dirs(base_output)
+    df = _load_screened_data(results_path, output_path)
+    if df is None or len(df) < 3:
+        print("Not enough samples for DBSCAN clustering.")
+        return None
+    settings = _paper_density_settings(DBSCAN_DEFAULT_SETTINGS, dbscan_settings)
+    X = _paper_pole_coordinates(df)
+    n_signals, n_orders = _density_inputs(df)
+    rows, stored = [], {}
+    for pe in settings["pe_values"]:
+        epsilon = _dbscan_epsilon({"pe": pe})
+        for pm in settings["pm_values"]:
+            npts = _density_min_samples(pm, n_signals, n_orders, settings)
+            labels = DBSCAN(eps=epsilon, min_samples=npts).fit_predict(X)
+            metrics = _paper_silhouette_metrics(X, labels)
+            metrics.update({"Pe": pe, "Pm": pm, "Epsilon": epsilon, "MinPts": npts, "MinSamples": npts,
+                            "Nsignals": n_signals, "NOrders": n_orders, "MultiplyByOrders": settings["multiply_by_orders"],
+                            "Reference_V_Measure": _reference_v_measure(df, labels, reference_modes),
+                            "Reference_ARI": _reference_ari(df, labels, reference_modes)})
+            rows.append(metrics)
+            stored[(pe, pm)] = labels
+    metrics_df = pd.DataFrame(rows)
+    selected_idx = _select_max_silhouette(metrics_df)
+    metrics_df["Selected"] = metrics_df.index == selected_idx if selected_idx is not None else False
+    metrics_df["SelectionReason"] = "max_silhouette" if selected_idx is not None else "no_valid_silhouette_candidate"
+    metrics_df.to_csv(os.path.join(base_output, "dbscan_metrics_summary.csv"), index=False)
+    if selected_idx is None:
+        return None
+    selected = metrics_df.loc[selected_idx]
+    labels = stored[(float(selected["Pe"]), float(selected["Pm"]))]
+    _save_paper_selection(base_output, "DBSCAN", df, labels, reference_modes,
+                          f"Selected DBSCAN Cluster Map ($\\epsilon={selected['Epsilon']:.3f}$, $N_{{pts}}={int(selected['MinPts'])}$)\nSilhouette: {selected['Silhouette']:.3f}", paper_mad_collector)
+    return {"pe": float(selected["Pe"]), "pm": float(selected["Pm"]), "epsilon": float(selected["Epsilon"]),
+            "min_pts": int(selected["MinPts"]), "silhouette": float(selected["Silhouette"]), "selection_reason": "max_silhouette"}
+
+
+def run_hdbscan_modal_analysis(results_path, output_path, reference_modes=None, hdbscan_settings=None, paper_mad_collector=None):
+    base_output = os.path.join(output_path, "hdbscan")
+    _prepare_output_dirs(base_output)
+    df = _load_screened_data(results_path, output_path)
+    if df is None or len(df) < 3:
+        print("Not enough samples for HDBSCAN clustering.")
+        return None
+    settings = _paper_density_settings(HDBSCAN_DEFAULT_SETTINGS, hdbscan_settings)
+    X = _paper_pole_coordinates(df)
+    n_signals, n_orders = _density_inputs(df)
+    rows, stored = [], {}
+    for pe in settings["pe_values"]:
+        epsilon = _dbscan_epsilon({"pe": pe})
+        for pm in settings["pm_values"]:
+            npts = _density_min_samples(pm, n_signals, n_orders, settings)
+            if npts > len(df):
+                continue
+            for selection_method in settings["cluster_selection_methods"]:
+                labels = HDBSCAN(min_cluster_size=npts, min_samples=None, cluster_selection_epsilon=epsilon,
+                                 cluster_selection_method=selection_method, metric="euclidean",
+                                 allow_single_cluster=False, copy=True).fit_predict(X)
+                metrics = _paper_silhouette_metrics(X, labels)
+                metrics.update({"Pe": pe, "Pm": pm, "Epsilon": epsilon, "MinClusterSize": npts, "MinSamples": None,
+                                "ClusterSelectionMethod": selection_method, "Nsignals": n_signals, "NOrders": n_orders,
+                                "MultiplyByOrders": settings["multiply_by_orders"],
+                                "Reference_V_Measure": _reference_v_measure(df, labels, reference_modes),
+                                "Reference_ARI": _reference_ari(df, labels, reference_modes)})
+                rows.append(metrics)
+                stored[(pe, pm, selection_method)] = labels
+    metrics_df = pd.DataFrame(rows)
+    selected_idx = _select_max_silhouette(metrics_df) if not metrics_df.empty else None
+    if metrics_df.empty:
+        metrics_df = pd.DataFrame(columns=["Pe", "Pm", "Epsilon", "MinClusterSize", "MinSamples", "ClusterSelectionMethod", "Silhouette", "ValidSilhouette"])
+    metrics_df["Selected"] = metrics_df.index == selected_idx if selected_idx is not None else False
+    metrics_df["SelectionReason"] = "max_silhouette" if selected_idx is not None else "no_valid_silhouette_candidate"
+    metrics_df.to_csv(os.path.join(base_output, "hdbscan_metrics_summary.csv"), index=False)
+    if selected_idx is None:
+        return None
+    selected = metrics_df.loc[selected_idx]
+    labels = stored[(float(selected["Pe"]), float(selected["Pm"]), selected["ClusterSelectionMethod"])]
+    _save_paper_selection(base_output, "HDBSCAN", df, labels, reference_modes,
+                          f"Selected HDBSCAN Cluster Map ($min\\_cluster\\_size={int(selected['MinClusterSize'])}$, $\\epsilon={selected['Epsilon']:.3f}$, {selected['ClusterSelectionMethod']})\nSilhouette: {selected['Silhouette']:.3f}", paper_mad_collector)
+    return {"pe": float(selected["Pe"]), "pm": float(selected["Pm"]), "epsilon": float(selected["Epsilon"]),
+            "min_cluster_size": int(selected["MinClusterSize"]), "cluster_selection_method": selected["ClusterSelectionMethod"],
+            "silhouette": float(selected["Silhouette"]), "selection_reason": "max_silhouette"}
+
+
+def run_gmm_modal_analysis(results_path, output_path, reference_modes=None, gmm_settings=None, paper_mad_collector=None):
+    base_output = os.path.join(output_path, "gmm")
+    _prepare_output_dirs(base_output)
+    df = _load_screened_data(results_path, output_path)
+    if df is None or len(df) < 2:
+        print("Not enough samples for Gaussian Mixture clustering.")
+        return None
+    X = _paper_pole_coordinates(df)
+    rows, stored = [], {}
+    for k in range(1, min(10, len(df)) + 1):
+        model = GaussianMixture(n_components=k, covariance_type="full", reg_covar=1e-4,
+                                n_init=10, init_params="k-means++", random_state=42, max_iter=100)
+        labels = model.fit_predict(X)
+        metrics = _paper_silhouette_metrics(X, labels)
+        metrics.update({"SelectedK": k, "CovarianceType": "full", "InitParams": "k-means++", "NInit": 10,
+                        "RegCovar": 1e-4, "BIC": float(model.bic(X)), "AIC": float(model.aic(X)),
+                        "Reference_V_Measure": _reference_v_measure(df, labels, reference_modes),
+                        "Reference_ARI": _reference_ari(df, labels, reference_modes)})
+        rows.append(metrics)
+        stored[k] = labels
+    metrics_df = pd.DataFrame(rows)
+    selected_idx = int(metrics_df["BIC"].idxmin())
+    metrics_df["Selected"] = metrics_df.index == selected_idx
+    metrics_df["SelectionReason"] = "min_bic"
+    metrics_df.to_csv(os.path.join(base_output, "gmm_metrics_summary.csv"), index=False)
+    selected = metrics_df.loc[selected_idx]
+    labels = stored[int(selected["SelectedK"])]
+    _save_paper_selection(base_output, "GMM", df, labels, reference_modes,
+                          f"Selected Gaussian Mixture Cluster Map ($k={int(selected['SelectedK'])}$, BIC={selected['BIC']:.2f})", paper_mad_collector)
+    return {"k": int(selected["SelectedK"]), "bic": float(selected["BIC"]), "selection_reason": "min_bic"}
+
+
+def run_agglomerative_modal_analysis(results_path, output_path, reference_modes=None, agglomerative_settings=None, paper_mad_collector=None):
+    base_output = os.path.join(output_path, "agglomerative")
+    _prepare_output_dirs(base_output)
+    df = _load_screened_data(results_path, output_path)
+    if df is None or len(df) < 3:
+        print("Not enough samples for Agglomerative clustering.")
+        return None
+    settings = _paper_density_settings(AGGLOMERATIVE_DEFAULT_SETTINGS, agglomerative_settings)
+    X = _paper_pole_coordinates(df)
+    rows, stored = [], {}
+    for pe in settings["pe_values"]:
+        epsilon = _dbscan_epsilon({"pe": pe})
+        for linkage in settings["linkages"]:
+            labels = AgglomerativeClustering(n_clusters=None, distance_threshold=epsilon, metric="euclidean", linkage=linkage).fit_predict(X)
+            metrics = _paper_silhouette_metrics(X, labels)
+            metrics.update({"Pe": pe, "Epsilon": epsilon, "Linkage": linkage, "Metric": "euclidean",
+                            "Reference_V_Measure": _reference_v_measure(df, labels, reference_modes),
+                            "Reference_ARI": _reference_ari(df, labels, reference_modes)})
+            rows.append(metrics)
+            stored[(pe, linkage)] = labels
+    metrics_df = pd.DataFrame(rows)
+    selected_idx = _select_max_silhouette(metrics_df)
+    metrics_df["Selected"] = metrics_df.index == selected_idx if selected_idx is not None else False
+    metrics_df["SelectionReason"] = "max_silhouette" if selected_idx is not None else "no_valid_silhouette_candidate"
+    metrics_df.to_csv(os.path.join(base_output, "agglomerative_metrics_summary.csv"), index=False)
+    if selected_idx is None:
+        return None
+    selected = metrics_df.loc[selected_idx]
+    labels = stored[(float(selected["Pe"]), selected["Linkage"])]
+    _save_paper_selection(base_output, "Agglomerative", df, labels, reference_modes,
+                          f"Selected Agglomerative Cluster Map ($\\epsilon={selected['Epsilon']:.3f}$, {selected['Linkage']} linkage)\nSilhouette: {selected['Silhouette']:.3f}", paper_mad_collector)
+    return {"pe": float(selected["Pe"]), "epsilon": float(selected["Epsilon"]), "linkage": selected["Linkage"],
+            "silhouette": float(selected["Silhouette"]), "selection_reason": "max_silhouette"}
 
 
 def run_silhouette_analysis(results_path, output_path, reference_modes=None):
