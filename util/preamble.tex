@@ -24,6 +24,7 @@
 
 \usepackage[table]{xcolor}
 \usepackage{float}
+\usepackage{placeins}
 \usepackage{multirow}
 \usepackage{graphicx}
 \graphicspath{{images/}}
@@ -61,7 +62,10 @@
 % independent of the optional siunitx package allows compilation on this WSL setup.
 
 \usepackage[backend=biber,style=ieee]{biblatex}
-\addbibresource{references.bib}
+% A document outside the repository root can redefine this before loading
+% the preamble (e.g. \newcommand{\bibresourcepath}{../../references.bib}).
+\providecommand{\bibresourcepath}{references.bib}
+\addbibresource{\bibresourcepath}
 \AtBeginBibliography{\sloppy}
 
 \setcounter{secnumdepth}{3}

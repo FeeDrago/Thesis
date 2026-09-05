@@ -230,10 +230,16 @@ IEEE39/analysis/
 # IEEE39 local diagnostics and repro artifacts
 IEEE39/investigations/pf_drift_2026_05_22/
 
-# IEEE39 ambient report: keep only source TeX and compiled PDF.
+# IEEE39 ambient report: keep source TeX, modular content and compiled PDF.
 IEEE39/ambient_report/*
 !IEEE39/ambient_report/ambient_report.tex
+!IEEE39/ambient_report/ambient_report_old.tex
+!IEEE39/ambient_report/ambient_report_old.pdf
 !IEEE39/ambient_report/ambient_report.pdf
+!IEEE39/ambient_report/chapters/
+!IEEE39/ambient_report/chapters/*.tex
+!IEEE39/ambient_report/frontmatter/
+!IEEE39/ambient_report/frontmatter/*.tex
 
 # Preliminary Investigation: keep source/data inputs, ignore generated PDFs/PNGs.
 PreliminaryInvestigation/**/*.pdf
@@ -247,8 +253,7 @@ PreliminaryInvestigation/summary_modes_report.txt
 Literature
 .codex_tmp
 n4sid matlab
-IEEE39/ambient_plot_review.pdf
-IEEE39/ambient_plot_review.tex
+IEEE39/ambient_plot_review
 *bcf
 *lof
 *lot

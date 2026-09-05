@@ -1,0 +1,33 @@
+\chapter{Πλήρες Σύνολο Χαρτών Συσταδοποίησης}
+\label{app:amb:cluster-maps}
+
+Το παράρτημα παρουσιάζει τα selected cluster maps για όλους τους
+συνδυασμούς order sweep, περιοχής ελέγχου και μεθόδου συσταδοποίησης.
+Οι χάρτες αντιστοιχούν στις επιλεγμένες ρυθμίσεις του Κεφαλαίου~3.
+
+\newcommand{\ambientappendixmap}[5]{%
+\begin{figure}[p]
+    \centering
+    \includegraphics[width=0.94\textwidth,height=0.80\textheight,keepaspectratio]{\ambientfigurepath Ambient_Mag0.1_T600s_dt10ms_seed1997/#1/clustering/by_control_area/#2/#3/pdf/#4}
+    \caption{Selected cluster map: #5 (#1).}
+\end{figure}
+}
+
+\newcommand{\ambientappendixcase}[3]{%
+\section{#3 \textendash{} #1}
+\ambientappendixmap{#1}{#2}{kmeans}{k-means_selected_cluster_map.pdf}{\textit{k-Means}}
+\ambientappendixmap{#1}{#2}{kmedoids}{k-medoids_selected_cluster_map.pdf}{\textit{k-Medoids}}
+\ambientappendixmap{#1}{#2}{dbscan}{dbscan_selected_cluster_map.pdf}{DBSCAN}
+\ambientappendixmap{#1}{#2}{optics}{optics_selected_cluster_map.pdf}{OPTICS}
+\ambientappendixmap{#1}{#2}{hdbscan}{hdbscan_selected_cluster_map.pdf}{HDBSCAN}
+\ambientappendixmap{#1}{#2}{gmm}{gmm_selected_cluster_map.pdf}{GMM}
+\ambientappendixmap{#1}{#2}{agglomerative}{agglomerative_selected_cluster_map.pdf}{Agglomerative Hierarchical Clustering}
+\clearpage
+}
+
+\ambientappendixcase{orders1}{area_1}{Περιοχή 1}
+\ambientappendixcase{orders1}{area_2}{Περιοχή 2}
+\ambientappendixcase{orders1}{area_3}{Περιοχή 3}
+\ambientappendixcase{orders2}{area_1}{Περιοχή 1}
+\ambientappendixcase{orders2}{area_2}{Περιοχή 2}
+\ambientappendixcase{orders2}{area_3}{Περιοχή 3}

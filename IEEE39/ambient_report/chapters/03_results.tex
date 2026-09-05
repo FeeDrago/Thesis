@@ -1,0 +1,593 @@
+\chapter{Αποτελέσματα}
+
+\section{Screened Εκτιμήσεις}
+
+Με βάση τα κριτήρια screening της Ενότητας~\ref{amb:preprocessing}, το πρώτο sweep τάξεων, $n \in \{2,4,\dots,30\}$, αποδίδει 1397 εκτιμήσεις, ενώ το δεύτερο sweep τάξεων, $n \in \{10,15,\dots,45\}$, αποδίδει 1391 εκτιμήσεις. Η κατανομή τους ανά περιοχή ελέγχου παρουσιάζεται στον Πίνακα~\ref{tab:amb:screened_estimates}.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Πλήθος screened εκτιμήσεων N4SID ανά order sweep και περιοχή ελέγχου.}
+    \label{tab:amb:screened_estimates}
+    \begin{tabular}{lrrrr}
+        \toprule
+        \textbf{Order sweep} & \textbf{Περιοχή 1} & \textbf{Περιοχή 2} & \textbf{Περιοχή 3} & \textbf{Σύνολο} \\
+        \midrule
+        $n \in \{2,4,\dots,30\}$ & 565 & 280 & 552 & 1397 \\
+        $n \in \{10,15,\dots,45\}$ & 548 & 272 & 571 & 1391 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Το Σχήμα~\ref{fig:amb:screened_modal_grid} απεικονίζει τις screened εκτιμήσεις στο επίπεδο $(\sigma,f)$, ανά order sweep και περιοχή ελέγχου. Τα κοινά όρια των αξόνων επιτρέπουν την άμεση οπτική σύγκριση των modal συγκεντρώσεων, ενώ οι δείκτες αναφοράς αντιστοιχούν στους ρυθμούς του \textit{PowerFactory} του Πίνακα~\ref{tab:amb:pf_reference_modes}.
+
+\clearpage
+\newgeometry{left=1.5cm,right=1.5cm,top=1.7cm,bottom=1.7cm}
+\begin{figure}[p]
+    \centering
+    \includegraphics[width=\textwidth,height=0.86\textheight,keepaspectratio]{\ambientfigurepath Ambient_Mag0.1_T600s_dt10ms_seed1997/plots/pdf/screened_modal_maps_3x2_grid.pdf}
+    \caption{Screened εκτιμήσεις N4SID στο επίπεδο $(\sigma,f)$ ανά order sweep και περιοχή ελέγχου. Οι χρωματισμοί διακρίνουν τα σήματα τάσης και ρεύματος, ενώ οι λευκοί ρόμβοι δηλώνουν τους ρυθμούς αναφοράς του \textit{PowerFactory} του Πίνακα~\ref{tab:amb:pf_reference_modes}.}
+    \label{fig:amb:screened_modal_grid}
+\end{figure}
+\clearpage
+\restoregeometry
+
+Είναι εμφανές οτι τα δύο sweeps εμφανίζουν παρόμοια κατανομή των εκτιμήσεων και στις τρεις περιοχές ελέγχου, καθώς και οτι οι εκτιμήσεις του N4SID συγκεντρώνονται κοντά στις συχνότητες των ρυθμών αναφοράς του \\textit{PowerFactory}, επομένως η μέθοδος αποδίδει ικανοποιητικά τη θέση των ηλεκτρομηχανικών ρυθμών ως προς τη συχνότητα $f$. Αντίθετα, παρατηρείται μεγαλύτερη διασπορά κατά τον άξονα της απόσβεσης $\sigma$. Η διασπορά αυτή αναδεικνύει ότι η εκτίμηση της απόσβεσης είναι λιγότερο σταθερή από την εκτίμηση της συχνότητας και αιτιολογεί την επόμενη εφαρμογή συσταδοποίησης.
+
+
+\section{Αποτελέσματα Συσταδοποίησης ανά Μέθοδο}
+\label{sec:amb:clustering-by-method}
+
+Η παρούσα ενότητα παρουσιάζει, για κάθε αλγόριθμο, τις ρυθμίσεις που
+επιλέχθηκαν από τη διαδικασία tuning της Ενότητας~\ref{amb:clustering-tuning}.
+Οι πίνακες συνοψίζουν τις επιλεγμένες ρυθμίσεις για κάθε order sweep και
+περιοχή ελέγχου. Η ερμηνεία των αποτελεσμάτων βασίζεται στο πλήθος των
+συστάδων, στον χειρισμό του θορύβου και στο \textit{silhouette score}, ενώ η
+άμεση σύγκριση όλων των μεθόδων ακολουθεί στην επόμενη ενότητα.
+
+\subsection{K-means}
+
+Για τον \textit{k-Means}, η επιλογή του αριθμού συστάδων βασίστηκε στη
+μέγιστη τιμή silhouette. Οι επιλεγμένες λύσεις περιλαμβάνουν από δύο έως
+πέντε συστάδες και όλα τα σημεία αποδίδονται σε κάποια συστάδα καθώς ο αλγόριθμος δεν κάνει διαχωρισμό των σημείων σε θόρυβο. Όλες οι τιμές των silhouette score είναι παρόμοιες, γεγονός που υποδηλώνει παρόμοια συνοχή των συστάδων σε όλες τις περιοχές ελέγχου με τις τιμές στην Περιοχή 2 να είναι ελαφρώς υψηλότερες και στα δύο sweeps. Οι επιλεγμένες τιμές του \textit{k} παρουσιάζονται στον Πίνακα~\ref{tab:amb:kmeans-tuning}.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Επιλεγμένες ρυθμίσεις \textit{k-Means}.}
+    \label{tab:amb:kmeans-tuning}
+    \begin{tabular}{llrr}
+        \toprule
+        Sweep & Περιοχή & $k$ & Silhouette Score \\
+        \midrule
+        orders1 & 1 & 5 & 0.640 \\
+        orders1 & 2 & 4 & 0.700 \\
+        orders1 & 3 & 4 & 0.650 \\
+        orders2 & 1 & 2 & 0.609 \\
+        orders2 & 2 & 5 & 0.681 \\
+        orders2 & 3 & 2 & 0.621 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{K-medoids}
+
+Το \textit{k-Medoids} ρυθμίστηκε με το ίδιο εύρος τιμών $K$ και το ίδιο
+κριτήριο επιλογής με το \textit{k-Means} όπως περιγράφηκε στην Ενότητα~\ref{amb:clustering-tuning}. Παρατηρείται ότι οι περισσότερες επιλεγμένες τιμές του $k$ είναι ίδιες με αυτές του \textit{k-Means}, ενώ εξαιρετική ομοιότητα παρατηρείται και στις τιμές του silhouette score. Οι επιλεγμένες τιμές του \textit{k} παρουσιάζονται στον Πίνακα~\ref{tab:amb:kmedoids-tuning}.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Επιλεγμένες ρυθμίσεις \textit{k-Medoids}.}
+    \label{tab:amb:kmedoids-tuning}
+    \begin{tabular}{llrr}
+        \toprule
+        Sweep & Περιοχή & $k$ & Silhouette Score \\
+        \midrule
+        orders1 & 1 & 5 & 0.634 \\
+        orders1 & 2 & 4 & 0.702 \\
+        orders1 & 3 & 4 & 0.654 \\
+        orders2 & 1 & 2 & 0.609 \\
+        orders2 & 2 & 4 & 0.664 \\
+        orders2 & 3 & 4 & 0.621 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{DBSCAN}
+
+Ο DBSCAN επέλεξε σε όλες τις περιπτώσεις την ελάχιστη τιμή της παραμέτρου $p_e$ ($p_e = 0.010$), παρόλο αυτό δεν κρίνεται σκόπιμο να μειωθεί το κατώφλι $p_e$ καθώς θα αυξανόταν περαιτέρω το ήδη υψηλό ποσοστό των εκτιμήσεων που χαρακτηρίζονται ως θόρυβος. Ακόμα, η μέθοδος παρήγαγε δύο ή τρεις συστάδες σε κάθε περίπτωση με εξαιρετικά υψηλά silhouette scores γεγονός που υποδηλώνει πολύ συνεκτικές συστάδες με μειονέκτημα όμως την απόριψψη της πλειοψηφίας των εκτιμήσεων ως θόρυβο. Οι επιλεγμένες τιμές των υπερπαραμέτρων παρουσιάζονται στον Πίνακα~\ref{tab:amb:dbscan-tuning}.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Επιλεγμένες ρυθμίσεις DBSCAN.}
+    \label{tab:amb:dbscan-tuning}
+    \scriptsize
+    \begin{tabular}{llrrrrrr}
+        \toprule
+        Sweep & Περιοχή & $p_e$ & $p_m$ & $N_{\mathrm{pts}}$ & Clusters & Noise [\%] & Silhouette \\
+        \midrule
+        orders1 & 1 & 0.010 & 0.15 & 18 & 3 & 86.4 & 0.958 \\
+        orders1 & 2 & 0.010 & 0.20 & 12 & 3 & 75.0 & 0.978 \\
+        orders1 & 3 & 0.010 & 0.10 & 12 & 2 & 79.9 & 0.975 \\
+        orders2 & 1 & 0.010 & 0.25 & 16 & 2 & 87.6 & 0.978 \\
+        orders2 & 2 & 0.010 & 0.30 & 10 & 2 & 86.0 & 0.921 \\
+        orders2 & 3 & 0.010 & 0.25 & 16 & 3 & 86.9 & 0.943 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{OPTICS}
+
+Ο αλγόριθμος OPTICS επέλεξε δύο συστάδες σε όλες τις εξεταζόμενες περιπτώσεις. Όπως
+και στον DBSCAN, οι υψηλές τιμές silhouette συνοδεύονται από μεγάλο ποσοστό
+σημείων θορύβου. Επομένως, οι ρυθμίσεις με τη μεγαλύτερη τιμή silhouette
+περιγράφουν πολύ συνεκτικές ομάδες εκτιμήσεων, χωρίς όμως να καλύπτουν το
+σύνολο του διαθέσιμου δείγματος. Οι επιλεγμένες τιμές των υπερπαραμέτρων παρουσιάζονται στον Πίνακα~\ref{tab:amb:optics-tuning}.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Επιλεγμένες ρυθμίσεις OPTICS.}
+    \label{tab:amb:optics-tuning}
+    \scriptsize
+    \begin{tabular}{llrrrrrr}
+        \toprule
+        Sweep & Περιοχή & $p_m$ & \texttt{xi} & \texttt{min\_samples} & Clusters & Noise [\%] & Silhouette \\
+        \midrule
+        orders1 & 1 & 0.10 & 0.30 & 12 & 2 & 92.0 & 0.976 \\
+        orders1 & 2 & 0.20 & 0.36 & 12 & 2 & 82.5 & 0.954 \\
+        orders1 & 3 & 0.10 & 0.40 & 12 & 2 & 82.4 & 0.959 \\
+        orders2 & 1 & 0.25 & 0.24 & 16 & 2 & 84.7 & 0.969 \\
+        orders2 & 2 & 0.35 & 0.38 & 12 & 2 & 82.0 & 0.977 \\
+        orders2 & 3 & 0.10 & 0.38 & 7 & 2 & 93.3 & 0.990 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{HDBSCAN}
+
+Ο HDBSCAN διατηρεί πολύ μεγαλύτερο μέρος των εκτιμήσεων σε σχέση με τις δύο
+προηγούμενες density-based μεθόδους, επιλέγοντας όμως από τέσσερις έως εννέα
+συστάδες. Οι τιμές silhouette παραμένουν υψηλές σε όλες τις περιοχές. Η
+μέθοδος \texttt{eom} επιλέχθηκε σε όλες τις περιπτώσεις, με μοναδική εξαίρεση
+το δεύτερο sweep της Περιοχής 3, όπου επιλέχθηκε η πολιτική \texttt{leaf}. Οι επιλεγμένες τιμές των υπερπαραμέτρων παρουσιάζονται στον Πίνακα~\ref{tab:amb:hdbscan-tuning}.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Επιλεγμένες ρυθμίσεις HDBSCAN.}
+    \label{tab:amb:hdbscan-tuning}
+    \scriptsize
+    \begin{tabular}{llrrrlrrr}
+        \toprule
+        Sweep & Περιοχή & $p_e$ & $p_m$ & \texttt{min\_cluster\_size} & Method & Clusters & Noise [\%] & Silhouette \\
+        \midrule
+        orders1 & 1 & 0.010 & 0.35 & 42 & eom & 4 & 29.2 & 0.796 \\
+        orders1 & 2 & 0.010 & 0.20 & 12 & eom & 7 & 21.4 & 0.782 \\
+        orders1 & 3 & 0.010 & 0.20 & 24 & eom & 5 & 25.4 & 0.816 \\
+        orders2 & 1 & 0.010 & 0.30 & 20 & eom & 9 & 34.1 & 0.741 \\
+        orders2 & 2 & 0.065 & 0.40 & 13 & eom & 4 & 12.5 & 0.749 \\
+        orders2 & 3 & 0.010 & 0.40 & 26 & leaf & 6 & 39.2 & 0.742 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Gaussian Mixture Models}
+
+Για τα Gaussian Mixture Models, οι υπερπαράμετροι επιλέχθηκαν με κριτήριο της
+ελαχιστοποίηση του BIC και όχι με βάση το silhouette score όπως στις υπόλοιπες μεθόδους. Η βέλτιστη λύση
+επιλέγει εννέα ή δέκα Gaussian components/clusters και αποδίδει όλες τις εκτιμήσεις
+σε κάποιο component/cluster. Οι αντίστοιχες τιμές silhouette είναι σαφώς μικρότερες καθώς δεν χαρακτηρίζεται καμία εκτίμηση ως θόρυβος και παρουσιάζονται μόνο
+συμπληρωματικά και δεν αποτελούν κριτήριο επιλογής του μοντέλου. Οι επιλεγμένες τιμές των υπερπαραμέτρων παρουσιάζονται στον Πίνακα~\ref{tab:amb:gmm-tuning}.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Επιλεγμένες ρυθμίσεις Gaussian Mixture Models.}
+    \label{tab:amb:gmm-tuning}
+    \begin{tabular}{llrrr}
+        \toprule
+        Sweep & Περιοχή & $k$ & BIC & Silhouette Score\\
+        \midrule
+        orders1 & 1 & 10 & 2465.84 & 0.363 \\
+        orders1 & 2 & 10 & 959.29 & 0.454 \\
+        orders1 & 3 & 10 & 2337.83 & 0.374 \\
+        orders2 & 1 & 10 & 2340.35 & 0.083 \\
+        orders2 & 2 & 10 & 1142.22 & 0.497 \\
+        orders2 & 3 & 9 & 2559.48 & 0.143 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Agglomerative Hierarchical Clustering}
+
+Η Agglomerative Hierarchical Clustering επίσης αποδίδει όλες τις εκτιμήσεις σε
+συστάδες, χωρίς χαρακτηρισμό σημείων ως θορύβου. Ωστόσο, οι ρυθμίσεις που
+μεγιστοποιούν το silhouette οδηγούν σε μεγάλο πλήθος συστάδων,
+ιδιαίτερα στο δεύτερο sweep. Το αποτέλεσμα αυτό πρέπει να ερμηνευθεί σε
+συνδυασμό με τα cluster maps και τις μετρικές αξιολόγησης. Οι επιλεγμένες τιμές των υπερπαραμέτρων παρουσιάζονται στον Πίνακα~\ref{tab:amb:agglomerative-tuning}.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Επιλεγμένες ρυθμίσεις Agglomerative Hierarchical Clustering.}
+    \label{tab:amb:agglomerative-tuning}
+    \begin{tabular}{llrlrr}
+        \toprule
+        Sweep & Περιοχή & $p_e$ & Linkage & Clusters & Silhouette \\
+        \midrule
+        orders1 & 1 & 0.14 & average & 23 & 0.534 \\
+        orders1 & 2 & 0.14 & average & 16 & 0.658 \\
+        orders1 & 3 & 0.08 & average & 48 & 0.546 \\
+        orders2 & 1 & 0.10 & complete & 61 & 0.535 \\
+        orders2 & 2 & 0.08 & average & 36 & 0.602 \\
+        orders2 & 3 & 0.07 & average & 58 & 0.519 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+
+\section{Συγκριτικά Αποτελέσματα όλων των Μεθόδων Συσταδοποίησης}
+
+Η διαδικασία tuning οδηγεί σε διαφορετικό πλήθος συστάδων, ανάλογα με τη
+μέθοδο, την περιοχή ελέγχου και το order sweep. Το πλήθος αυτό αποτελεί
+χρήσιμη πρώτη ένδειξη της συμπεριφοράς κάθε μεθόδου: πολύ μικρές τιμές
+ενδέχεται να συγχωνεύουν ξεχωριστές modal συγκεντρώσεις, ενώ πολύ μεγάλες
+τιμές μπορεί να υποδεικνύουν υπερκατατμημένη περιγραφή των εκτιμήσεων.
+
+Ο Πίνακας~\ref{tab:amb:clustering-comparison} συγκεντρώνει το επιλεγμένο
+πλήθος συστάδων ανά order sweep και περιοχή ελέγχου. Παρουσιάζεται επίσης
+το πλήθος των ρυθμών αναφοράς του \textit{PowerFactory} που σχετίζονται με
+κάθε περιοχή, σύμφωνα με τον Πίνακα~\ref{tab:amb:pf_reference_modes}. Οι
+αναλυτικές ρυθμίσεις που οδήγησαν στις συγκεκριμένες επιλογές παρουσιάστηκαν
+στην Ενότητα~\ref{sec:amb:clustering-by-method}.
+
+\clearpage
+\begin{landscape}
+\begin{table}[p]
+    \centering
+    \caption{Πλήθος συστάδων της επιλεγμένης ρύθμισης ανά order sweep, περιοχή ελέγχου και μέθοδο.}
+    \label{tab:amb:clustering-comparison}
+    {\large
+    \renewcommand{\arraystretch}{1.9}
+    \setlength{\tabcolsep}{6pt}
+    \begin{tabular}{llr|rrrrrrr}
+        \toprule
+        \textbf{Sweep} & \textbf{Περ.} & \shortstack{\textbf{Ref.}\\\textbf{modes}} & \shortstack{\textbf{k-}\\\textbf{Means}} & \shortstack{\textbf{k-}\\\textbf{Medoids}} & \textbf{DBSCAN} & \textbf{OPTICS} & \textbf{HDBSCAN} & \textbf{GMM} & \textbf{AHC} \\
+        \midrule
+        \multirow{3}{*}{orders1} & 1 & 5 & 5 & 5 & 3 & 2 & 4 & 10 & 23 \\
+        & 2 & 3 & 4 & 4 & 3 & 2 & 7 & 10 & 16 \\
+        & 3 & 6 & 4 & 4 & 2 & 2 & 5 & 10 & 48 \\
+        \midrule
+        \multirow{3}{*}{orders2} & 1 & 5 & 2 & 2 & 2 & 2 & 9 & 10 & 61 \\
+        & 2 & 3 & 5 & 4 & 2 & 2 & 4 & 10 & 36 \\
+        & 3 & 6 & 2 & 4 & 3 & 2 & 6 & 9 & 58 \\
+        \bottomrule
+    \end{tabular}
+    }
+\end{table}
+\end{landscape}
+\clearpage
+
+Οι μέθοδοι k-Means, k-Medoids, GMM και AHC αποδίδουν όλες τις
+εκτιμήσεις σε συστάδες. Οι πρώτοι δύο, επιλέγουν από δύο έως πέντε συστάδες, πλήθος που
+είναι γενικά συγκρίσιμο με τους τρεις έως έξι ρυθμούς αναφοράς των επιμέρους
+περιοχών. Αντίθετα, οι GMM και AHC, επιλέγουν σαφώς μεγαλύτερο πλήθος συστάδων.
+Ακόμα, οι DBSCAN και OPTICS επιλέγουν μόνο δύο ή τρεις
+συστάδες, αλλά χαρακτηρίζουν ως θόρυβο το μεγαλύτερο μέρος των εκτιμήσεων πετυχαίνοντας έτσι σαφώς υψηλότερα silhouette scores.
+Επομένως, οι υψηλές τιμές silhouette των δύο αυτών μεθόδων πρέπει να
+ερμηνεύονται μαζί με το χαμηλό ποσοστό των αποδιδόμενων σημείων και δεν
+αποτελούν από μόνες τους ένδειξη πληρέστερης αναπαράστασης των modal
+συγκεντρώσεων.Τέλος, ο HDBSCAN αποτελεί ενδιάμεση περίπτωση. Διατηρεί σημαντικά μεγαλύτερο μέρος
+του δείγματος από τις άλλες density-based μεθόδους, αλλά εντοπίζει περισσότερες συστάδες (τέσσερις
+έως εννέα). Η τελική αξιολόγηση απαιτεί επομένως συνδυασμό του πλήθους συστάδων, της κάλυψης των
+εκτιμήσεων και της οπτικής αντιστοίχισης με τους reference modes στους cluster maps.
+
+\section{Χάρτες Συσταδοποίησης στο Επίπεδο $(\sigma,f)$ $-$ Cluster Maps}
+
+Τα cluster maps απεικονίζουν τις screened εκτιμήσεις και τις συστάδες που
+προκύπτουν από κάθε μέθοδο στο επίπεδο $(\sigma,f)$. Για λόγους
+αναγνωσιμότητας, παρουσιάζεται η αντιπροσωπευτική περίπτωση του πρώτου
+order sweep στην Περιοχή 3 στα Σχήματα~\ref{fig:amb:cluster-maps-area3-partitioning} και \ref{fig:amb:cluster-maps-area3-agglomerative}, η οποία περιλαμβάνει έξι reference modes. Ταυπόλοιπα selected maps παρουσιάζονται αντίστοιχα για όλους τους συνδυασμούς
+sweep και περιοχής ελέγχου στο Παράρτημα~\ref{app:amb:cluster-maps}.
+
+\newcommand{\mainclusterfigure}[3]{%
+\begin{figure}[p]
+    \centering
+    \includegraphics[width=0.94\textwidth,height=0.82\textheight,keepaspectratio]{#1}
+    \caption{Selected cluster map για το πρώτο order sweep και την Περιοχή 3: #2.}
+    #3
+\end{figure}
+}
+
+\mainclusterfigure{\ambientfigurepath Ambient_Mag0.1_T600s_dt10ms_seed1997/orders1/clustering/by_control_area/area_3/kmeans/pdf/k-means_selected_cluster_map.pdf}{\textit{k-Means}}{\label{fig:amb:cluster-maps-area3-partitioning}}
+\mainclusterfigure{\ambientfigurepath Ambient_Mag0.1_T600s_dt10ms_seed1997/orders1/clustering/by_control_area/area_3/kmedoids/pdf/k-medoids_selected_cluster_map.pdf}{\textit{k-Medoids}}{}
+\mainclusterfigure{\ambientfigurepath Ambient_Mag0.1_T600s_dt10ms_seed1997/orders1/clustering/by_control_area/area_3/hdbscan/pdf/hdbscan_selected_cluster_map.pdf}{HDBSCAN}{}
+\mainclusterfigure{\ambientfigurepath Ambient_Mag0.1_T600s_dt10ms_seed1997/orders1/clustering/by_control_area/area_3/gmm/pdf/gmm_selected_cluster_map.pdf}{GMM}{}
+\mainclusterfigure{\ambientfigurepath Ambient_Mag0.1_T600s_dt10ms_seed1997/orders1/clustering/by_control_area/area_3/dbscan/pdf/dbscan_selected_cluster_map.pdf}{DBSCAN}{\label{fig:amb:cluster-maps-area3-density}}
+\mainclusterfigure{\ambientfigurepath Ambient_Mag0.1_T600s_dt10ms_seed1997/orders1/clustering/by_control_area/area_3/optics/pdf/optics_selected_cluster_map.pdf}{OPTICS}{}
+\mainclusterfigure{\ambientfigurepath Ambient_Mag0.1_T600s_dt10ms_seed1997/orders1/clustering/by_control_area/area_3/agglomerative/pdf/agglomerative_selected_cluster_map.pdf}{Agglomerative Hierarchical Clustering}{\label{fig:amb:cluster-maps-area3-agglomerative}}
+\clearpage
+
+Στα Σχήματα~\ref{fig:amb:cluster-maps-area3-partitioning} έως
+\ref{fig:amb:cluster-maps-area3-agglomerative} φαίνεται η διαφορετική πολιτική
+ανάθεσης των εκτιμήσεων. Οι \textit{k-Means} και \textit{k-Medoids}
+διαχωρίζουν το σύνολο των σημείων σε τέσσερις συστάδες, ενώ ο HDBSCAN
+διατηρεί πέντε συστάδες και επιτρέπει την απόρριψη σημείωνπου δεν
+εντάσσονται σε πυκνές περιοχές. Το GMM αποδίδει όλα τα σημεία, αλλά η
+επιλογή δέκα components οδηγεί σε λεπτομερέστερη κατάτμηση. Αντίθετα, οι
+DBSCAN και OPTICS διατηρούν μόνο δύο συστάδες και χαρακτηρίζοντας όμως πολύ μεγάλο
+μέρος των εκτιμήσεων ως θόρυβο. Η Agglomerative μέθοδος αποδίδει όλα τα
+σημεία, αλλά η επιλογή 48 συστάδων στην περίπτωση αυτή αποτυπώνει την
+υπερκατάτμηση που επισημάνθηκε στην προηγούμενη ενότητα.
+
+Παρά τις διαφορές αυτές, οι θέσεις αρκετών συστάδων συμφωνούν ικανοποιητικά
+ως προς τη συχνότητα με τα αντίστοιχα reference modes. Η συμφωνία αυτή
+παρατηρείται σε περισσότερες από μία μεθόδους και δείχνει ότι οι κυρίαρχες
+συχνότητες ορισμένων ρυθμών ανακτώνται σταθερά από τις screened εκτιμήσεις.
+Ταυτόχρονα, σχεδόν όλες οι μέθοδοι σχηματίζουν μία ή περισσότερες συστάδες
+σε πολύ χαμηλές συχνότητες, όπου δεν αντιστοιχεί reference mode, καθώς και
+συστάδες σε υψηλές συχνότητες επίσης χωρίς αντίστοιχο mode αναφοράς. Οι
+συστάδες αυτές υποδηλώνουν επαναλαμβανόμενες εκτιμήσεις μη
+αντιπροσωπευτικών ρυθμών. Οι μέθοδοι που επιτρέπουν θόρυβο, δηλαδή DBSCAN, OPTICS και HDBSCAN, απορρίπτουν
+πολύ μεγάλο μέρος των εκτιμήσεων ως θόρυβο \textendash{} ιδιαίτερα οι DBSCAN
+και OPTICS. Επομένως, η καθαρότερη γεωμετρική εικόνα τους και οι υψηλές
+τιμές silhouette πρέπει να συνεκτιμώνται με τη μειωμένη κάλυψη των
+διαθέσιμων εκτιμήσεων.
+
+\section{Ποσοτική Αξιολόγηση των Αποτελεσμάτων Συσταδοποίησης}
+
+Η ποσοτική αξιολόγηση συμπληρώνει την οπτική σύγκριση των cluster maps.
+Ο αριθμός συστάδων παρουσιάστηκε ήδη στον Πίνακα~\ref{tab:amb:clustering-comparison}.
+Στη συνέχεια, η αξιολόγηση οργανώνεται σε τρία επίπεδα: τη συνοχή και την κάλυψη των εκτιμήσεων, τη συμφωνία με τα reference modes
+και την ακρίβεια της θέσης των εκτιμήσεων που αντιστοιχίζονται σε αυτούς.
+
+\subsection{Μετρικές Συνοχής και Κάλυψης}
+
+Ο Πίνακας~\ref{tab:amb:cohesion-coverage} παρουσιάζει το πλήθος συστάδων,
+το πλήθος σημείων θορύβου, το ποσοστό των εκτιμήσεων που αποδίδονται σε
+συστάδα και το \textit{silhouette score}. Οι μέθοδοι k-Means, k-Medoids, ο GMM
+και η AHC δεν χαρακτηρίζουν σημεία ως θόρυβο, επομένως έχουν πλήρη κάλυψη.
+Αντίθετα, η υψηλή συνοχή των DBSCAN και OPTICS συνοδεύεται από πολύ μικρό
+ποσοστό αποδιδόμενων εκτιμήσεων όπως αναλύθηκε προηγουμένως. Ο HDBSCAN αποτελεί ενδιάμεση περίπτωση,
+καθώς διατηρεί μεγαλύτερη κάλυψη με χαμηλότερες, αλλά ακόμη υψηλές, τιμές
+\textit{silhouette}.
+
+\begin{longtable}{llrrrrr}
+\caption{Μετρικές συνοχής και κάλυψης της επιλεγμένης λύσης.}\label{tab:amb:cohesion-coverage}\\
+\toprule
+Sweep & Ref. modes & Μέθοδος & Clusters & Θόρυβος & Assigned (\%) & Silhouette \\
+\midrule
+\endfirsthead
+\toprule
+Sweep & Ref. modes & Μέθοδος & Clusters & Θόρυβος & Assigned (\%) & Silhouette \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+orders1\textendash{}Περ. 1 & 5 & k-Means & 5 & 0 & 100.0 & 0.640 \\
+& & k-Medoids & 5 & 0 & 100.0 & 0.634 \\
+& & DBSCAN & 3 & 488 & 13.6 & 0.958 \\
+& & OPTICS & 2 & 520 & 8.0 & 0.976 \\
+& & HDBSCAN & 4 & 165 & 70.8 & 0.796 \\
+& & GMM & 10 & 0 & 100.0 & 0.363 \\
+& & AHC & 23 & 0 & 100.0 & 0.534 \\
+\midrule
+orders1\textendash{}Περ. 2 & 3 & k-Means & 4 & 0 & 100.0 & 0.700 \\
+& & k-Medoids & 4 & 0 & 100.0 & 0.702 \\
+& & DBSCAN & 3 & 210 & 25.0 & 0.978 \\
+& & OPTICS & 2 & 231 & 17.5 & 0.954 \\
+& & HDBSCAN & 7 & 60 & 78.6 & 0.782 \\
+& & GMM & 10 & 0 & 100.0 & 0.454 \\
+& & AHC & 16 & 0 & 100.0 & 0.658 \\
+\midrule
+orders1\textendash{}Περ. 3 & 6 & k-Means & 4 & 0 & 100.0 & 0.650 \\
+& & k-Medoids & 4 & 0 & 100.0 & 0.654 \\
+& & DBSCAN & 2 & 441 & 20.1 & 0.975 \\
+& & OPTICS & 2 & 455 & 17.6 & 0.959 \\
+& & HDBSCAN & 5 & 140 & 74.6 & 0.816 \\
+& & GMM & 10 & 0 & 100.0 & 0.374 \\
+& & AHC & 48 & 0 & 100.0 & 0.546 \\
+\midrule
+orders2\textendash{}Περ. 1 & 5 & k-Means & 2 & 0 & 100.0 & 0.609 \\
+& & k-Medoids & 2 & 0 & 100.0 & 0.609 \\
+& & DBSCAN & 2 & 480 & 12.4 & 0.978 \\
+& & OPTICS & 2 & 464 & 15.3 & 0.969 \\
+& & HDBSCAN & 9 & 187 & 65.9 & 0.741 \\
+& & GMM & 10 & 0 & 100.0 & 0.083 \\
+& & AHC & 61 & 0 & 100.0 & 0.535 \\
+\midrule
+orders2\textendash{}Περ. 2 & 3 & k-Means & 5 & 0 & 100.0 & 0.681 \\
+& & k-Medoids & 4 & 0 & 100.0 & 0.664 \\
+& & DBSCAN & 2 & 234 & 14.0 & 0.921 \\
+& & OPTICS & 2 & 223 & 18.0 & 0.977 \\
+& & HDBSCAN & 4 & 34 & 87.5 & 0.749 \\
+& & GMM & 10 & 0 & 100.0 & 0.497 \\
+& & AHC & 36 & 0 & 100.0 & 0.602 \\
+\midrule
+orders2\textendash{}Περ. 3 & 6 & k-Means & 2 & 0 & 100.0 & 0.621 \\
+& & k-Medoids & 4 & 0 & 100.0 & 0.621 \\
+& & DBSCAN & 3 & 496 & 13.1 & 0.943 \\
+& & OPTICS & 2 & 533 & 6.7 & 0.990 \\
+& & HDBSCAN & 6 & 224 & 60.8 & 0.742 \\
+& & GMM & 9 & 0 & 100.0 & 0.143 \\
+& & AHC & 58 & 0 & 100.0 & 0.519 \\
+\end{longtable}
+
+\subsection{Συμφωνία με τους Ρυθμούς Αναφοράς}
+Για τον υπολογισμό των δεικτών \textit{V-measure} και ARI, απαιτείται η ύπαρξη ενός \textit{reference label} για κάθε εκτίμηση. Αυτό ορίζεται ως το reference mode του \textit{PowerFactory} που βρίσκεται πιο κοντά στην εκτίμηση που δεν χαρακτηρίστηκε ως θόρυβος στο επίπεδο $(\sigma,f)$ βάση της ευκλείδιας απόστασης. Στη συνέχεια, υπολογίζονται οι δείκτες και παρουσιάζονται στον Πίνακα~\ref{tab:amb:v-measure_and_ari}. Και για τους δύο δείκτες, υψηλότερες τιμές υποδηλώνουν καλύτερη αντιστοίχηση με τα reference modes. Οι τιμές V-measure κυμαίνονται από $0$ έως $1$, ενώ οι τιμές ARI μπορούν να είναι και αρνητικές, με το $1$ να υποδηλώνει πλήρη συμφωνία και το $0$ να υποδηλώνει συμφωνία που δεν είναι καλύτερη απο την τελείως τυχαία κατανομή.
+
+
+\begin{longtable}{llrr}
+\caption{Συμφωνία της επιλεγμένης συσταδοποίησης με τα τοπικά reference labels.}\label{tab:amb:v-measure_and_ari}\\
+\toprule
+Sweep & Μέθοδος & V-measure & ARI \\
+\midrule
+\endfirsthead
+\toprule
+Sweep & Μέθοδος & V-measure & ARI \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+orders1\textendash{}Περ. 1 & k-Means & 0.480 & 0.379 \\
+& k-Medoids & 0.508 & 0.409 \\
+& DBSCAN & 0.702 & 0.507 \\
+& OPTICS & 1.000 & 1.000 \\
+& HDBSCAN & 0.633 & 0.544 \\
+& GMM & 0.517 & 0.291 \\
+& AHC & 0.524 & 0.368 \\
+\midrule
+orders1\textendash{}Περ. 2 & k-Means & 0.463 & 0.297 \\
+& k-Medoids & 0.463 & 0.298 \\
+& DBSCAN & 0.657 & 0.451 \\
+& OPTICS & 0.255 & 0.107 \\
+& HDBSCAN & 0.389 & 0.196 \\
+& GMM & 0.333 & 0.143 \\
+& AHC & 0.355 & 0.187 \\
+\midrule
+orders1\textendash{}Περ. 3 & k-Means & 0.593 & 0.513 \\
+& k-Medoids & 0.591 & 0.501 \\
+& DBSCAN & 1.000 & 1.000 \\
+& OPTICS & 1.000 & 1.000 \\
+& HDBSCAN & 0.681 & 0.543 \\
+& GMM & 0.589 & 0.387 \\
+& AHC & 0.553 & 0.353 \\
+\midrule
+orders2\textendash{}Περ. 1 & k-Means & 0.428 & 0.468 \\
+& k-Medoids & 0.428 & 0.468 \\
+& DBSCAN & 0.000 & 0.000 \\
+& OPTICS & 0.000 & 0.000 \\
+& HDBSCAN & 0.491 & 0.231 \\
+& GMM & 0.467 & 0.231 \\
+& AHC & 0.449 & 0.130 \\
+\midrule
+orders2\textendash{}Περ. 2 & k-Means & 0.418 & 0.287 \\
+& k-Medoids & 0.423 & 0.283 \\
+& DBSCAN & 0.000 & 0.000 \\
+& OPTICS & 0.304 & 0.240 \\
+& HDBSCAN & 0.483 & 0.316 \\
+& GMM & 0.349 & 0.170 \\
+& AHC & 0.297 & 0.076 \\
+\midrule
+orders2\textendash{}Περ. 3 & k-Means & 0.547 & 0.558 \\
+& k-Medoids & 0.573 & 0.537 \\
+& DBSCAN & 0.701 & 0.542 \\
+& OPTICS & 1.000 & 1.000 \\
+& HDBSCAN & 0.615 & 0.430 \\
+& GMM & 0.544 & 0.346 \\
+& AHC & 0.504 & 0.178 \\
+\end{longtable}
+
+Οι μέθοδοι \textit{k-Means} και \textit{k-Medoids} εμφανίζουν 
+ενδιάμεσες τιμές \mbox{\textit{V-measure}} και ARI, άρα μερική αλλά όχι πλήρη συμφωνία με
+τη reference κατάτμηση. Ο \mbox{HDBSCAN}, παρόμοια, παρουσιάζει αντίστοιχη ενδιάμεση
+συμπεριφορά, ενώ διατηρεί μεγαλύτερο ποσοστό των εκτιμήσεων από τις άλλες
+density-based μεθόδους. Σε ορισμένες περιπτώσεις οι DBSCAN και OPTICS
+λαμβάνουν τιμή $1$ και στους δύο δείκτες. Η τιμή αυτή αφορά μόνο το μικρό
+υποσύνολο των εκτιμήσεων που παρέμεινε σε συστάδες μετά την απόρριψη
+θορύβου και, επομένως, δεν ισοδυναμεί με πλήρη ταυτοποίηση όλων των
+φυσικών modes. Αντίστροφα, οι μηδενικές τιμές που εμφανίζονται σε
+περιπτώσεις του δεύτερου order sweep δείχνουν ότι οι λίγες συστάδες που
+προέκυψαν δεν συμφωνούν καθόλου με την αντίστοιχη reference κατάτμηση.
+
+\subsection{Ακρίβεια Θέσης των Συστάδων\textendash{}Δείκτης MAD}
+
+Για κάθε εκτίμηση που έχει αποδοθεί σε συστάδα υπολογίζεται η απόστασή της
+από τον reference mode στον οποίο αντιστοιχίζεται. Ως δείκτης ακρίβειας
+χρησιμοποιείται η διάμεση απόσταση (MAD) στο επίπεδο $(\sigma,\omega)$.
+Μικρότερες τιμές υποδηλώνουν ότι οι εκτιμήσεις βρίσκονται εγγύτερα στον
+αντίστοιχο reference mode. Οι Πίνακες~\ref{tab:amb:mad-orders1} και
+\ref{tab:amb:mad-orders2} παρουσιάζουν τις αναλυτικές τιμές ανά reference
+mode και μέθοδο. Κάθε κελί έχει τη μορφή \textit{πλήθος εκτιμήσεων / MAD}, με το MAD
+σε rad/s. Η μεγάλη παύλα δηλώνει ότι δεν αντιστοιχίσθηκε καμία εκτίμηση
+στον συγκεκριμένο reference mode.
+
+\begin{table}[H]
+    \centering
+    \caption{Αναλυτικές τιμές MAD για το πρώτο order sweep (orders1).}
+    \label{tab:amb:mad-orders1}
+    \scriptsize
+    \renewcommand{\arraystretch}{1.45}
+    \setlength{\tabcolsep}{1.5pt}
+    \resizebox{\textwidth}{!}{%
+    \begin{tabular}{lrrrrrrrrr}
+        \toprule
+        Μέθοδος & Mode 1 & Mode 2 & Mode 3 & Mode 4 & Mode 5 & Mode 6 & Mode 7 & Mode 8 & Mode 9 \\
+        \midrule
+        k-Means & \textemdash{} & 515 / 0.492 & 523 / 0.580 & \textemdash{} & 65 / 3.431 & \textemdash{} & \textemdash{} & 147 / 0.728 & 147 / 1.442 \\
+        k-Medoids & \textemdash{} & 494 / 0.459 & 532 / 0.585 & \textemdash{} & 65 / 3.431 & \textemdash{} & \textemdash{} & 148 / 0.739 & 158 / 1.342 \\
+        DBSCAN & \textemdash{} & 154 / 0.079 & 69 / 2.738 & 21 / 0.887 & 14 / 4.060 & \textemdash{} & \textemdash{} & \textemdash{} & \textemdash{} \\
+        OPTICS & \textemdash{} & 84 / 2.514 & 23 / 4.833 & 27 / 0.888 & 26 / 0.541 & \textemdash{} & \textemdash{} & \textemdash{} & 31 / 2.594 \\
+        HDBSCAN & \textemdash{} & 414 / 0.332 & 385 / 0.411 & \textemdash{} & 65 / 3.261 & \textemdash{} & \textemdash{} & 74 / 0.507 & 94 / 1.251 \\
+        GMM & \textemdash{} & 443 / 0.403 & 383 / 0.400 & 108 / 1.627 & 91 / 3.227 & 114 / 1.260 & \textemdash{} & 124 / 0.698 & 134 / 1.390 \\
+        AHC & \textemdash{} & 478 / 0.447 & 418 / 0.448 & 49 / 0.875 & 91 / 3.227 & 43 / 0.814 & 21 / 0.692 & 148 / 0.739 & 149 / 1.450 \\
+        \bottomrule
+    \end{tabular}
+    }
+\end{table}
+
+\begin{table}[H]
+    \centering
+    \caption{Αναλυτικές τιμές MAD για το δεύτερο order sweep (orders2).}
+    \label{tab:amb:mad-orders2}
+    \scriptsize
+    \renewcommand{\arraystretch}{1.45}
+    \setlength{\tabcolsep}{1.5pt}
+    \resizebox{\textwidth}{!}{%
+    \begin{tabular}{lrrrrrrrrr}
+        \toprule
+        Μέθοδος & Mode 1 & Mode 2 & Mode 3 & Mode 4 & Mode 5 & Mode 6 & Mode 7 & Mode 8 & Mode 9 \\
+        \midrule
+        k-Means & \textemdash{} & 606 / 0.832 & 216 / 2.515 & \textemdash{} & 56 / 3.749 & \textemdash{} & 290 / 1.939 & 223 / 1.730 & \textemdash{} \\
+        k-Medoids & \textemdash{} & 590 / 0.815 & 361 / 1.190 & \textemdash{} & 54 / 3.720 & \textemdash{} & \textemdash{} & 223 / 1.730 & 163 / 1.342 \\
+        DBSCAN & \textemdash{} & 126 / 0.390 & 38 / 2.589 & \textemdash{} & \textemdash{} & \textemdash{} & \textemdash{} & \textemdash{} & 17 / 1.366 \\
+        OPTICS & \textemdash{} & 106 / 0.413 & 29 / 2.575 & \textemdash{} & 20 / 0.480 & \textemdash{} & \textemdash{} & \textemdash{} & 16 / 1.367 \\
+        HDBSCAN & \textemdash{} & 342 / 0.597 & 329 / 0.494 & 48 / 0.764 & 49 / 3.749 & \textemdash{} & \textemdash{} & 74 / 0.729 & 104 / 1.228 \\
+        GMM & \textemdash{} & 589 / 0.838 & 318 / 0.532 & \textemdash{} & 73 / 3.105 & 118 / 2.002 & 65 / 0.842 & 156 / 1.297 & 72 / 2.078 \\
+        AHC & 41 / 0.446 & 531 / 0.678 & 329 / 0.607 & 73 / 0.681 & 82 / 3.053 & 29 / 0.695 & 29 / 0.640 & 138 / 1.274 & 139 / 1.375 \\
+        \bottomrule
+    \end{tabular}
+    }
+\end{table}
+\clearpage
+
+Οι τιμές MAD στους αναλυτικούς πίνακες είναι γενικά μη αμελητέες. Αυτό δείχνει ότι, ακόμη
+και στις περιπτώσεις όπου σχηματίζεται συστάδα σε συχνότητα κοντά σε έναν
+reference mode, παραμένει διασπορά ως προς τη συχνότητα ή/και την απόσβεση.
+Η απόσταση υπολογίζεται στο επίπεδο $(\sigma,\omega)$ και συνεπώς δεν
+εκφράζει μόνο απόκλιση στη συχνότητα. Επιπλέον, μικρότερη τιμή MAD δεν
+αρκεί από μόνη της για την ανάδειξη μίας μεθόδου ως καταλληλότερης καθώς μπορεί
+να συνδέεται με μικρό πλήθος διατηρούμενων εκτιμήσεων ή με πολύ μεγάλο αριθμό συστάδων, όπως στην περίπτωση του AHC. Επομένως, το MAD ερμηνεύεται μαζί
+με το πλήθος των εκτιμήσεων κάθε κελιού, το ποσοστό αποδιδόμενων εκτιμήσεων και τους δείκτες V-measure και ARI.
+
+\section{Συνολική Συζήτηση των Αποτελεσμάτων Συσταδοποίησης}
+
+Η σύγκριση των μεθόδων δείχνει ότι δεν προκύπτει μία καθολικά βέλτιστη
+λύση για όλους τους στόχους της συσταδοποίησης. Οι μέθοδοι
+διαμερισμού, \textit{k-Means} και \textit{k-Medoids}, αποδίδουν το σύνολο
+των screened εκτιμήσεων σε σχετικά μικρό αριθμό συστάδων και παρουσιάζουν
+σταθερές, ενδιάμεσες τιμές συνοχής και συμφωνίας με τα reference modes.
+Αποτελούν, επομένως, μία συνεπή επιλογή όταν προτεραιότητα είναι η
+διατήρηση της πληροφορίας του διαθέσιμου δείγματος. Ο GMM επίσης διατηρεί
+όλες τις εκτιμήσεις, αλλά η επιλογή πολλών components/συ\-στά\-δες οδηγεί συχνά σε
+πολύ μεγάλη κατάτμηση. Ο AHC εμφανίζει ακόμη εντονότερα αυτή τη
+συμπεριφορά, καθώς ο μεγάλος αριθμός συστάδων σε αρκετές περιπτώσεις
+υποδεικνύει υπερκατάτμηση.
+
+Οι density-based μέθοδοι αναδεικνύουν διαφορετικό trade-off. Οι DBSCAN
+και OPTICS σχηματίζουν λίγες, ιδιαίτερα συνεκτικές συστάδες και μπορούν να
+εμφανίσουν πολύ υψηλές τιμές \textit{silhouette}, V-measure και ARI. Η
+εικόνα αυτή αφορά όμως μόνο το μικρό υποσύνολο εκτιμήσεων που δεν έχει
+απορριφθεί ως θόρυβος. Συνεπώς, οι μέθοδοι αυτές είναι χρήσιμες για την
+ανάδειξη πυκνών modal συγκεντρώσεων, αλλά δεν παρέχουν από μόνες τους πλήρη περιγραφή όλων των screened εκτιμήσεων. Ο
+HDBSCAN λειτουργεί ως ενδιάμεση λύση: επιτρέπει απόρριψη θορύβου, αλλά
+διατηρεί σημαντικά μεγαλύτερο ποσοστό του δείγματος και εμφανίζει πιο
+ισορροπημένες τιμές στις μετρικές αξιολόγησης.
+
+Η εξέταση των cluster maps και των τιμών MAD επιβεβαιώνει ότι αρκετοί
+ρυθμοί αναφοράς ανακτώνται σε ικανοποιητική περιοχή συχνοτήτων. Παράλληλα,
+παρατηρούνται συστάδες πολύ χαμηλών ή υψηλών συχνοτήτων χωρίς αντίστοιχο
+ρυ\-θμό αναφοράς, καθώς και μη αμελητέα διασπορά ως προς τη συχνότητα ή την
+απόσβεση. Επομένως, η επιλογή μεθόδου δεν μπορεί να βασιστεί σε μία μόνο
+μετρική. Για εφαρμογές όπου απαιτείται ισορροπία μεταξύ διατήρησης των
+εκτιμήσεων και απόρριψης μη συνεκτικών σημείων, ο HDBSCAN αποτελεί
+ενδιαφέρουσα επιλογή. Όταν η πλήρης κάλυψη των διαθέσιμων εκτιμήσεων είναι
+αυστηρή απαίτηση, οι \textit{k-Means} και \textit{k-Medoids} παρέχουν πιο
+άμεση και ερμηνεύσιμη κατάτμηση. Οι DBSCAN και OPTICS μπορούν να
+χρησιμοποιηθούν συμπληρωματικά, ως μηχανισμοί ανάδειξης των πιο πυκνών
+modal συγκεντρώσεων.

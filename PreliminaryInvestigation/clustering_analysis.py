@@ -101,9 +101,23 @@ def _apply_axis_style(ax, grid_alpha=GRID_ALPHA_MAIN):
     style_axis(ax, grid_alpha=grid_alpha)
 
 
-def _save_figure(fig, base_output, filename):
-    save_pdf(fig, os.path.join(base_output, "pdf", f"{filename}.pdf"))
-    fig.savefig(os.path.join(base_output, "png", f"{filename}.png"), dpi=300)
+def _save_figure(fig, base_output, filename, fixed_canvas=False):
+    """Save a plot in both formats.
+
+    ``fixed_canvas`` is used for the final selected cluster maps.  It prevents
+    a variable-length legend from changing the PDF bounding box, which makes
+    otherwise comparable maps render at different sizes in LaTeX.
+    """
+    save_pdf(
+        fig,
+        os.path.join(base_output, "pdf", f"{filename}.pdf"),
+        tight=not fixed_canvas,
+    )
+    fig.savefig(
+        os.path.join(base_output, "png", f"{filename}.png"),
+        dpi=300,
+        bbox_inches=None if fixed_canvas else "tight",
+    )
 
 
 def _prepare_output_dirs(base_output):
@@ -1657,7 +1671,10 @@ def _reference_component_count(reference_modes, sample_count):
 
 
 def _save_fixed_cluster_map(base_output, method, df, labels, representatives, reference_modes, title, include_noise=False):
-    fig, ax = plt.subplots(figsize=(10, 7))
+    # Every final map uses exactly the same canvas, plotting rectangle and
+    # legend slot.  This is intentional: different cluster counts must change
+    # only the legend contents, not the physical size of the exported figure.
+    fig, ax = plt.subplots(figsize=(11.5, 8.8))
     color_fn = _label_colors_with_noise if include_noise else _label_colors
     ax.scatter(df["Damping"], df["Frequency"], c=color_fn(labels), alpha=POINT_ALPHA,
                edgecolors="k", linewidths=0.8, s=POINT_SIZE)
@@ -1675,10 +1692,21 @@ def _save_fixed_cluster_map(base_output, method, df, labels, representatives, re
         handles += _cluster_legend_handles(n_clusters, representative_label="Cluster Means")
     handles += _reference_mode_handles(reference_modes)
     if handles:
-        ax.legend(handles=handles, loc="upper left")
+        fig.legend(
+            handles=handles,
+            loc="lower center",
+            bbox_to_anchor=(0.5, 0.025),
+            ncol=4,
+        )
     _set_modal_axis_limits(ax, df, reference_modes=reference_modes, representatives=representatives)
     _apply_axis_style(ax)
-    _save_figure(fig, base_output, f"{method.lower()}_selected_cluster_map")
+    fig.subplots_adjust(left=0.11, right=0.97, top=0.88, bottom=0.30)
+    _save_figure(
+        fig,
+        base_output,
+        f"{method.lower()}_selected_cluster_map",
+        fixed_canvas=True,
+    )
     plt.close(fig)
 
 

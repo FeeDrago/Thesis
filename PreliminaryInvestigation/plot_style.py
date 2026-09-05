@@ -76,5 +76,15 @@ def style_axis(ax, grid_alpha=GRID_ALPHA_MAIN):
         spine.set_linewidth(1.1)
 
 
-def save_pdf(fig_or_plt, path):
-    fig_or_plt.savefig(path, format="pdf", bbox_inches="tight", metadata=PDF_METADATA)
+def save_pdf(fig_or_plt, path, tight=True):
+    """Save a PDF, optionally preserving the declared figure canvas.
+
+    Most diagnostic plots benefit from cropping their unused margins.  The
+    selected clustering maps are placed side-by-side in the thesis, however,
+    so their PDF media boxes must remain identical regardless of the number of
+    cluster labels in an individual legend.
+    """
+    save_kwargs = {"format": "pdf", "metadata": PDF_METADATA}
+    if tight:
+        save_kwargs["bbox_inches"] = "tight"
+    fig_or_plt.savefig(path, **save_kwargs)

@@ -1483,6 +1483,153 @@ def generate_ieee39_plots(df_results, report, scenario):
     _generate_ieee39_best_reconstruction_plots(df_results, report, scenario, stats_dir, data_dir, generators, columns)
 
 
+def _generate_ambient_screened_area_modal_maps(df_results, modal_maps_dir, reference_modes, order_group_name):
+    """Save one screened N4SID modal map for each IEEE39 control area."""
+    finite_mask = np.isfinite(df_results["Frequency"]) & np.isfinite(df_results["Damping"])
+    screened = df_results.loc[
+        finite_mask
+        & df_results["Frequency"].between(0.1, 2.0)
+        & (df_results["Damping"] <= -1e-3)
+    ].copy()
+    if screened.empty:
+        print("No screened ambient N4SID estimates available; skipping area modal maps.")
+        return
+
+    output_dir = modal_maps_dir / "screened_by_control_area"
+    for area_name, generators in CONTROL_AREAS.items():
+        area_df = screened[screened["Gen"].isin(generators)]
+        if area_df.empty:
+            continue
+        area_reference_modes = _reference_modes_for_control_area_from_set(reference_modes, area_name)
+        fig, ax = plt.subplots(figsize=(11, 7))
+        for signal_name in sorted(area_df["Signal"].dropna().unique()):
+            signal_df = area_df[area_df["Signal"] == signal_name]
+            ax.scatter(
+                signal_df["Damping"],
+                signal_df["Frequency"],
+                s=36,
+                alpha=0.68,
+                color=SIGNAL_COLORS.get(signal_name, "tab:blue"),
+                edgecolors="none",
+                label=signal_name,
+            )
+
+        if area_reference_modes:
+            names = list(area_reference_modes)
+            damping = [float(area_reference_modes[name]["Damping"]) for name in names]
+            frequency = [float(area_reference_modes[name]["Frequency"]) for name in names]
+            ax.scatter(
+                damping,
+                frequency,
+                marker="D",
+                s=115,
+                facecolors="white",
+                edgecolors="black",
+                linewidths=1.5,
+                zorder=5,
+                label="PowerFactory reference modes",
+            )
+            for name, sigma, freq in zip(names, damping, frequency):
+                ax.annotate(name, (sigma, freq), xytext=(6, 5), textcoords="offset points", fontsize=10)
+
+        x_min = min(float(area_df["Damping"].min()), *(float(mode["Damping"]) for mode in area_reference_modes.values()))
+        ax.set_xlim(x_min - max(0.08, 0.04 * abs(x_min)), 0.02)
+        ax.set_ylim(0.05, 2.05)
+        ax.axvline(0.0, color="black", linestyle="--", linewidth=1.2, alpha=0.55)
+        ax.set_xlabel("Damping (Sigma) [rad/s]")
+        ax.set_ylabel("Frequency [Hz]")
+        ax.set_title(
+            f"Screened N4SID Estimates: {order_group_name} — {area_name.replace('_', ' ').title()}\n"
+            f"Screened estimates: {len(area_df)}"
+        )
+        ax.legend(loc="upper left")
+        style_axis(ax)
+        save_current_figure(output_dir, f"screened_modal_map_{area_name}", fig)
+        plt.close(fig)
+
+
+def generate_ambient_screened_modal_grid(sweep_datasets, output_dir, reference_modes):
+    """Save a thesis-ready 3x2 grid of screened estimates by area and sweep."""
+    rows = list(sweep_datasets)[:2]
+    if not rows:
+        return
+
+    screened_rows = []
+    for order_group_name, df_results in rows:
+        finite_mask = np.isfinite(df_results["Frequency"]) & np.isfinite(df_results["Damping"])
+        screened = df_results.loc[
+            finite_mask
+            & df_results["Frequency"].between(0.1, 2.0)
+            & (df_results["Damping"] <= -1e-3)
+        ].copy()
+        screened_rows.append((order_group_name, screened))
+
+    damping_series = [df["Damping"] for _, df in screened_rows if not df.empty]
+    if not damping_series:
+        print("No screened ambient N4SID estimates available; skipping screened modal grid.")
+        return
+    all_damping = pd.concat(damping_series, ignore_index=True)
+    reference_damping = [float(mode["Damping"]) for mode in reference_modes.values()]
+    x_min = min(float(all_damping.min()), *reference_damping)
+    x_limits = (x_min - max(0.08, 0.04 * abs(x_min)), 0.02)
+
+    area_items = list(CONTROL_AREAS.items())
+    # Match the approximate physical size used in the report.  A much larger
+    # canvas would be heavily downscaled by LaTeX, making all labels unreadable.
+    fig, axes = plt.subplots(3, 2, figsize=(7.6, 9.1), sharex=True, sharey=True)
+    for row_index, (area_name, generators) in enumerate(area_items):
+        for col_index, ax in enumerate(axes[row_index]):
+            if col_index >= len(screened_rows):
+                ax.axis("off")
+                continue
+            order_group_name, screened = screened_rows[col_index]
+            area_df = screened[screened["Gen"].isin(generators)]
+            area_reference_modes = _reference_modes_for_control_area_from_set(reference_modes, area_name)
+            for signal_name in sorted(area_df["Signal"].dropna().unique()):
+                signal_df = area_df[area_df["Signal"] == signal_name]
+                ax.scatter(
+                    signal_df["Damping"], signal_df["Frequency"],
+                    s=22, alpha=0.62, edgecolors="none",
+                    color=SIGNAL_COLORS.get(signal_name, "tab:blue"),
+                    label=signal_name,
+                )
+            if area_reference_modes:
+                names = list(area_reference_modes)
+                damping = [float(area_reference_modes[name]["Damping"]) for name in names]
+                frequency = [float(area_reference_modes[name]["Frequency"]) for name in names]
+                ax.scatter(
+                    damping, frequency, marker="D", s=82, facecolors="white",
+                    edgecolors="black", linewidths=1.3, zorder=5,
+                    label="PowerFactory reference modes",
+                )
+                for mode_name, sigma, freq in zip(names, damping, frequency):
+                    ax.annotate(mode_name, (sigma, freq), xytext=(4, 3), textcoords="offset points", fontsize=9)
+            ax.axvline(0.0, color="black", linestyle="--", linewidth=1.0, alpha=0.5)
+            ax.set_xlim(*x_limits)
+            # Damping is signed, so a conventional logarithmic axis is invalid.
+            # Symlog expands the dense near-zero region while compressing distant
+            # negative outliers without changing their sign.
+            ax.set_xscale("symlog", linthresh=0.05, linscale=1.0, base=10)
+            ax.set_ylim(0.05, 2.05)
+            ax.set_title(
+                f"{area_name.replace('_', ' ').title()} — {order_group_name}\n"
+                f"Screened estimates: {len(area_df)}",
+                fontsize=11,
+            )
+            style_axis(ax)
+            ax.tick_params(axis="both", labelsize=8)
+
+    handles, labels = axes[0, 0].get_legend_handles_labels()
+    if handles:
+        fig.legend(handles, labels, loc="lower center", ncol=len(handles), fontsize=9, bbox_to_anchor=(0.5, 0.01))
+    fig.suptitle("Screened N4SID Estimates by Order Sweep and Control Area", y=0.995, fontsize=14)
+    fig.supylabel("Frequency [Hz]", x=0.015, fontsize=12)
+    fig.supxlabel("Damping (Sigma) [rad/s]", y=0.065, fontsize=12)
+    fig.subplots_adjust(left=0.10, right=0.99, bottom=0.13, top=0.91, hspace=0.36, wspace=0.08)
+    save_current_figure(Path(output_dir) / "plots", "screened_modal_maps_3x2_grid", fig)
+    plt.close(fig)
+
+
 def generate_ieee39_ambient_modal_plots(df_results, scenario):
     if df_results.empty:
         print("No ambient N4SID results available; skipping ambient modal plots.")
@@ -1490,8 +1637,16 @@ def generate_ieee39_ambient_modal_plots(df_results, scenario):
 
     _, output_dir, _, generators, columns = _scenario_runtime_config(scenario)
     modal_maps_dir = output_dir / "plots" / "modal_maps"
+    reference_modes = _resolve_reference_modes_for_scenario(scenario)
+    order_group_name = str(scenario.get("order_group_name") or output_dir.name)
 
     _generate_ieee39_modal_grid_plots(df_results, modal_maps_dir, generators, columns)
+    _generate_ambient_screened_area_modal_maps(
+        df_results,
+        modal_maps_dir,
+        reference_modes,
+        order_group_name,
+    )
 
     for gen in generators:
         gen_data = df_results[df_results["Gen"] == gen]
@@ -2098,6 +2253,7 @@ def main():
             else:
                 output_dir, results_path, df_results, analysis_config = run_ambient_n4sid_for_scenario(name, scenario, args)
             sweep_evaluations = []
+            screened_modal_grid_data = []
             sweep_plotting_seconds = 0.0
             sweep_clustering_seconds = 0.0
             for sweep in analysis_config.get("sweeps", []):
@@ -2122,6 +2278,7 @@ def main():
                 if not effective_skip_plots:
                     plotting_start = time.perf_counter()
                     generate_ieee39_ambient_modal_plots(sweep_df, sweep_scenario)
+                    screened_modal_grid_data.append((str(sweep.get("name", sweep_dir.name)), sweep_df))
                     plotting_elapsed = time.perf_counter() - plotting_start
                     sweep_plotting_seconds += plotting_elapsed
 
@@ -2179,6 +2336,15 @@ def main():
                     "output_dir": sweep.get("output_dir"),
                     "evaluation_summary": evaluation_payload.get("summary", {}),
                 })
+
+            if not effective_skip_plots:
+                grid_start = time.perf_counter()
+                generate_ambient_screened_modal_grid(
+                    screened_modal_grid_data,
+                    output_dir,
+                    _resolve_reference_modes_for_scenario(scenario),
+                )
+                sweep_plotting_seconds += time.perf_counter() - grid_start
 
             analysis_config.setdefault("timings", {})["comprehensive_report"] = _timing_entry(0.0, skipped=True)
             analysis_config["timings"]["plotting"] = _timing_entry(sweep_plotting_seconds, skipped=effective_skip_plots)
