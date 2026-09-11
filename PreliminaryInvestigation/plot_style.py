@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import seaborn as sns
+from matplotlib.ticker import FuncFormatter
 
 THESIS_SERIF_FONTS = ["GFS Artemisia", "Times New Roman", "serif"]
 
@@ -74,6 +75,18 @@ def style_axis(ax, grid_alpha=GRID_ALPHA_MAIN):
     ax.grid(True, linestyle=":", linewidth=1.2, alpha=grid_alpha)
     for spine in ax.spines.values():
         spine.set_linewidth(1.1)
+
+
+def set_signed_symlog_damping_axis(ax, x_min, x_max=0.005, linthresh=0.05):
+    """Format a signed logarithmic damping axis with readable decimal ticks."""
+    ax.set_xscale("symlog", linthresh=linthresh, linscale=1.0, base=10)
+    ax.set_xlim(x_min, x_max)
+    tick_candidates = (-10, -5, -3, -2, -1, -0.5, -0.2, -0.1, -0.05, -0.01, 0)
+    ticks = [tick for tick in tick_candidates if x_min <= tick <= x_max]
+    ax.set_xticks(ticks)
+    ax.xaxis.set_major_formatter(
+        FuncFormatter(lambda value, _: "0" if abs(value) < 1e-12 else f"{value:g}")
+    )
 
 
 def save_pdf(fig_or_plt, path, tight=True):

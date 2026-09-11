@@ -59,7 +59,7 @@ AMBIENT_DEFAULT_GMM_SETTINGS = {
     "reg_covar": 1e-4,
 }
 AMBIENT_DEFAULT_AGGLOMERATIVE_SETTINGS = {
-    "pe_values": [round(value, 3) for value in np.arange(0.01, 0.151, 0.005)],
+    "pe_values": [round(value, 2) for value in np.arange(0.01, 0.801, 0.01)],
     "linkages": ["average", "complete"],
     "metric": "euclidean",
 }

@@ -177,6 +177,7 @@ prepare_matrix_pencil = matrix_pencil.prepare_matrix_pencil
 from plot_style import (
     apply_thesis_style,
     style_axis,
+    set_signed_symlog_damping_axis,
     SIGNAL_COLORS,
 )
 from shared_plotting import (
@@ -1533,7 +1534,7 @@ def _generate_ambient_screened_area_modal_maps(df_results, modal_maps_dir, refer
                 ax.annotate(name, (sigma, freq), xytext=(6, 5), textcoords="offset points", fontsize=10)
 
         x_min = min(float(area_df["Damping"].min()), *(float(mode["Damping"]) for mode in area_reference_modes.values()))
-        ax.set_xlim(x_min - max(0.08, 0.04 * abs(x_min)), 0.02)
+        set_signed_symlog_damping_axis(ax, x_min - max(0.08, 0.04 * abs(x_min)), 0.005)
         ax.set_ylim(0.05, 2.05)
         ax.axvline(0.0, color="black", linestyle="--", linewidth=1.2, alpha=0.55)
         ax.set_xlabel("Damping (Sigma) [rad/s]")
@@ -1571,7 +1572,7 @@ def generate_ambient_screened_modal_grid(sweep_datasets, output_dir, reference_m
     all_damping = pd.concat(damping_series, ignore_index=True)
     reference_damping = [float(mode["Damping"]) for mode in reference_modes.values()]
     x_min = min(float(all_damping.min()), *reference_damping)
-    x_limits = (x_min - max(0.08, 0.04 * abs(x_min)), 0.02)
+    x_limits = (x_min - max(0.08, 0.04 * abs(x_min)), 0.005)
 
     area_items = list(CONTROL_AREAS.items())
     # Match the approximate physical size used in the report.  A much larger
@@ -1605,11 +1606,7 @@ def generate_ambient_screened_modal_grid(sweep_datasets, output_dir, reference_m
                 for mode_name, sigma, freq in zip(names, damping, frequency):
                     ax.annotate(mode_name, (sigma, freq), xytext=(4, 3), textcoords="offset points", fontsize=9)
             ax.axvline(0.0, color="black", linestyle="--", linewidth=1.0, alpha=0.5)
-            ax.set_xlim(*x_limits)
-            # Damping is signed, so a conventional logarithmic axis is invalid.
-            # Symlog expands the dense near-zero region while compressing distant
-            # negative outliers without changing their sign.
-            ax.set_xscale("symlog", linthresh=0.05, linscale=1.0, base=10)
+            set_signed_symlog_damping_axis(ax, *x_limits)
             ax.set_ylim(0.05, 2.05)
             ax.set_title(
                 f"{area_name.replace('_', ' ').title()} — {order_group_name}\n"

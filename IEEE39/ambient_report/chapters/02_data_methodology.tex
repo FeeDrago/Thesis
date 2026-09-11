@@ -83,22 +83,18 @@ N_{\mathrm{pts}}=
 \]
 όπου $N_s$ είναι το πλήθος των συνδυασμών γεννήτριας$-$σήματος στην
 εξεταζόμενη περιοχή ελέγχου και $|n|$ το πλήθος των τάξεων μοντέλου του
-αντίστοιχου sweep. Εξετάστηκαν οι τιμές
+αντίστοιχου sweep. Για τις μεθόδους πυκνότητας εξετάστηκαν οι τιμές
 $p_e \in \{0.01,0.015,\dots,0.15\}$ και
-$p_m \in \{0.10,0.15,\dots,0.40\}$.
-
-Για τον DBSCAN εξετάστηκαν όλοι οι συνδυασμοί $\epsilon$ και
+$p_m \in \{0.10,0.15,\dots,0.40\}$. Για τον DBSCAN εξετάστηκαν όλοι οι συνδυασμοί $\epsilon$ και
 $N_{\mathrm{pts}}$. Στον OPTICS το $N_{\mathrm{pts}}$ χρησιμοποιήθηκε
 ως \texttt{min\_samples}, ενώ η παράμετρος \texttt{xi}
-μεταβλήθηκε στο
-διάστημα $\texttt{xi} \in \{0.02,0.04,\dots,0.40\}$. Στον HDBSCAN εξετάστηκαν οι τιμές
+μεταβλήθηκε στοδιάστημα $\texttt{xi} \in \{0.02,0.04,\dots,0.40\}$. Στον HDBSCAN εξετάστηκαν οι τιμές
 $N_{\mathrm{pts}}$ για την \texttt{min\_cluster\_size}, η τιμή
 $\epsilon$ για την \texttt{cluster\_selection\_epsilon} και οι πολιτικές
 \texttt{eom} και \texttt{leaf}. Στην Agglomerative Hierarchical
-Clustering εξετάστηκαν η απόσταση κατωφλίου $\epsilon$ και οι μέθοδοι
-σύνδεσης \textit{average} και \textit{complete}.
-
-Για τις μεθόδους \textit{k-Means} και \textit{k-Medoids}, ο αριθμός
+Clustering εξετάστηκαν η απόσταση κατωφλίου $\epsilon$, με
+$p_e \in \{0.01,0.02,\dots,0.80\}$, και οι μέθοδοι σύνδεσης
+\textit{average} και \textit{complete}. Για τις μεθόδους \textit{k-Means} και \textit{k-Medoids}, ο αριθμός
 συστάδων μεταβλήθηκε στο διάστημα
 \[
 K=2,\dots,\min(10,N-1),

@@ -12,6 +12,7 @@ from matplotlib.lines import Line2D
 from plot_style import (
     apply_thesis_style,
     style_axis,
+    set_signed_symlog_damping_axis,
     save_pdf,
     CLUSTER_COLORS,
     ACCENT_RED,
@@ -59,7 +60,7 @@ GMM_DEFAULT_SETTINGS = {
 }
 
 AGGLOMERATIVE_DEFAULT_SETTINGS = {
-    "pe_values": [round(value, 3) for value in np.arange(0.01, 0.151, 0.005)],
+    "pe_values": [round(value, 2) for value in np.arange(0.01, 0.801, 0.01)],
     "linkages": ["average", "complete"],
     "metric": "euclidean",
 }
@@ -95,6 +96,23 @@ def _label_colors_with_noise(labels):
         else:
             colors.append(CLUSTER_COLORS[int(label) % len(CLUSTER_COLORS)])
     return colors
+
+
+def _representative_colors(labels):
+    """Return each non-noise cluster's plotting colour in label order."""
+    cluster_labels = sorted(int(label) for label in np.unique(labels) if int(label) >= 0)
+    return [CLUSTER_COLORS[label % len(CLUSTER_COLORS)] for label in cluster_labels]
+
+
+def _plot_cluster_representatives(ax, representatives, labels, label, size=REP_SIZE):
+    """Draw centres/medoids prominently above dense cluster points."""
+    if len(representatives) == 0:
+        return
+    ax.scatter(
+        representatives[:, 1], representatives[:, 0],
+        c=_representative_colors(labels), marker='X', s=1.65 * size,
+        edgecolors=ACCENT_RED, linewidths=1.45, zorder=8, label=label,
+    )
 
 
 def _apply_axis_style(ax, grid_alpha=GRID_ALPHA_MAIN):
@@ -142,12 +160,12 @@ def _cluster_legend_handles(k, representative_label=None):
             handles.append(
                 Line2D(
                     [0], [0],
-                    marker='x',
-                    color=ACCENT_RED,
+                    marker='X',
+                    color='black',
                     linestyle='None',
                     markeredgewidth=3,
                     markersize=11,
-                    label=representative_label,
+                    label=f"{representative_label} (cluster colours)",
                 )
             )
         return handles
@@ -168,12 +186,12 @@ def _cluster_legend_handles(k, representative_label=None):
         handles.append(
             Line2D(
                 [0], [0],
-                marker='x',
-                color=ACCENT_RED,
+                marker='X',
+                color='black',
                 linestyle='None',
                 markeredgewidth=3,
                 markersize=11,
-                label=representative_label,
+                label=f"{representative_label} (cluster colours)",
             )
         )
     return handles
@@ -288,7 +306,9 @@ def _set_modal_axis_limits(ax, df, reference_modes=None, representatives=None, i
     x_pad = max(0.015, 0.12 * damp_span)
     y_pad = max(0.05, 0.08 * freq_span)
 
-    x_min = damp_low - x_pad
+    full_damping_min = float(np.min(damping_values))
+    full_range_pad = max(0.05, 0.04 * abs(full_damping_min))
+    x_min = min(damp_low - x_pad, full_damping_min - full_range_pad)
     x_max = min(0.02, damp_high + (0.5 * x_pad))
     if x_max <= x_min:
         x_max = x_min + max(0.05, damp_span)
@@ -297,7 +317,9 @@ def _set_modal_axis_limits(ax, df, reference_modes=None, representatives=None, i
     if y_max <= y_min:
         y_max = y_min + max(0.2, freq_span)
 
-    ax.set_xlim(DAMPING_AXIS_LIMS[0], DAMPING_AXIS_LIMS[1])
+    # Preserve the sign of damping while showing all screened estimates and
+    # selected centers, including distant negative outliers.
+    set_signed_symlog_damping_axis(ax, x_min, 0.005)
     ax.set_ylim(y_min, y_max)
 
 
@@ -316,10 +338,7 @@ def _plot_selected_cluster_map(
         df['Damping'], df['Frequency'], c=point_colors,
         alpha=POINT_ALPHA, edgecolors='k', linewidths=0.8, s=POINT_SIZE
     )
-    ax.scatter(
-        representatives[:, 1], representatives[:, 0], c=ACCENT_RED, marker='x',
-        s=REP_SIZE, linewidths=4, label=representative_label
-    )
+    _plot_cluster_representatives(ax, representatives, labels, representative_label)
     _overlay_reference_modes(ax, reference_modes)
     ax.axvline(0, color=ACCENT_RED, linestyle='--', alpha=0.35, linewidth=2)
     ax.set_title(title, fontweight='bold')
@@ -1201,11 +1220,9 @@ def run_optics_modal_analysis(results_path, output_path, reference_modes=None, o
         c=point_colors, alpha=POINT_ALPHA,
         edgecolors='k', linewidths=0.8, s=POINT_SIZE
     )
-    if len(selected["representatives"]) > 0:
-        ax.scatter(
-            selected["representatives"][:, 1], selected["representatives"][:, 0],
-            c=ACCENT_RED, marker='x', s=REP_SIZE, linewidths=4, label='Cluster Means'
-        )
+    _plot_cluster_representatives(
+        ax, selected["representatives"], selected["labels"], 'Cluster Means'
+    )
     _overlay_reference_modes(ax, reference_modes)
     ax.axvline(0, color=ACCENT_RED, linestyle='--', alpha=0.35, linewidth=2)
     ax.set_xlabel("Damping (Sigma) [rad/s]")
@@ -1333,12 +1350,7 @@ def run_dbscan_modal_analysis(results_path, output_path, reference_modes=None, d
         c=point_colors, alpha=POINT_ALPHA,
         edgecolors='k', linewidths=0.8, s=POINT_SIZE
     )
-    if len(representatives) > 0:
-        ax.scatter(
-            representatives[:, 1], representatives[:, 0],
-            c=ACCENT_RED, marker='x',
-            s=REP_SIZE, linewidths=4, label='Cluster Means'
-        )
+    _plot_cluster_representatives(ax, representatives, labels, 'Cluster Means')
     _overlay_reference_modes(ax, reference_modes)
     ax.axvline(0, color=ACCENT_RED, linestyle='--', alpha=0.35, linewidth=2)
     ax.set_xlabel("Damping (Sigma) [rad/s]")
@@ -1414,6 +1426,14 @@ def _cluster_representatives(df, labels, extra=None):
         rows.append(row)
     values = np.asarray(representatives, dtype=float) if representatives else np.empty((0, 2), dtype=float)
     return values, rows
+
+
+def _format_cluster_centers(representatives):
+    """Return cluster centers as a compact ``(frequency, damping)`` CSV field."""
+    return "; ".join(
+        f"({frequency:.4f}, {damping:.4f})"
+        for frequency, damping in np.asarray(representatives, dtype=float)
+    )
 
 
 def _collect_paper_mad_assignments(df, labels, cluster_rows, reference_modes, collector):
@@ -1518,9 +1538,7 @@ def _save_selected_density_map(base_output, method, df, selected, reference_mode
     ax.scatter(df["Damping"], df["Frequency"], c=point_colors, alpha=POINT_ALPHA,
                edgecolors="k", linewidths=0.8, s=POINT_SIZE)
     representatives = selected["representatives"]
-    if len(representatives) > 0:
-        ax.scatter(representatives[:, 1], representatives[:, 0], c=ACCENT_RED, marker="x",
-                   s=REP_SIZE, linewidths=4, label="Cluster Means")
+    _plot_cluster_representatives(ax, representatives, selected["labels"], "Cluster Means")
     _overlay_reference_modes(ax, reference_modes)
     ax.axvline(0, color=ACCENT_RED, linestyle="--", alpha=0.35, linewidth=2)
     ax.set_xlabel("Damping (Sigma) [rad/s]")
@@ -1678,9 +1696,7 @@ def _save_fixed_cluster_map(base_output, method, df, labels, representatives, re
     color_fn = _label_colors_with_noise if include_noise else _label_colors
     ax.scatter(df["Damping"], df["Frequency"], c=color_fn(labels), alpha=POINT_ALPHA,
                edgecolors="k", linewidths=0.8, s=POINT_SIZE)
-    if len(representatives) > 0:
-        ax.scatter(representatives[:, 1], representatives[:, 0], c=ACCENT_RED, marker="x",
-                   s=REP_SIZE, linewidths=4, label="Cluster Means")
+    _plot_cluster_representatives(ax, representatives, labels, "Cluster Means")
     _overlay_reference_modes(ax, reference_modes)
     ax.axvline(0, color=ACCENT_RED, linestyle="--", alpha=0.35, linewidth=2)
     ax.set_xlabel("Damping (Sigma) [rad/s]")
@@ -1939,8 +1955,10 @@ def _run_partitioning_paper_tuning(results_path, output_path, method, reference_
         else:
             labels, _, _ = _pam_kmedoids(_pairwise_distances(X), n_clusters=k, random_state=42)
         metrics = _paper_silhouette_metrics(X, labels)
+        representatives, _ = _cluster_representatives(df, labels)
         metrics.update({
             "k": k,
+            "ClusterCenters": _format_cluster_centers(representatives),
             "Reference_V_Measure": _reference_v_measure(df, labels, reference_modes),
             "Reference_ARI": _reference_ari(df, labels, reference_modes),
         })
@@ -1992,8 +2010,10 @@ def run_optics_modal_analysis(results_path, output_path, reference_modes=None, o
         for xi in settings["xi_values"]:
             labels = OPTICS(min_samples=npts, cluster_method="xi", xi=xi).fit_predict(X)
             metrics = _paper_silhouette_metrics(X, labels)
+            representatives, _ = _cluster_representatives(df, labels)
             metrics.update({"Pm": pm, "MinSamples": npts, "Xi": xi, "Nsignals": n_signals, "NOrders": n_orders,
                             "MultiplyByOrders": settings["multiply_by_orders"],
+                            "ClusterCenters": _format_cluster_centers(representatives),
                             "Reference_V_Measure": _reference_v_measure(df, labels, reference_modes),
                             "Reference_ARI": _reference_ari(df, labels, reference_modes)})
             rows.append(metrics)
@@ -2033,8 +2053,10 @@ def run_dbscan_modal_analysis(results_path, output_path, reference_modes=None, d
             npts = _density_min_samples(pm, n_signals, n_orders, settings)
             labels = DBSCAN(eps=epsilon, min_samples=npts).fit_predict(X)
             metrics = _paper_silhouette_metrics(X, labels)
+            representatives, _ = _cluster_representatives(df, labels)
             metrics.update({"Pe": pe, "Pm": pm, "Epsilon": epsilon, "MinPts": npts, "MinSamples": npts,
                             "Nsignals": n_signals, "NOrders": n_orders, "MultiplyByOrders": settings["multiply_by_orders"],
+                            "ClusterCenters": _format_cluster_centers(representatives),
                             "Reference_V_Measure": _reference_v_measure(df, labels, reference_modes),
                             "Reference_ARI": _reference_ari(df, labels, reference_modes)})
             rows.append(metrics)
@@ -2076,9 +2098,11 @@ def run_hdbscan_modal_analysis(results_path, output_path, reference_modes=None, 
                                  cluster_selection_method=selection_method, metric="euclidean",
                                  allow_single_cluster=False, copy=True).fit_predict(X)
                 metrics = _paper_silhouette_metrics(X, labels)
+                representatives, _ = _cluster_representatives(df, labels)
                 metrics.update({"Pe": pe, "Pm": pm, "Epsilon": epsilon, "MinClusterSize": npts, "MinSamples": None,
                                 "ClusterSelectionMethod": selection_method, "Nsignals": n_signals, "NOrders": n_orders,
                                 "MultiplyByOrders": settings["multiply_by_orders"],
+                                "ClusterCenters": _format_cluster_centers(representatives),
                                 "Reference_V_Measure": _reference_v_measure(df, labels, reference_modes),
                                 "Reference_ARI": _reference_ari(df, labels, reference_modes)})
                 rows.append(metrics)
@@ -2086,7 +2110,7 @@ def run_hdbscan_modal_analysis(results_path, output_path, reference_modes=None, 
     metrics_df = pd.DataFrame(rows)
     selected_idx = _select_max_silhouette(metrics_df) if not metrics_df.empty else None
     if metrics_df.empty:
-        metrics_df = pd.DataFrame(columns=["Pe", "Pm", "Epsilon", "MinClusterSize", "MinSamples", "ClusterSelectionMethod", "Silhouette", "ValidSilhouette"])
+        metrics_df = pd.DataFrame(columns=["Pe", "Pm", "Epsilon", "MinClusterSize", "MinSamples", "ClusterSelectionMethod", "ClusterCenters", "Silhouette", "ValidSilhouette"])
     metrics_df["Selected"] = metrics_df.index == selected_idx if selected_idx is not None else False
     metrics_df["SelectionReason"] = "max_silhouette" if selected_idx is not None else "no_valid_silhouette_candidate"
     metrics_df.to_csv(os.path.join(base_output, "hdbscan_metrics_summary.csv"), index=False)
@@ -2115,8 +2139,10 @@ def run_gmm_modal_analysis(results_path, output_path, reference_modes=None, gmm_
                                 n_init=10, init_params="k-means++", random_state=42, max_iter=100)
         labels = model.fit_predict(X)
         metrics = _paper_silhouette_metrics(X, labels)
+        representatives, _ = _cluster_representatives(df, labels)
         metrics.update({"SelectedK": k, "CovarianceType": "full", "InitParams": "k-means++", "NInit": 10,
                         "RegCovar": 1e-4, "BIC": float(model.bic(X)), "AIC": float(model.aic(X)),
+                        "ClusterCenters": _format_cluster_centers(representatives),
                         "Reference_V_Measure": _reference_v_measure(df, labels, reference_modes),
                         "Reference_ARI": _reference_ari(df, labels, reference_modes)})
         rows.append(metrics)
@@ -2148,7 +2174,9 @@ def run_agglomerative_modal_analysis(results_path, output_path, reference_modes=
         for linkage in settings["linkages"]:
             labels = AgglomerativeClustering(n_clusters=None, distance_threshold=epsilon, metric="euclidean", linkage=linkage).fit_predict(X)
             metrics = _paper_silhouette_metrics(X, labels)
+            representatives, _ = _cluster_representatives(df, labels)
             metrics.update({"Pe": pe, "Epsilon": epsilon, "Linkage": linkage, "Metric": "euclidean",
+                            "ClusterCenters": _format_cluster_centers(representatives),
                             "Reference_V_Measure": _reference_v_measure(df, labels, reference_modes),
                             "Reference_ARI": _reference_ari(df, labels, reference_modes)})
             rows.append(metrics)

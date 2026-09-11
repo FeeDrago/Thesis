@@ -73,7 +73,7 @@ def main():
             sweep_config.get("gmm_settings", analysis_config.get("gmm_settings", {})),
             AMBIENT_DEFAULT_GMM_SETTINGS,
         )
-        base_agglomerative_settings = _extend_settings(
+        base_agglomerative_settings = _refresh_pe_grid_settings(
             sweep_config.get("agglomerative_settings", analysis_config.get("agglomerative_settings", {})),
             AMBIENT_DEFAULT_AGGLOMERATIVE_SETTINGS,
         )
@@ -160,7 +160,7 @@ def main():
     analysis_config["gmm_settings"] = _extend_settings(
         analysis_config.get("gmm_settings", {}), AMBIENT_DEFAULT_GMM_SETTINGS
     )
-    analysis_config["agglomerative_settings"] = _extend_settings(
+    analysis_config["agglomerative_settings"] = _refresh_pe_grid_settings(
         analysis_config.get("agglomerative_settings", {}), AMBIENT_DEFAULT_AGGLOMERATIVE_SETTINGS
     )
     analysis_config["paper_mad"] = dict(AMBIENT_PAPER_MAD_SETTINGS)
@@ -176,6 +176,14 @@ def _extend_pm_settings(settings, defaults):
         | {float(value) for value in (settings or {}).get("pm_values", [])}
     )
     merged["render_all_parameter_maps"] = False
+    return merged
+
+
+def _refresh_pe_grid_settings(settings, defaults):
+    """Retain AHC options while replacing stale saved threshold grids."""
+    merged = dict(defaults)
+    merged.update(dict(settings or {}))
+    merged["pe_values"] = list(defaults["pe_values"])
     return merged
 
 
