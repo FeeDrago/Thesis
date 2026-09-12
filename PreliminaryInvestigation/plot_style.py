@@ -98,6 +98,11 @@ def save_pdf(fig_or_plt, path, tight=True):
     cluster labels in an individual legend.
     """
     save_kwargs = {"format": "pdf", "metadata": PDF_METADATA}
-    if tight:
-        save_kwargs["bbox_inches"] = "tight"
+    # Explicitly override the global ``savefig.bbox`` setting.  Otherwise the
+    # thesis style's default tight crop changes the physical PDF size even for
+    # figures that require a fixed canvas.
+    # Passing ``None`` defers to ``rcParams['savefig.bbox']`` (currently
+    # ``tight``).  Use the figure's declared bounding box explicitly for
+    # selected maps so their PDF media boxes are truly identical.
+    save_kwargs["bbox_inches"] = "tight" if tight else fig_or_plt.bbox_inches
     fig_or_plt.savefig(path, **save_kwargs)

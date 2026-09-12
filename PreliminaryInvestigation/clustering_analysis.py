@@ -82,6 +82,9 @@ REFERENCE_MODES = {
     "Intra-area 2": {"Frequency": 1.119, "Damping": -0.631},
 }
 MAX_FULL_CLUSTER_LEGEND = 12
+NOISE_COLOR = "#9e9e9e"
+SILHOUETTE_FILTER_THRESHOLD = 0.25
+SILHOUETTE_FILTER_METHODS = {"k-means", "k-medoids", "gmm", "agglomerative"}
 
 
 def _label_colors(labels):
@@ -92,7 +95,7 @@ def _label_colors_with_noise(labels):
     colors = []
     for label in labels:
         if int(label) < 0:
-            colors.append("#9e9e9e")
+            colors.append(NOISE_COLOR)
         else:
             colors.append(CLUSTER_COLORS[int(label) % len(CLUSTER_COLORS)])
     return colors
@@ -220,7 +223,7 @@ def _noise_point_handle():
             [0], [0],
             marker='o',
             color='w',
-            markerfacecolor="#9e9e9e",
+            markerfacecolor=NOISE_COLOR,
             markeredgecolor='k',
             markersize=10,
             label="Noise points",
@@ -456,8 +459,9 @@ def _load_screened_data(results_path, output_path):
 
 def _assign_reference_modes(df, reference_modes=None):
     """
-    Assign each MP estimate to the nearest reference eigenvalue and compute
-    the 2D distance used in Eq. (26)-style MAD evaluation.
+    Assign each MP estimate to the nearest reference eigenvalue in the
+    complex-pole plane ``(sigma, omega)`` and compute that same distance for
+    MAD evaluation.
     """
     df = df.copy()
     if reference_modes is None:
@@ -465,11 +469,14 @@ def _assign_reference_modes(df, reference_modes=None):
 
     reference_names = list(reference_modes.keys())
     reference_points = np.array([
-        [reference_modes[name]["Frequency"], reference_modes[name]["Damping"]]
+        [reference_modes[name]["Damping"], 2.0 * np.pi * reference_modes[name]["Frequency"]]
         for name in reference_names
     ], dtype=float)
 
-    X = df[["Frequency", "Damping"]].to_numpy(dtype=float)
+    X = np.column_stack([
+        df["Damping"].to_numpy(dtype=float),
+        2.0 * np.pi * df["Frequency"].to_numpy(dtype=float),
+    ])
     diffs = X[:, None, :] - reference_points[None, :, :]
     distances = np.sqrt(np.sum(diffs ** 2, axis=2))
     best_idx = np.argmin(distances, axis=1)
@@ -1489,6 +1496,20 @@ def _collect_paper_mad_assignments(df, labels, cluster_rows, reference_modes, co
     )
 
 
+def _silhouette_filtered_point_handle():
+    return [
+        Line2D(
+            [0], [0],
+            marker='o',
+            color='w',
+            markerfacecolor=NOISE_COLOR,
+            markeredgecolor='k',
+            markersize=10,
+            label="Points Excluded by silhouette filter",
+        )
+    ]
+
+
 def _silhouette_for_cluster_labels(X_scaled, labels, min_assigned_ratio):
     assigned_mask = labels >= 0
     assigned_count = int(np.sum(assigned_mask))
@@ -1688,12 +1709,17 @@ def _reference_component_count(reference_modes, sample_count):
     return max(1, min(int(sample_count), reference_count or 1))
 
 
-def _save_fixed_cluster_map(base_output, method, df, labels, representatives, reference_modes, title, include_noise=False):
+def _save_fixed_cluster_map(
+    base_output, method, df, labels, representatives, reference_modes, title,
+    include_noise=False, silhouette_filtered=False,
+):
     # Every final map uses exactly the same canvas, plotting rectangle and
     # legend slot.  This is intentional: different cluster counts must change
     # only the legend contents, not the physical size of the exported figure.
     fig, ax = plt.subplots(figsize=(11.5, 8.8))
-    color_fn = _label_colors_with_noise if include_noise else _label_colors
+    # Filtered partitioning labels are also -1, so they must use the same
+    # grey as native density-method noise points.
+    color_fn = _label_colors_with_noise if np.any(np.asarray(labels) < 0) else _label_colors
     ax.scatter(df["Damping"], df["Frequency"], c=color_fn(labels), alpha=POINT_ALPHA,
                edgecolors="k", linewidths=0.8, s=POINT_SIZE)
     _plot_cluster_representatives(ax, representatives, labels, "Cluster Means")
@@ -1702,7 +1728,9 @@ def _save_fixed_cluster_map(base_output, method, df, labels, representatives, re
     ax.set_xlabel("Damping (Sigma) [rad/s]")
     ax.set_ylabel("Frequency [Hz]")
     ax.set_title(title, fontweight="bold")
-    handles = _noise_point_handle() if include_noise and np.any(np.asarray(labels) < 0) else []
+    handles = _silhouette_filtered_point_handle() if silhouette_filtered else []
+    if include_noise and np.any(np.asarray(labels) < 0):
+        handles += _noise_point_handle()
     n_clusters = len(representatives)
     if n_clusters:
         handles += _cluster_legend_handles(n_clusters, representative_label="Cluster Means")
@@ -1713,9 +1741,11 @@ def _save_fixed_cluster_map(base_output, method, df, labels, representatives, re
             loc="lower center",
             bbox_to_anchor=(0.5, 0.025),
             ncol=4,
+            fontsize=10,
         )
     _set_modal_axis_limits(ax, df, reference_modes=reference_modes, representatives=representatives)
     _apply_axis_style(ax)
+    # Fixed plotting rectangle and legend slot for every selected map.
     fig.subplots_adjust(left=0.11, right=0.97, top=0.88, bottom=0.30)
     _save_figure(
         fig,
@@ -1902,6 +1932,41 @@ def _paper_silhouette_metrics(X, labels):
     }
 
 
+def _cluster_silhouette_scores(X, labels):
+    """Return mean point-wise silhouette scores keyed by non-noise label."""
+    labels = np.asarray(labels, dtype=int)
+    assigned_mask = labels >= 0
+    assigned_labels = labels[assigned_mask]
+    if len(np.unique(assigned_labels)) < 2 or int(np.sum(assigned_mask)) <= len(np.unique(assigned_labels)):
+        return {}
+
+    values = silhouette_samples(X[assigned_mask], assigned_labels)
+    return {
+        int(label): float(np.mean(values[assigned_labels == label]))
+        for label in np.unique(assigned_labels)
+    }
+
+
+def _filter_low_silhouette_clusters(X, labels, method):
+    """Mark weak partitioning clusters as excluded and renumber retained ones."""
+    labels = np.asarray(labels, dtype=int)
+    original_labels = sorted(int(label) for label in np.unique(labels) if int(label) >= 0)
+    scores = _cluster_silhouette_scores(X, labels)
+    applies = method.lower() in SILHOUETTE_FILTER_METHODS and bool(scores)
+    retained_labels = [
+        label for label in original_labels
+        if not applies or scores.get(label, np.nan) >= SILHOUETTE_FILTER_THRESHOLD
+    ]
+
+    filtered = np.full_like(labels, -1)
+    for new_label, old_label in enumerate(retained_labels):
+        filtered[labels == old_label] = new_label
+
+    excluded_labels = [label for label in original_labels if label not in retained_labels]
+    excluded_count = int(np.sum(np.isin(labels, excluded_labels)))
+    return filtered, scores, retained_labels, excluded_labels, excluded_count, applies
+
+
 def _select_max_silhouette(metrics_df):
     valid = metrics_df[metrics_df["ValidSilhouette"].astype(bool)].copy()
     if valid.empty:
@@ -1929,13 +1994,57 @@ def _paper_density_settings(defaults, overrides=None, include_xi=False):
 
 
 def _save_paper_selection(base_output, method, df, labels, reference_modes, title, collector=None):
-    representatives, cluster_rows = _cluster_representatives(df, labels)
-    pd.DataFrame(cluster_rows).to_csv(os.path.join(base_output, "cluster_representatives_sizes.csv"), index=False)
-    _collect_paper_mad_assignments(df, labels, cluster_rows, reference_modes, collector)
-    _save_fixed_cluster_map(
-        base_output, method, df, labels, representatives, reference_modes, title,
-        include_noise=bool(np.any(np.asarray(labels) < 0)),
+    X = _paper_pole_coordinates(df)
+    filtered_labels, silhouette_scores, retained_labels, excluded_labels, excluded_count, filter_applied = (
+        _filter_low_silhouette_clusters(X, labels, method)
     )
+
+    original_representatives, audit_rows = _cluster_representatives(df, labels)
+    label_to_final_cluster = {label: index + 1 for index, label in enumerate(retained_labels)}
+    for row in audit_rows:
+        original_label = int(row["Cluster"]) - 1
+        row["MeanSilhouette"] = silhouette_scores.get(original_label, np.nan)
+        row["RetainedBySilhouette"] = original_label in label_to_final_cluster
+        row["FinalCluster"] = label_to_final_cluster.get(original_label, np.nan)
+
+    representatives, cluster_rows = _cluster_representatives(df, filtered_labels)
+    pd.DataFrame(audit_rows).to_csv(os.path.join(base_output, "cluster_representatives_sizes.csv"), index=False)
+    _collect_paper_mad_assignments(df, filtered_labels, cluster_rows, reference_modes, collector)
+    final_metrics = _paper_silhouette_metrics(X, filtered_labels)
+    final_metrics["Reference_V_Measure"] = _reference_v_measure(df, filtered_labels, reference_modes)
+    final_metrics["Reference_ARI"] = _reference_ari(df, filtered_labels, reference_modes)
+    final_metrics["SilhouetteFilteredClusters"] = int(len(excluded_labels))
+    final_metrics["SilhouetteFilteredPoints"] = excluded_count
+    final_metrics["SilhouetteFilterApplied"] = filter_applied
+    _save_fixed_cluster_map(
+        base_output, method, df, filtered_labels, representatives, reference_modes, title,
+        include_noise=bool(np.any(np.asarray(labels) < 0)),
+        silhouette_filtered=bool(filter_applied and excluded_count),
+    )
+    return final_metrics
+
+
+def _update_selected_final_metrics(base_output, metrics_filename, final_metrics):
+    """Replace selected-row evaluation fields with post-filter results.
+
+    ``SelectionSilhouette`` preserves the pre-filter value used to select the
+    hyperparameters. ``Silhouette`` is the final score computed only from
+    labels retained in the reported clustering.
+    """
+    metrics_path = os.path.join(base_output, metrics_filename)
+    metrics_df = pd.read_csv(metrics_path)
+    selected_mask = metrics_df["Selected"].astype(str).str.lower().eq("true")
+    if "SelectionSilhouette" not in metrics_df.columns:
+        metrics_df["SelectionSilhouette"] = np.nan
+    metrics_df.loc[selected_mask, "SelectionSilhouette"] = metrics_df.loc[selected_mask, "Silhouette"]
+    for column in (
+        "Clusters", "NoisePoints", "AssignedPoints", "AssignedRatio", "Silhouette",
+        "ValidSilhouette", "Eligible",
+        "Reference_V_Measure", "Reference_ARI", "SilhouetteFilteredClusters",
+        "SilhouetteFilteredPoints", "SilhouetteFilterApplied",
+    ):
+        metrics_df.loc[selected_mask, column] = final_metrics[column]
+    metrics_df.to_csv(metrics_path, index=False)
 
 
 def _run_partitioning_paper_tuning(results_path, output_path, method, reference_modes=None, paper_mad_collector=None):
@@ -1976,11 +2085,12 @@ def _run_partitioning_paper_tuning(results_path, output_path, method, reference_
     selected = metrics_df.loc[selected_idx]
     labels = stored[int(selected["k"])]
     display_name = "k-Means" if method == "kmeans" else "k-Medoids"
-    _save_paper_selection(
+    final_metrics = _save_paper_selection(
         base_output, display_name, df, labels, reference_modes,
         f"Selected {display_name} Cluster Map ($k={int(selected['k'])}$)\nSilhouette: {selected['Silhouette']:.3f}",
         paper_mad_collector,
     )
+    _update_selected_final_metrics(base_output, f"{method}_metrics_summary.csv", final_metrics)
     return {"k": int(selected["k"]), "silhouette": float(selected["Silhouette"]), "selection_reason": "max_silhouette"}
 
 
@@ -2030,8 +2140,9 @@ def run_optics_modal_analysis(results_path, output_path, reference_modes=None, o
         return None
     selected = metrics_df.loc[selected_idx]
     labels = stored[(float(selected["Pm"]), float(selected["Xi"]))]
-    _save_paper_selection(base_output, "OPTICS", df, labels, reference_modes,
-                          f"Selected OPTICS Cluster Map ($min\\_samples={int(selected['MinSamples'])}$, xi={selected['Xi']:.2f})\nSilhouette: {selected['Silhouette']:.3f}", paper_mad_collector)
+    final_metrics = _save_paper_selection(base_output, "OPTICS", df, labels, reference_modes,
+                                          f"Selected OPTICS Cluster Map ($min\\_samples={int(selected['MinSamples'])}$, xi={selected['Xi']:.2f})\nSilhouette: {selected['Silhouette']:.3f}", paper_mad_collector)
+    _update_selected_final_metrics(base_output, "optics_metrics_summary.csv", final_metrics)
     return {"pm": float(selected["Pm"]), "min_samples": int(selected["MinSamples"]), "xi": float(selected["Xi"]),
             "silhouette": float(selected["Silhouette"]), "selection_reason": "max_silhouette"}
 
@@ -2070,8 +2181,9 @@ def run_dbscan_modal_analysis(results_path, output_path, reference_modes=None, d
         return None
     selected = metrics_df.loc[selected_idx]
     labels = stored[(float(selected["Pe"]), float(selected["Pm"]))]
-    _save_paper_selection(base_output, "DBSCAN", df, labels, reference_modes,
-                          f"Selected DBSCAN Cluster Map ($\\epsilon={selected['Epsilon']:.3f}$, $N_{{pts}}={int(selected['MinPts'])}$)\nSilhouette: {selected['Silhouette']:.3f}", paper_mad_collector)
+    final_metrics = _save_paper_selection(base_output, "DBSCAN", df, labels, reference_modes,
+                                          f"Selected DBSCAN Cluster Map ($\\epsilon={selected['Epsilon']:.3f}$, $N_{{pts}}={int(selected['MinPts'])}$)\nSilhouette: {selected['Silhouette']:.3f}", paper_mad_collector)
+    _update_selected_final_metrics(base_output, "dbscan_metrics_summary.csv", final_metrics)
     return {"pe": float(selected["Pe"]), "pm": float(selected["Pm"]), "epsilon": float(selected["Epsilon"]),
             "min_pts": int(selected["MinPts"]), "silhouette": float(selected["Silhouette"]), "selection_reason": "max_silhouette"}
 
@@ -2118,8 +2230,9 @@ def run_hdbscan_modal_analysis(results_path, output_path, reference_modes=None, 
         return None
     selected = metrics_df.loc[selected_idx]
     labels = stored[(float(selected["Pe"]), float(selected["Pm"]), selected["ClusterSelectionMethod"])]
-    _save_paper_selection(base_output, "HDBSCAN", df, labels, reference_modes,
-                          f"Selected HDBSCAN Cluster Map ($min\\_cluster\\_size={int(selected['MinClusterSize'])}$, $\\epsilon={selected['Epsilon']:.3f}$, {selected['ClusterSelectionMethod']})\nSilhouette: {selected['Silhouette']:.3f}", paper_mad_collector)
+    final_metrics = _save_paper_selection(base_output, "HDBSCAN", df, labels, reference_modes,
+                                          f"Selected HDBSCAN Cluster Map ($min\\_cluster\\_size={int(selected['MinClusterSize'])}$, $\\epsilon={selected['Epsilon']:.3f}$, {selected['ClusterSelectionMethod']})\nSilhouette: {selected['Silhouette']:.3f}", paper_mad_collector)
+    _update_selected_final_metrics(base_output, "hdbscan_metrics_summary.csv", final_metrics)
     return {"pe": float(selected["Pe"]), "pm": float(selected["Pm"]), "epsilon": float(selected["Epsilon"]),
             "min_cluster_size": int(selected["MinClusterSize"]), "cluster_selection_method": selected["ClusterSelectionMethod"],
             "silhouette": float(selected["Silhouette"]), "selection_reason": "max_silhouette"}
@@ -2154,8 +2267,9 @@ def run_gmm_modal_analysis(results_path, output_path, reference_modes=None, gmm_
     metrics_df.to_csv(os.path.join(base_output, "gmm_metrics_summary.csv"), index=False)
     selected = metrics_df.loc[selected_idx]
     labels = stored[int(selected["SelectedK"])]
-    _save_paper_selection(base_output, "GMM", df, labels, reference_modes,
-                          f"Selected Gaussian Mixture Cluster Map ($k={int(selected['SelectedK'])}$, BIC={selected['BIC']:.2f})", paper_mad_collector)
+    final_metrics = _save_paper_selection(base_output, "GMM", df, labels, reference_modes,
+                                          f"Selected Gaussian Mixture Cluster Map ($k={int(selected['SelectedK'])}$, BIC={selected['BIC']:.2f})", paper_mad_collector)
+    _update_selected_final_metrics(base_output, "gmm_metrics_summary.csv", final_metrics)
     return {"k": int(selected["SelectedK"]), "bic": float(selected["BIC"]), "selection_reason": "min_bic"}
 
 
@@ -2178,7 +2292,8 @@ def run_agglomerative_modal_analysis(results_path, output_path, reference_modes=
             metrics.update({"Pe": pe, "Epsilon": epsilon, "Linkage": linkage, "Metric": "euclidean",
                             "ClusterCenters": _format_cluster_centers(representatives),
                             "Reference_V_Measure": _reference_v_measure(df, labels, reference_modes),
-                            "Reference_ARI": _reference_ari(df, labels, reference_modes)})
+                            "Reference_ARI": _reference_ari(df, labels, reference_modes),
+                            })
             rows.append(metrics)
             stored[(pe, linkage)] = labels
     metrics_df = pd.DataFrame(rows)
@@ -2190,8 +2305,9 @@ def run_agglomerative_modal_analysis(results_path, output_path, reference_modes=
         return None
     selected = metrics_df.loc[selected_idx]
     labels = stored[(float(selected["Pe"]), selected["Linkage"])]
-    _save_paper_selection(base_output, "Agglomerative", df, labels, reference_modes,
-                          f"Selected Agglomerative Cluster Map ($\\epsilon={selected['Epsilon']:.3f}$, {selected['Linkage']} linkage)\nSilhouette: {selected['Silhouette']:.3f}", paper_mad_collector)
+    final_metrics = _save_paper_selection(base_output, "Agglomerative", df, labels, reference_modes,
+                                          f"Selected Agglomerative Cluster Map ($\\epsilon={selected['Epsilon']:.3f}$, {selected['Linkage']} linkage)\nSilhouette: {selected['Silhouette']:.3f}", paper_mad_collector)
+    _update_selected_final_metrics(base_output, "agglomerative_metrics_summary.csv", final_metrics)
     return {"pe": float(selected["Pe"]), "epsilon": float(selected["Epsilon"]), "linkage": selected["Linkage"],
             "silhouette": float(selected["Silhouette"]), "selection_reason": "max_silhouette"}
 
