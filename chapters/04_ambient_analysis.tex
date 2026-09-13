@@ -1,0 +1,17 @@
+\chapter{AMBIENT ΑΝΑΛΥΣΗ ΣΤΟ ΣΥΣΤΗΜΑ IEEE 39-BUS}
+\label{chap:ambient-analysis}
+
+% Το standalone ambient report διατηρείται ως πηγή. Εδώ η ιεραρχία του
+% μετατοπίζεται κατά μία βαθμίδα ώστε να αποτελεί μέρος του Κεφαλαίου 4.
+\begingroup
+\newcommand{\ambientfigurepath}{IEEE39/analysis/}
+\let\ambientsection\section
+\let\ambientsubsection\subsection
+\renewcommand{\chapter}[1]{\ambientsection{#1}}
+\renewcommand{\section}[1]{\ambientsubsection{#1}}
+\renewcommand{\subsection}[1]{\subsubsection{#1}}
+\input{IEEE39/ambient_report/chapters/01_introduction.tex}
+\input{IEEE39/ambient_report/chapters/02_data_methodology.tex}
+\input{IEEE39/ambient_report/chapters/03_results.tex}
+\input{IEEE39/ambient_report/chapters/04_conclusions.tex}
+\endgroup
