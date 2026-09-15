@@ -10,10 +10,11 @@ from sklearn.preprocessing import StandardScaler
 import kmedoids
 from matplotlib.lines import Line2D
 from plot_style import (
+    save_figure_pair, ringdown_plot_style, using_ringdown_style, set_report_modal_axes,
+    REPORT_FIGSIZE, REPORT_MARGINS, REPORT_LEGEND,
     apply_thesis_style,
     style_axis,
     set_signed_symlog_damping_axis,
-    save_pdf,
     CLUSTER_COLORS,
     ACCENT_RED,
     LINE_BLUE,
@@ -129,16 +130,7 @@ def _save_figure(fig, base_output, filename, fixed_canvas=False):
     a variable-length legend from changing the PDF bounding box, which makes
     otherwise comparable maps render at different sizes in LaTeX.
     """
-    save_pdf(
-        fig,
-        os.path.join(base_output, "pdf", f"{filename}.pdf"),
-        tight=not fixed_canvas,
-    )
-    fig.savefig(
-        os.path.join(base_output, "png", f"{filename}.png"),
-        dpi=300,
-        bbox_inches=None if fixed_canvas else "tight",
-    )
+    save_figure_pair(fig, base_output, filename, fixed_canvas=fixed_canvas)
 
 
 def _prepare_output_dirs(base_output):
@@ -250,11 +242,19 @@ def _overlay_reference_modes(ax, reference_modes):
         linewidths=2.2,
         zorder=6,
     )
+    placed = []
     for name, damping, freq in zip(ref_names, ref_damping, ref_freq):
+        y_offset = 6
+        if using_ringdown_style():
+            close_offsets = [offset for sigma, frequency, offset in placed
+                             if abs(sigma - damping) < 0.12 and abs(frequency - freq) < 0.09]
+            if close_offsets:
+                y_offset = max(close_offsets) + 16
+        placed.append((damping, freq, y_offset))
         ax.annotate(
             name,
             (damping, freq),
-            xytext=(8, 6),
+            xytext=(8, y_offset),
             textcoords='offset points',
             fontsize=12,
             fontweight='semibold',
@@ -271,6 +271,10 @@ def _quantile_bounds(values, lower_q=0.02, upper_q=0.98):
 
 
 def _set_modal_axis_limits(ax, df, reference_modes=None, representatives=None, include_all_points=False):
+    ax._report_kind = "modal"
+    if using_ringdown_style():
+        set_report_modal_axes(ax)
+        return
     damping_values = list(df["Damping"].to_numpy(dtype=float))
     freq_values = list(df["Frequency"].to_numpy(dtype=float))
 
@@ -647,7 +651,12 @@ def _save_metrics_summary(base_output, metrics_rows, filename):
     pd.DataFrame(metrics_rows).to_csv(os.path.join(base_output, filename), index=False)
 
 
-def run_kmeans_modal_analysis(results_path, output_path, reference_modes=None, paper_mad_collector=None):
+def _render_kmeans_diagnostics(results_path, output_path, reference_modes=None):
+    """Refresh all historical plot filenames used by the ringdown chapter.
+
+    These StandardScaler/elbow diagnostics are separate from the paper-style
+    final selection and deliberately do not write metrics or MAD tables.
+    """
     base_output = os.path.join(output_path, "kmeans")
     _prepare_output_dirs(base_output)
 
@@ -693,10 +702,7 @@ def run_kmeans_modal_analysis(results_path, output_path, reference_modes=None, p
             df['Damping'], df['Frequency'], c=point_colors,
             alpha=POINT_ALPHA, edgecolors='k', linewidths=0.8, s=POINT_SIZE
         )
-        ax.scatter(
-            centers[:, 1], centers[:, 0], c=ACCENT_RED, marker='x',
-            s=REP_SIZE, linewidths=4, label='Centroids'
-        )
+        _plot_cluster_representatives(ax, centers, labels, 'Centroids')
         _overlay_reference_modes(ax, reference_modes)
 
         ax.axvline(0, color=ACCENT_RED, linestyle='--', alpha=0.35, linewidth=2)
@@ -759,9 +765,9 @@ def run_kmeans_modal_analysis(results_path, output_path, reference_modes=None, p
         labels, centers, inertia = stored_results[k]
 
         point_colors = _label_colors(labels)
-        ax.scatter(df['Damping'], df['Frequency'], c=point_colors, alpha=POINT_ALPHA, s=GRID_POINT_SIZE,
-                   edgecolors='k', linewidths=0.5)
-        ax.scatter(centers[:, 1], centers[:, 0], c=ACCENT_RED, marker='x', s=REP_GRID_SIZE, linewidths=3)
+        ax.scatter(df['Damping'], df['Frequency'], c=point_colors, alpha=POINT_ALPHA, s=POINT_SIZE,
+                   edgecolors='k', linewidths=0.8)
+        _plot_cluster_representatives(ax, centers, labels, 'Centroids')
         _overlay_reference_modes(ax, reference_modes)
 
         ax.axvline(0, color=ACCENT_RED, linestyle='--', alpha=0.35, linewidth=2)
@@ -844,14 +850,10 @@ def run_kmeans_modal_analysis(results_path, output_path, reference_modes=None, p
     _save_figure(fig, base_output, "elbow_selected_kmeans")
     plt.close(fig)
 
-    metrics_df["k_selected_by_max_chord"] = metrics_df["k"] == k_opt
-    metrics_df.to_csv(os.path.join(base_output, "kmeans_metrics_summary.csv"), index=False)
-    pd.DataFrame(cluster_stats).to_csv(os.path.join(base_output, "cluster_centers_sizes.csv"), index=False)
-    _, selected_cluster_rows = _cluster_representatives(df, labels_opt)
-    _collect_paper_mad_assignments(df, labels_opt, selected_cluster_rows, reference_modes, paper_mad_collector)
 
 
-def run_kmedoids_modal_analysis(results_path, output_path, reference_modes=None, paper_mad_collector=None):
+def _render_kmedoids_diagnostics(results_path, output_path, reference_modes=None):
+    """Render the original elbow diagnostics without overwriting final metrics."""
     base_output = os.path.join(output_path, "kmedoids")
     _prepare_output_dirs(base_output)
 
@@ -899,11 +901,7 @@ def run_kmedoids_modal_analysis(results_path, output_path, reference_modes=None,
             c=point_colors, alpha=POINT_ALPHA,
             edgecolors='k', linewidths=0.8, s=POINT_SIZE
         )
-        ax.scatter(
-            medoids[:, 1], medoids[:, 0],
-            c=ACCENT_RED, marker='x',
-            s=REP_SIZE, linewidths=4, label='Medoids'
-        )
+        _plot_cluster_representatives(ax, medoids, labels, 'Medoids')
         _overlay_reference_modes(ax, reference_modes)
 
         ax.axvline(0, color=ACCENT_RED, linestyle='--', alpha=0.35, linewidth=2)
@@ -966,9 +964,9 @@ def run_kmedoids_modal_analysis(results_path, output_path, reference_modes=None,
         labels, medoids, cost = stored_results[k]
 
         point_colors = _label_colors(labels)
-        ax.scatter(df['Damping'], df['Frequency'], c=point_colors, alpha=POINT_ALPHA, s=GRID_POINT_SIZE,
-                   edgecolors='k', linewidths=0.5)
-        ax.scatter(medoids[:, 1], medoids[:, 0], c=ACCENT_RED, marker='x', s=REP_GRID_SIZE, linewidths=3)
+        ax.scatter(df['Damping'], df['Frequency'], c=point_colors, alpha=POINT_ALPHA, s=POINT_SIZE,
+                   edgecolors='k', linewidths=0.8)
+        _plot_cluster_representatives(ax, medoids, labels, 'Medoids')
         _overlay_reference_modes(ax, reference_modes)
 
         ax.axvline(0, color=ACCENT_RED, linestyle='--', alpha=0.35, linewidth=2)
@@ -1056,11 +1054,6 @@ def run_kmedoids_modal_analysis(results_path, output_path, reference_modes=None,
     _save_figure(fig, base_output, "elbow_selected_kmedoids")
     plt.close(fig)
 
-    metrics_df["k_selected_by_max_chord"] = metrics_df["k"] == k_opt
-    metrics_df.to_csv(os.path.join(base_output, "kmedoids_metrics_summary.csv"), index=False)
-    pd.DataFrame(cluster_stats).to_csv(os.path.join(base_output, "cluster_medoids_sizes.csv"), index=False)
-    _, selected_cluster_rows = _cluster_representatives(df, labels_opt)
-    _collect_paper_mad_assignments(df, labels_opt, selected_cluster_rows, reference_modes, paper_mad_collector)
 
 
 def run_optics_modal_analysis(results_path, output_path, reference_modes=None, optics_settings=None):
@@ -1496,6 +1489,29 @@ def _collect_paper_mad_assignments(df, labels, cluster_rows, reference_modes, co
     )
 
 
+def _save_aggregated_paper_mad(output_dir, reference_modes, method_collectors):
+    """Write ambient-style MAD tables from the final cluster assignments."""
+    for method, assignments in method_collectors.items():
+        assignment_df = pd.DataFrame(assignments)
+        rows = []
+        for mode in reference_modes:
+            distances = (
+                assignment_df.loc[assignment_df["Mode"] == mode, "Distance_rad_s"]
+                if not assignment_df.empty else pd.Series(dtype=float)
+            )
+            rows.append({
+                "Mode": mode,
+                "Estimates": int(len(distances)),
+                "MAD": None if distances.empty else float(distances.median()),
+            })
+
+        mad_dir = os.path.join(output_dir, "mad", method)
+        os.makedirs(mad_dir, exist_ok=True)
+        pd.DataFrame(rows, columns=["Mode", "Estimates", "MAD"]).to_csv(
+            os.path.join(mad_dir, "mad.csv"), index=False
+        )
+
+
 def _silhouette_filtered_point_handle():
     return [
         Line2D(
@@ -1711,12 +1727,12 @@ def _reference_component_count(reference_modes, sample_count):
 
 def _save_fixed_cluster_map(
     base_output, method, df, labels, representatives, reference_modes, title,
-    include_noise=False, silhouette_filtered=False,
+    include_noise=False, silhouette_filtered=False, fixed_xlim=None, fixed_ylim=None,
 ):
     # Every final map uses exactly the same canvas, plotting rectangle and
     # legend slot.  This is intentional: different cluster counts must change
     # only the legend contents, not the physical size of the exported figure.
-    fig, ax = plt.subplots(figsize=(11.5, 8.8))
+    fig, ax = plt.subplots(figsize=REPORT_FIGSIZE)
     # Filtered partitioning labels are also -1, so they must use the same
     # grey as native density-method noise points.
     color_fn = _label_colors_with_noise if np.any(np.asarray(labels) < 0) else _label_colors
@@ -1738,15 +1754,16 @@ def _save_fixed_cluster_map(
     if handles:
         fig.legend(
             handles=handles,
-            loc="lower center",
-            bbox_to_anchor=(0.5, 0.025),
-            ncol=4,
-            fontsize=10,
+            **REPORT_LEGEND,
         )
     _set_modal_axis_limits(ax, df, reference_modes=reference_modes, representatives=representatives)
+    if fixed_xlim is not None:
+        ax.set_xlim(*fixed_xlim)
+    if fixed_ylim is not None:
+        ax.set_ylim(*fixed_ylim)
     _apply_axis_style(ax)
     # Fixed plotting rectangle and legend slot for every selected map.
-    fig.subplots_adjust(left=0.11, right=0.97, top=0.88, bottom=0.30)
+    fig.subplots_adjust(**REPORT_MARGINS)
     _save_figure(
         fig,
         base_output,
@@ -1947,12 +1964,12 @@ def _cluster_silhouette_scores(X, labels):
     }
 
 
-def _filter_low_silhouette_clusters(X, labels, method):
+def _filter_low_silhouette_clusters(X, labels, method, apply_filter=True):
     """Mark weak partitioning clusters as excluded and renumber retained ones."""
     labels = np.asarray(labels, dtype=int)
     original_labels = sorted(int(label) for label in np.unique(labels) if int(label) >= 0)
     scores = _cluster_silhouette_scores(X, labels)
-    applies = method.lower() in SILHOUETTE_FILTER_METHODS and bool(scores)
+    applies = apply_filter and method.lower() in SILHOUETTE_FILTER_METHODS and bool(scores)
     retained_labels = [
         label for label in original_labels
         if not applies or scores.get(label, np.nan) >= SILHOUETTE_FILTER_THRESHOLD
@@ -1993,10 +2010,13 @@ def _paper_density_settings(defaults, overrides=None, include_xi=False):
     return settings
 
 
-def _save_paper_selection(base_output, method, df, labels, reference_modes, title, collector=None):
+def _save_paper_selection(
+    base_output, method, df, labels, reference_modes, title, collector=None,
+    apply_silhouette_filter=True, fixed_xlim=None, fixed_ylim=None,
+):
     X = _paper_pole_coordinates(df)
     filtered_labels, silhouette_scores, retained_labels, excluded_labels, excluded_count, filter_applied = (
-        _filter_low_silhouette_clusters(X, labels, method)
+        _filter_low_silhouette_clusters(X, labels, method, apply_silhouette_filter)
     )
 
     original_representatives, audit_rows = _cluster_representatives(df, labels)
@@ -2020,6 +2040,8 @@ def _save_paper_selection(base_output, method, df, labels, reference_modes, titl
         base_output, method, df, filtered_labels, representatives, reference_modes, title,
         include_noise=bool(np.any(np.asarray(labels) < 0)),
         silhouette_filtered=bool(filter_applied and excluded_count),
+        fixed_xlim=fixed_xlim,
+        fixed_ylim=fixed_ylim,
     )
     return final_metrics
 
@@ -2047,7 +2069,10 @@ def _update_selected_final_metrics(base_output, metrics_filename, final_metrics)
     metrics_df.to_csv(metrics_path, index=False)
 
 
-def _run_partitioning_paper_tuning(results_path, output_path, method, reference_modes=None, paper_mad_collector=None):
+def _run_partitioning_paper_tuning(
+    results_path, output_path, method, reference_modes=None, paper_mad_collector=None,
+    apply_silhouette_filter=True, fixed_xlim=None, fixed_ylim=None,
+):
     base_output = os.path.join(output_path, method)
     _prepare_output_dirs(base_output)
     df = _load_screened_data(results_path, output_path)
@@ -2089,17 +2114,46 @@ def _run_partitioning_paper_tuning(results_path, output_path, method, reference_
         base_output, display_name, df, labels, reference_modes,
         f"Selected {display_name} Cluster Map ($k={int(selected['k'])}$)\nSilhouette: {selected['Silhouette']:.3f}",
         paper_mad_collector,
+        apply_silhouette_filter,
+        fixed_xlim,
+        fixed_ylim,
     )
     _update_selected_final_metrics(base_output, f"{method}_metrics_summary.csv", final_metrics)
     return {"k": int(selected["k"]), "silhouette": float(selected["Silhouette"]), "selection_reason": "max_silhouette"}
 
 
-def run_kmeans_modal_analysis(results_path, output_path, reference_modes=None, paper_mad_collector=None):
-    return _run_partitioning_paper_tuning(results_path, output_path, "kmeans", reference_modes, paper_mad_collector)
+def run_kmeans_modal_analysis(
+    results_path, output_path, reference_modes=None, paper_mad_collector=None,
+    apply_silhouette_filter=True, fixed_xlim=None, fixed_ylim=None,
+):
+    if not apply_silhouette_filter:
+        with ringdown_plot_style():
+            _render_kmeans_diagnostics(results_path, output_path, reference_modes)
+            return _run_partitioning_paper_tuning(
+                results_path, output_path, "kmeans", reference_modes, paper_mad_collector,
+                False,
+            )
+    return _run_partitioning_paper_tuning(
+        results_path, output_path, "kmeans", reference_modes, paper_mad_collector,
+        apply_silhouette_filter, fixed_xlim, fixed_ylim,
+    )
 
 
-def run_kmedoids_modal_analysis(results_path, output_path, reference_modes=None, paper_mad_collector=None):
-    return _run_partitioning_paper_tuning(results_path, output_path, "kmedoids", reference_modes, paper_mad_collector)
+def run_kmedoids_modal_analysis(
+    results_path, output_path, reference_modes=None, paper_mad_collector=None,
+    apply_silhouette_filter=True, fixed_xlim=None, fixed_ylim=None,
+):
+    if not apply_silhouette_filter:
+        with ringdown_plot_style():
+            _render_kmedoids_diagnostics(results_path, output_path, reference_modes)
+            return _run_partitioning_paper_tuning(
+                results_path, output_path, "kmedoids", reference_modes, paper_mad_collector,
+                False,
+            )
+    return _run_partitioning_paper_tuning(
+        results_path, output_path, "kmedoids", reference_modes, paper_mad_collector,
+        apply_silhouette_filter, fixed_xlim, fixed_ylim,
+    )
 
 
 def run_optics_modal_analysis(results_path, output_path, reference_modes=None, optics_settings=None, paper_mad_collector=None):
@@ -2312,7 +2366,10 @@ def run_agglomerative_modal_analysis(results_path, output_path, reference_modes=
             "silhouette": float(selected["Silhouette"]), "selection_reason": "max_silhouette"}
 
 
-def run_silhouette_analysis(results_path, output_path, reference_modes=None):
+def run_silhouette_analysis(results_path, output_path, reference_modes=None, ringdown_style=False):
+    if ringdown_style:
+        with ringdown_plot_style():
+            return run_silhouette_analysis(results_path, output_path, reference_modes)
     base_output = os.path.join(output_path, "silhouette")
     _prepare_output_dirs(base_output)
 
@@ -2424,10 +2481,7 @@ def run_silhouette_analysis(results_path, output_path, reference_modes=None):
             df['Damping'], df['Frequency'], c=point_colors,
             alpha=POINT_ALPHA, edgecolors='k', linewidths=0.8, s=POINT_SIZE
         )
-        ax2.scatter(
-            representatives[:, 1], representatives[:, 0], c=ACCENT_RED, marker='x',
-            s=REP_SIZE, linewidths=4, label=rep_label
-        )
+        _plot_cluster_representatives(ax2, representatives, labels, rep_label)
         _overlay_reference_modes(ax2, reference_modes)
         ax2.axvline(0, color=ACCENT_RED, linestyle='--', alpha=0.35, linewidth=2)
         ax2.set_title(
@@ -2468,10 +2522,16 @@ if __name__ == "__main__":
     res_path = os.path.join(base_dir, "results.csv")
     out_path = os.path.join(base_dir, "clustering")
 
-    df_for_mad = _load_screened_data(res_path, out_path)
-    if df_for_mad is not None:
-        _save_reference_mad_outputs(df_for_mad, base_dir)
-
-    run_kmeans_modal_analysis(res_path, out_path)
-    run_kmedoids_modal_analysis(res_path, out_path)
-    run_silhouette_analysis(res_path, out_path)
+    paper_mad_collectors = {"kmeans": [], "kmedoids": []}
+    run_kmeans_modal_analysis(
+        res_path, out_path, reference_modes=REFERENCE_MODES,
+        paper_mad_collector=paper_mad_collectors["kmeans"],
+        apply_silhouette_filter=False,
+    )
+    run_kmedoids_modal_analysis(
+        res_path, out_path, reference_modes=REFERENCE_MODES,
+        paper_mad_collector=paper_mad_collectors["kmedoids"],
+        apply_silhouette_filter=False,
+    )
+    _save_aggregated_paper_mad(base_dir, REFERENCE_MODES, paper_mad_collectors)
+    run_silhouette_analysis(res_path, out_path, reference_modes=REFERENCE_MODES, ringdown_style=True)

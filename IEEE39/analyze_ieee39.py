@@ -175,6 +175,7 @@ filter_signal = matrix_pencil.filter_signal
 prepare_matrix_pencil = matrix_pencil.prepare_matrix_pencil
 
 from plot_style import (
+    ringdown_plotting,
     apply_thesis_style,
     style_axis,
     set_signed_symlog_damping_axis,
@@ -806,10 +807,14 @@ def _build_analysis_config(
     }
 
 
-def _run_clustering_pipeline(results_path, output_path, reference_modes=None, methods=None, include_silhouette=True):
+@ringdown_plotting
+def _run_clustering_pipeline(
+    results_path, output_path, reference_modes=None, methods=None, include_silhouette=True,
+    paper_mad_collectors=None,
+):
     from clustering_analysis import (
         _load_screened_data,
-        _save_reference_mad_outputs,
+        _save_aggregated_paper_mad,
         run_kmeans_modal_analysis,
         run_kmedoids_modal_analysis,
         run_silhouette_analysis,
@@ -822,24 +827,33 @@ def _run_clustering_pipeline(results_path, output_path, reference_modes=None, me
     df_for_mad = _load_screened_data(str(results_path), str(output_path))
     screen_elapsed = time.perf_counter() - screen_start
 
-    reference_elapsed = 0.0
-    if df_for_mad is not None:
-        reference_start = time.perf_counter()
-        _save_reference_mad_outputs(df_for_mad, str(output_path), reference_modes=reference_modes)
-        reference_elapsed = time.perf_counter() - reference_start
-
     timings = {
         "screen_and_load": _timing_entry(screen_elapsed),
-        "reference_mad": _timing_entry(reference_elapsed, skipped=df_for_mad is None),
     }
     runners = {
         "kmeans": run_kmeans_modal_analysis,
         "kmedoids": run_kmedoids_modal_analysis,
     }
+    local_mad_collectors = (
+        paper_mad_collectors
+        if paper_mad_collectors is not None
+        else {method: [] for method in requested_methods}
+    )
     for method in requested_methods:
         method_start = time.perf_counter()
-        runners[method](str(results_path), str(output_path), reference_modes=reference_modes)
+        runners[method](
+            str(results_path),
+            str(output_path),
+            reference_modes=reference_modes,
+            paper_mad_collector=local_mad_collectors[method],
+            apply_silhouette_filter=False,
+        )
         timings[method] = _timing_entry(time.perf_counter() - method_start)
+
+    reference_start = time.perf_counter()
+    if paper_mad_collectors is None:
+        _save_aggregated_paper_mad(str(output_path), reference_modes, local_mad_collectors)
+    timings["reference_mad"] = _timing_entry(time.perf_counter() - reference_start)
 
     silhouette_skipped = True
     silhouette_elapsed = 0.0
@@ -1387,6 +1401,7 @@ def _generate_ieee39_best_reconstruction_plots(df_results, report, scenario, sta
         )
 
 
+@ringdown_plotting
 def generate_ieee39_plots(df_results, report, scenario):
     if df_results.empty:
         print("No Matrix Pencil results available; skipping IEEE39 plots.")
@@ -1864,6 +1879,7 @@ def run_clustering_for_scenario(output_dir, results_path, df_results, scenario):
     if clustering_config.get("by_control_area", True):
         area_root = output_dir / "clustering" / "by_control_area"
         area_timings = {}
+        area_mad_collectors = {"kmeans": [], "kmedoids": []}
         for area_name, gens in CONTROL_AREAS.items():
             area_out = area_root / area_name
             area_out.mkdir(parents=True, exist_ok=True)
@@ -1882,9 +1898,11 @@ def run_clustering_for_scenario(output_dir, results_path, df_results, scenario):
                 area_results_path,
                 area_out,
                 reference_modes=area_reference_modes,
+                paper_mad_collectors=area_mad_collectors,
             )
 
-        _save_ieee39_combined_reference_mad_summary(area_root, reference_modes)
+        from clustering_analysis import _save_aggregated_paper_mad
+        _save_aggregated_paper_mad(str(area_root), reference_modes, area_mad_collectors)
 
         timings["by_control_area"] = area_timings
 

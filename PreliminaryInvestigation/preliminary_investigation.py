@@ -10,8 +10,9 @@ from mp_plotter import generate_preliminary_report_plots
 import time
 from stats import generate_preliminary_report_stats
 from clustering_analysis import (
+    REFERENCE_MODES,
     _load_screened_data,
-    _save_reference_mad_outputs,
+    _save_aggregated_paper_mad,
     run_kmeans_modal_analysis,
     run_kmedoids_modal_analysis,
     run_silhouette_analysis,
@@ -238,22 +239,30 @@ clustering_start = time.perf_counter()
 screening_start = time.perf_counter()
 df_for_mad = _load_screened_data(res_path, out_path)
 screening_elapsed = time.perf_counter() - screening_start
-reference_mad_elapsed = 0.0
-if df_for_mad is not None:
-    reference_mad_start = time.perf_counter()
-    _save_reference_mad_outputs(df_for_mad, path)
-    reference_mad_elapsed = time.perf_counter() - reference_mad_start
-    
+paper_mad_collectors = {"kmeans": [], "kmedoids": []}
+
 kmeans_start = time.perf_counter()
-run_kmeans_modal_analysis(res_path, out_path)
+run_kmeans_modal_analysis(
+    res_path, out_path, reference_modes=REFERENCE_MODES,
+    paper_mad_collector=paper_mad_collectors["kmeans"],
+    apply_silhouette_filter=False,
+)
 kmeans_elapsed = time.perf_counter() - kmeans_start
 
 kmedoids_start = time.perf_counter()
-run_kmedoids_modal_analysis(res_path, out_path)
+run_kmedoids_modal_analysis(
+    res_path, out_path, reference_modes=REFERENCE_MODES,
+    paper_mad_collector=paper_mad_collectors["kmedoids"],
+    apply_silhouette_filter=False,
+)
 kmedoids_elapsed = time.perf_counter() - kmedoids_start
 
+reference_mad_start = time.perf_counter()
+_save_aggregated_paper_mad(path, REFERENCE_MODES, paper_mad_collectors)
+reference_mad_elapsed = time.perf_counter() - reference_mad_start
+
 silhouette_start = time.perf_counter()
-run_silhouette_analysis(res_path, out_path)
+run_silhouette_analysis(res_path, out_path, reference_modes=REFERENCE_MODES, ringdown_style=True)
 silhouette_elapsed = time.perf_counter() - silhouette_start
 clustering_elapsed = time.perf_counter() - clustering_start
 
@@ -273,7 +282,7 @@ analysis_config = _build_analysis_config(
         "clustering": _timing_entry(clustering_elapsed),
         "clustering_details": {
             "screen_and_load": _timing_entry(screening_elapsed),
-            "reference_mad": _timing_entry(reference_mad_elapsed, skipped=df_for_mad is None),
+            "reference_mad": _timing_entry(reference_mad_elapsed, skipped=False),
             "kmeans": _timing_entry(kmeans_elapsed),
             "kmedoids": _timing_entry(kmedoids_elapsed),
             "silhouette": _timing_entry(silhouette_elapsed),

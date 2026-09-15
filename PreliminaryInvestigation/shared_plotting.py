@@ -7,7 +7,10 @@ import pandas as pd
 from matplotlib.ticker import FuncFormatter
 from matplotlib.ticker import FixedLocator
 
-from plot_style import save_pdf, style_axis, SIGNAL_COLORS
+from plot_style import (
+    style_axis, SIGNAL_COLORS, save_figure_pair,
+    using_ringdown_style, set_report_modal_axes, POINT_SIZE, POINT_ALPHA,
+)
 
 
 MODAL_X_LABEL = "Damping (Sigma) [rad/s]"
@@ -51,10 +54,10 @@ def _overlay_reference_modes(ax, reference_modes, annotate=True):
         ref_damping,
         ref_freq,
         marker="D",
-        s=120,
+        s=150 if using_ringdown_style() else 120,
         facecolors="white",
         edgecolors="black",
-        linewidths=1.8,
+        linewidths=2.2 if using_ringdown_style() else 1.8,
         zorder=6,
     )
     if annotate:
@@ -101,14 +104,7 @@ def signal_axis_label(signal):
 
 
 def save_current_figure(path_base, filename, fig=None):
-    fig = fig or plt
-    path_base = Path(path_base)
-    png_dir = path_base / "png"
-    pdf_dir = path_base / "pdf"
-    png_dir.mkdir(parents=True, exist_ok=True)
-    pdf_dir.mkdir(parents=True, exist_ok=True)
-    save_pdf(fig, pdf_dir / f"{filename}.pdf")
-    fig.savefig(png_dir / f"{filename}.png", dpi=300, bbox_inches="tight")
+    save_figure_pair(fig or plt, path_base, filename)
 
 
 def create_adaptive_grid(fig, item_count, ncols=2, sharex=False, sharey=False, span_last=True):
@@ -155,6 +151,10 @@ def _set_modal_axis_view(
     allow_log_scales=True,
     force_symlog_x=False,
 ):
+    ax._report_kind = "modal"
+    if using_ringdown_style():
+        set_report_modal_axes(ax)
+        return
     damping_values = np.asarray(damping_values, dtype=float)
     frequency_values = np.asarray(frequency_values, dtype=float)
     damping_values = damping_values[np.isfinite(damping_values)]
@@ -239,7 +239,7 @@ def _dominant_frequency_guides(frequency_values, max_guides=4):
 
 
 def _add_frequency_guides(ax, frequency_guides):
-    if not frequency_guides:
+    if using_ringdown_style() or not frequency_guides:
         return
 
     for guide in frequency_guides:
@@ -267,6 +267,8 @@ def _apply_frequency_guide_ticks(ax, frequency_guides):
 
 
 def _annotate_zero_reference(ax, fontsize=11):
+    if using_ringdown_style():
+        return
     x_min, x_max = ax.get_xlim()
     y_min, y_max = ax.get_ylim()
     if not (x_min <= 0.0 <= x_max):
@@ -301,6 +303,9 @@ def _apply_modal_axes(
     frequency_guides=None,
     frequency_guides_as_y_ticks=False,
 ):
+    if using_ringdown_style():
+        set_report_modal_axes(ax)
+        return
     _set_modal_axis_view(
         ax,
         damping_values,
@@ -334,9 +339,9 @@ def plot_modal_signal_grid(df_results, gen, signals, output_dir, filename, title
             signal_data["Damping"],
             signal_data["Frequency"],
             color=colors[signal],
-            alpha=0.6,
+            alpha=POINT_ALPHA if using_ringdown_style() else 0.6,
             edgecolors="k",
-            s=50,
+            s=POINT_SIZE if using_ringdown_style() else 50,
         )
         ax.axvline(0, color="red", linestyle="--", alpha=0.5)
         ax.set_title(signal, fontweight="semibold")
@@ -391,10 +396,10 @@ def plot_modal_generator_grid(
                 signal_data["Frequency"],
                 label=signal,
                 c=colors[signal],
-                alpha=0.7,
-                edgecolors="white",
-                linewidths=0.45,
-                s=42,
+                alpha=POINT_ALPHA if using_ringdown_style() else 0.7,
+                edgecolors="k" if using_ringdown_style() else "white",
+                linewidths=0.8 if using_ringdown_style() else 0.45,
+                s=POINT_SIZE if using_ringdown_style() else 42,
                 zorder=3,
             )
         _overlay_reference_modes(ax, gen_reference_modes, annotate=annotate_reference_modes)
@@ -539,10 +544,10 @@ def _plot_modal_combined_map(
             signal_data["Frequency"],
             label=signal,
             c=colors[signal],
-            alpha=0.5,
-            edgecolors="white",
-            linewidths=0.45,
-            s=46,
+            alpha=POINT_ALPHA if using_ringdown_style() else 0.5,
+            edgecolors="k" if using_ringdown_style() else "white",
+            linewidths=0.8 if using_ringdown_style() else 0.45,
+            s=POINT_SIZE if using_ringdown_style() else 46,
             zorder=3,
         )
 
@@ -687,6 +692,7 @@ def plot_reconstruction_method_grid(
             ]
 
         for ax, method, show_ylabel in axis_method_pairs:
+            ax._report_kind = "reconstruction"
             ax.set_xlim(*x_lims)
             ax.tick_params(axis="both", labelsize=RECON_TICK_LABEL_SIZE)
             modes = fetch_modes(method)
@@ -700,8 +706,8 @@ def plot_reconstruction_method_grid(
             r2 = float("nan") if total == 0 else 1.0 - float(((y_ref - y_est) ** 2).sum()) / total
 
             ax.plot(t, y_ref, color="black", alpha=0.3, linewidth=2, label="Original (Filtered)")
-            ax.plot(t, y_est, "--", color="red", linewidth=1.5, label=f"MP Estimate ($R^2$={r2:.4f})")
-            ax.set_title(f"Method: {method} (RMSE: {rmse:.2e})", fontweight="semibold")
+            ax.plot(t, y_est, "--", color="red", linewidth=1.5, label="MP Estimate")
+            ax.set_title(f"Method: {method}\nRMSE: {rmse:.2e} | $R^2$: {r2:.4f}", fontweight="semibold")
             ax.legend(loc="upper right")
             ax.grid(True, linestyle=":", alpha=0.75, linewidth=1.3, color="gray")
             if show_ylabel:
@@ -720,6 +726,7 @@ def plot_best_reconstruction_grid(items, output_dir, filename, title, x_lims=REC
     fig.suptitle(title, fontweight="bold", y=0.99)
 
     for idx, (ax, item) in enumerate(zip(axes, items)):
+        ax._report_kind = "reconstruction"
         ax.set_xlim(*x_lims)
         ax.tick_params(axis="both", labelsize=RECON_TICK_LABEL_SIZE)
         if item.get("empty"):
@@ -776,6 +783,8 @@ def plot_bubble_map(df_results, output_dir, filename, source_builder=None, min_h
     )
     plt.colorbar().set_label(r"Damping ($\sigma$)")
     plt.title("Modal Frequency/Damping/Energy Map", fontweight="bold")
+    plt.gca()._report_kind = "bubble"
+    plt.xlabel("Frequency [Hz]")
     style_axis(plt.gca())
     save_current_figure(output_dir, filename, fig)
     plt.close(fig)

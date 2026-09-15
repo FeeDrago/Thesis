@@ -8,8 +8,9 @@ from scipy.signal import detrend
 from sklearn.metrics import r2_score, mean_squared_error
 from matrix_pencil import filter_signal
 from matplotlib.ticker import MaxNLocator
-from plot_style import apply_thesis_style, save_pdf, style_axis
+from plot_style import apply_thesis_style, style_axis
 from shared_plotting import plot_best_reconstruction_grid, plot_bubble_map
+from plot_style import ringdown_plotting, save_figure_pair, CLUSTER_COLORS, SIGNAL_COLORS
 
 
 apply_thesis_style()
@@ -19,6 +20,7 @@ RECON_TICK_LABEL_SIZE = 30
 RECON_AXIS_LABEL_SIZE = 34
 
 
+@ringdown_plotting
 def generate_preliminary_report_stats(path, preprocessed_signals=None):
     # Path configuration
     stats_path = os.path.join(path, "stats")
@@ -36,6 +38,7 @@ def generate_preliminary_report_stats(path, preprocessed_signals=None):
     df['Gen'] = df['Gen_ID'].map(gen_id_map)
 
     method_order = ['Order 2', 'Order 4', 'Order 6', 'Tau 1', 'Tau 0.1', 'Tau 0.01']
+    method_colors = dict(zip(method_order, CLUSTER_COLORS))
     signals_map = {
         'Voltage': 's:ut in p.u.',
         'Current': 's:cur1 in p.u.',
@@ -96,28 +99,27 @@ def generate_preliminary_report_stats(path, preprocessed_signals=None):
     plt.title("Pole Density Heatmap", fontweight='bold')
     plt.ylabel("Generator")
     style_axis(plt.gca())
-    save_pdf(plt, os.path.join(pdf_path, "1_heatmap.pdf"))
-    plt.savefig(os.path.join(png_path, "1_heatmap.png"), dpi=300, bbox_inches='tight')
+    save_figure_pair(plt, stats_path, "1_heatmap")
     plt.close()
 
    # 2. Modes per signal grid
     g1 = sns.catplot(data=df, kind="count", x="Signal", hue="Method", hue_order=method_order, 
-                    col="Gen", col_wrap=2, palette="muted", height=5, aspect=1.2, edgecolor="0.2", legend_out=True)
+                    col="Gen", col_wrap=2, palette=method_colors, height=5, aspect=1.2, edgecolor="0.2", legend_out=True)
     g1.fig.suptitle("Mode Count by Signal Type", fontweight='bold', y=1.05)
     g1.set_titles("{col_name}")
     g1.set_axis_labels("Signal Type", "Mode Count")
+    g1.set_xticklabels([name.replace(" ", "\n") for name in signals_map])
 
     for ax in g1.axes.flat:
         ax.yaxis.set_major_locator(MaxNLocator(integer=True))
         style_axis(ax)
         
-    save_pdf(plt, os.path.join(pdf_path, "2_bar_grid_signal.pdf"))
-    plt.savefig(os.path.join(png_path, "2_bar_grid_signal.png"), dpi=300, bbox_inches='tight')
+    save_figure_pair(g1.fig, stats_path, "2_bar_grid_signal")
     plt.close()
 
     # 3. Modes per method grid
     g2 = sns.catplot(data=df, kind="count", x="Method", order=method_order, hue="Signal", 
-                    col="Gen", col_wrap=2, palette="muted", height=5, aspect=1.2, edgecolor="0.2", legend_out=True)
+                    col="Gen", col_wrap=2, palette=SIGNAL_COLORS, height=5, aspect=1.2, edgecolor="0.2", legend_out=True)
     g2.fig.suptitle("Mode Count by Method", fontweight='bold', y=1.05)
     g2.set_titles("{col_name}")
     g2.set_axis_labels("Method", "Mode Count")
@@ -128,8 +130,7 @@ def generate_preliminary_report_stats(path, preprocessed_signals=None):
         ax.tick_params(axis='x', rotation=30)
         style_axis(ax)
         
-    save_pdf(plt, os.path.join(pdf_path, "3_bar_grid_method.pdf"))
-    plt.savefig(os.path.join(png_path, "3_bar_grid_method.png"), dpi=300, bbox_inches='tight')
+    save_figure_pair(g2.fig, stats_path, "3_bar_grid_method")
     plt.close()
 
     # 4. 3D projection
@@ -142,11 +143,12 @@ def generate_preliminary_report_stats(path, preprocessed_signals=None):
     dz = df_3d['Count'].values
     ax.bar3d(x_p, y_p, np.zeros(len(df_3d)), 0.5, 0.5, dz, color=plt.cm.viridis(dz/dz.max()))
     ax.set_xticks(np.arange(len(gens_u)) + 0.25)
-    ax.set_xticklabels(gens_u)
+    ax.set_xticklabels([f"G{index + 1}" for index in range(len(gens_u))])
     ax.set_yticks(np.arange(len(sigs_u)) + 0.25)
-    ax.set_yticklabels(sigs_u)
-    save_pdf(plt, os.path.join(pdf_path, "4_3D_overview.pdf"))
-    plt.savefig(os.path.join(png_path, "4_3D_overview.png"), dpi=300, bbox_inches='tight')
+    ax.set_yticklabels([name.replace(" ", "\n") for name in sigs_u])
+    ax.set_zlabel("Pole count")
+    ax.zaxis.set_major_locator(MaxNLocator(integer=True))
+    save_figure_pair(fig, stats_path, "4_3D_overview")
     plt.close()
 
     # 5. Modal bubble map
@@ -154,36 +156,33 @@ def generate_preliminary_report_stats(path, preprocessed_signals=None):
 
     # 6. R2 boxplot
     plt.figure(figsize=(12, 7))
-    sns.boxplot(data=df_m, x="Method", y="R2", hue="Method", order=method_order, palette="Set2", legend=False)
+    sns.boxplot(data=df_m, x="Method", y="R2", hue="Method", order=method_order, palette=method_colors, legend=False)
     plt.title("Method Reliability ($R^2$)", fontweight='bold')
     plt.ylabel("$R^2$ Accuracy Score")
     style_axis(plt.gca())
     if df_m['R2'].min() < 0.5: plt.ylim(0.0, 1.05)
     else: plt.ylim(df_m['R2'].min()*0.98, 1.02)
-    save_pdf(plt, os.path.join(pdf_path, "6_R2_boxplot.pdf"))
-    plt.savefig(os.path.join(png_path, "6_R2_boxplot.png"), dpi=300, bbox_inches='tight')
+    save_figure_pair(plt, stats_path, "6_R2_boxplot")
     plt.close()
 
     # 7. Pareto chart
     plt.figure(figsize=(11, 7))
-    sns.scatterplot(data=df_m, x="Poles", y="R2", hue="Method", style="Gen", s=150)
+    sns.scatterplot(data=df_m, x="Poles", y="R2", hue="Method", style="Gen", s=90, palette=method_colors)
     plt.title("Accuracy vs Complexity", fontweight='bold')
     plt.ylabel("$R^2$ Score")
     style_axis(plt.gca())
     plt.legend(bbox_to_anchor=(1.02, 1), loc='upper left')
-    save_pdf(plt, os.path.join(pdf_path, "7_pareto.pdf"))
-    plt.savefig(os.path.join(png_path, "7_pareto.png"), dpi=300, bbox_inches='tight')
+    save_figure_pair(plt, stats_path, "7_pareto")
     plt.close()
 
     # 8. Method ranking
     best_m = df_m.loc[df_m.groupby(['Gen', 'Signal'])['R2'].idxmax()]
     plt.figure(figsize=(10, 6))
-    sns.countplot(data=best_m, x="Method", hue="Method", order=method_order, palette="viridis", legend=False)
+    sns.countplot(data=best_m, x="Method", hue="Method", order=method_order, palette=method_colors, legend=False)
     plt.title("Best Method Ranking (Max $R^2$)", fontweight='bold')
     plt.ylabel("Frequency")
     style_axis(plt.gca())
-    save_pdf(plt, os.path.join(pdf_path, "8_ranking.pdf"))
-    plt.savefig(os.path.join(png_path, "8_ranking.png"), dpi=300, bbox_inches='tight')
+    save_figure_pair(plt, stats_path, "8_ranking")
     plt.close()
 
     # 9. Best Reconstruction 4x4 Grid
@@ -212,6 +211,7 @@ def generate_preliminary_report_stats(path, preprocessed_signals=None):
 
         for j, sig_l in enumerate(sigs):
             ax = axes[i, j]
+            ax._report_kind = "reconstruction"
             ax.set_xlim(*RECON_X_LIMS)
             ax.tick_params(axis='both', labelsize=RECON_TICK_LABEL_SIZE)
             col = signals_map[sig_l]
@@ -255,8 +255,7 @@ def generate_preliminary_report_stats(path, preprocessed_signals=None):
             ax.set_ylabel(labels_map.get(sig_l, ""), fontsize=RECON_AXIS_LABEL_SIZE)
             if i == 0 and j == 3: ax.legend(loc='upper right')
     fig.subplots_adjust(left=0.07, right=0.98, bottom=0.07, top=0.92, wspace=0.22, hspace=0.42)
-    save_pdf(plt, os.path.join(pdf_path, "9_best_reconstruction_grid.pdf"))
-    plt.savefig(os.path.join(png_path, "9_best_reconstruction_grid.png"), dpi=300, bbox_inches='tight')
+    save_figure_pair(fig, stats_path, "9_best_reconstruction_grid")
     plt.close()
 
     # 10. Best Reconstruction 2x2 per Generator

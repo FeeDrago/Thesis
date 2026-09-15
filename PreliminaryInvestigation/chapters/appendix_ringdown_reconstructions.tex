@@ -1,0 +1,43 @@
+\chapter{Πλήρεις ανακατασκευές σημάτων Ringdown}
+\label{app:ringdown-reconstructions}
+
+Το παρόν παράρτημα περιλαμβάνει το πλήρες σύνολο των διαγραμμάτων
+ανακατασκευής που προέκυψαν από την εφαρμογή της μεθόδου Matrix Pencil.
+Για κάθε γεννήτρια παρουσιάζονται τα τέσσερα διαθέσιμα σήματα: τάση
+($V$), ρεύμα ($I$), ενεργός ισχύς ($P$) και άεργος ισχύς ($Q$). Κάθε
+διάγραμμα περιλαμβάνει τις εξεταζόμενες προσεγγίσεις και επιτρέπει την
+άμεση σύγκριση του αρχικού φιλτραρισμένου σήματος με την αντίστοιχη
+ανακατασκευή.
+
+\newcommand{\ringdownreconstructionfigure}[5]{%
+\begin{figure}[p]
+    \centering
+    \includegraphics[width=0.94\textwidth,height=0.80\textheight,keepaspectratio]{#1#2}
+    \caption{Ανακατασκευή σήματος #3 για τη γεννήτρια $G_{#4}$ του #5.}
+\end{figure}%
+}
+
+\section{Kundur Two-Area System}
+
+Τα ακόλουθα σχήματα παρουσιάζουν τις ανακατασκευές για όλες τις
+γεννήτριες του συστήματος Kundur Two-Area.
+
+\foreach \gen in {1,2,3,4}{%
+    \ringdownreconstructionfigure{PreliminaryInvestigation/plots/reconstruction_grids/pdf/}{g\gen\string_Active\string_Power\string_Reconstruction.pdf}{ενεργού ισχύος ($P$)}{\gen}{\textit{Kundur Two-Area System}}%
+    \ringdownreconstructionfigure{PreliminaryInvestigation/plots/reconstruction_grids/pdf/}{g\gen\string_Current\string_Reconstruction.pdf}{ρεύματος ($I$)}{\gen}{\textit{Kundur Two-Area System}}%
+    \ringdownreconstructionfigure{PreliminaryInvestigation/plots/reconstruction_grids/pdf/}{g\gen\string_Reactive\string_Power\string_Reconstruction.pdf}{αέργου ισχύος ($Q$)}{\gen}{\textit{Kundur Two-Area System}}%
+    \ringdownreconstructionfigure{PreliminaryInvestigation/plots/reconstruction_grids/pdf/}{g\gen\string_Voltage\string_Reconstruction.pdf}{τάσης ($V$)}{\gen}{\textit{Kundur Two-Area System}}%
+}
+
+\clearpage
+\section{IEEE 39-Bus System}
+
+Τα ακόλουθα σχήματα παρουσιάζουν τις ανακατασκευές για όλες τις
+γεννήτριες του συστήματος IEEE 39-bus.
+
+\foreach \gen in {1,2,3,4,5,6,7,8,9,10}{%
+    \ringdownreconstructionfigure{IEEE39/analysis/Load03_Pplus2_50s_0.2_to_end_reset/plots/reconstruction_grids/pdf/}{g\gen\string_Active\string_Power\string_reconstruction.pdf}{ενεργού ισχύος ($P$)}{\gen}{\textit{IEEE 39-Bus System}}%
+    \ringdownreconstructionfigure{IEEE39/analysis/Load03_Pplus2_50s_0.2_to_end_reset/plots/reconstruction_grids/pdf/}{g\gen\string_Current\string_reconstruction.pdf}{ρεύματος ($I$)}{\gen}{\textit{IEEE 39-Bus System}}%
+    \ringdownreconstructionfigure{IEEE39/analysis/Load03_Pplus2_50s_0.2_to_end_reset/plots/reconstruction_grids/pdf/}{g\gen\string_Reactive\string_Power\string_reconstruction.pdf}{αέργου ισχύος ($Q$)}{\gen}{\textit{IEEE 39-Bus System}}%
+    \ringdownreconstructionfigure{IEEE39/analysis/Load03_Pplus2_50s_0.2_to_end_reset/plots/reconstruction_grids/pdf/}{g\gen\string_Voltage\string_reconstruction.pdf}{τάσης ($V$)}{\gen}{\textit{IEEE 39-Bus System}}%
+}

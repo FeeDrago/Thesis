@@ -4,7 +4,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.signal import detrend
 from matrix_pencil import filter_signal
-from plot_style import apply_thesis_style, save_pdf, style_axis, SIGNAL_COLORS
+from plot_style import apply_thesis_style, style_axis, SIGNAL_COLORS
 from shared_plotting import (
     generator_modal_label,
     plot_modal_combined_map,
@@ -12,6 +12,7 @@ from shared_plotting import (
     plot_modal_generator_grid,
     plot_reconstruction_method_grid,
 )
+from plot_style import ringdown_plotting, save_figure_pair, set_report_modal_axes, POINT_ALPHA, POINT_SIZE
 
 apply_thesis_style()
 
@@ -19,6 +20,14 @@ RECON_X_LIMS = (0, 50)
 RECON_TICK_LABEL_SIZE = 30
 RECON_AXIS_LABEL_SIZE = 34
 
+# Viewport defaults for other callers; ringdown exports use plot_style's
+# common ambient-based axis limits and locators for all modal panels.
+MODAL_MAP_X_LIMS = (-1.0, 0.02)
+MODAL_MAP_Y_LIMS = (0.0, 2.05)
+MODAL_GRID_Y_LIMS = (0.0, 1.60)
+MODAL_MAP_X_TICKS = [-1.0, -0.75, -0.5, -0.25, 0.0]
+
+@ringdown_plotting
 def generate_preliminary_report_plots(df_results, output_path, csv_path, generators, columns, preprocessed_signals=None):
     colors = SIGNAL_COLORS.copy()
     
@@ -39,18 +48,24 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
             data = df_results[(df_results['Gen'] == gen) & (df_results['Signal'] == signal)]
             if data.empty: continue
             
-            plt.figure(figsize=(8, 5))
-            plt.scatter(data['Damping'], data['Frequency'], color=colors[signal], label=signal, alpha=0.6, edgecolors='k')
-            plt.axvline(0, color='red', linestyle='--', alpha=0.5)
-            plt.title(f"Modal Analysis: Generator {gen.upper()} - {signal}")
-            plt.xlabel("Damping (Sigma) [rad/s]")
-            plt.ylabel("Frequency [Hz]")
-            style_axis(plt.gca())
+            fig, ax = plt.subplots(figsize=(10, 6))
+            ax.scatter(data['Damping'], data['Frequency'], color=colors[signal], label=signal,
+                       alpha=POINT_ALPHA, s=POINT_SIZE, linewidths=0.8, edgecolors='k')
+            ax.axvline(0, color='red', linestyle='--', alpha=0.5)
+            ax.set_title(f"Modal Analysis: Generator {gen.upper()} - {signal}")
+            ax.set_xlabel("Damping (Sigma) [rad/s]")
+            ax.set_ylabel("Frequency [Hz]")
+            ax.set_xlim(*MODAL_MAP_X_LIMS)
+            ax.set_ylim(*MODAL_MAP_Y_LIMS)
+            ax.set_xticks(MODAL_MAP_X_TICKS)
+            set_report_modal_axes(ax)
+            style_axis(ax)
+            fig.legend(loc="lower center", bbox_to_anchor=(0.5, 0.015), ncol=1)
+            fig.subplots_adjust(left=0.12, right=0.97, top=0.88, bottom=0.22)
             
             fname = f"{gen}_{signal.replace(' ', '_')}"
-            save_pdf(plt, os.path.join(modal_maps_path, "pdf", f"{fname}.pdf"))
-            plt.savefig(os.path.join(modal_maps_path, "png", f"{fname}.png"), dpi=300, bbox_inches='tight')
-            plt.close()
+            save_figure_pair(fig, modal_maps_path, fname)
+            plt.close(fig)
 
     # Combined plot per generator
     for gen in generators:
@@ -67,6 +82,10 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
             gen=gen,
             colors=colors,
             figsize=(10, 6),
+            fixed_xlim=MODAL_MAP_X_LIMS,
+            fixed_ylim=MODAL_MAP_Y_LIMS,
+            show_zero_line=True,
+            fixed_xticks=MODAL_MAP_X_TICKS,
         )
 
     # Adaptive per-generator signal grids
@@ -93,6 +112,11 @@ def generate_preliminary_report_plots(df_results, output_path, csv_path, generat
         filename="All_Generators_Grid",
         title="System-Wide Modal Identification (All Generators)",
         colors=colors,
+        clamp_positive_max=False,
+        fixed_xlim=MODAL_MAP_X_LIMS,
+        fixed_ylim=MODAL_GRID_Y_LIMS,
+        show_zero_line=True,
+        fixed_xticks=MODAL_MAP_X_TICKS,
     )
 
     # 2. SIGNAL RECONSTRUCTION PLOTS 
