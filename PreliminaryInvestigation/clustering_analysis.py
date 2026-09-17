@@ -2360,7 +2360,9 @@ def run_agglomerative_modal_analysis(results_path, output_path, reference_modes=
     selected = metrics_df.loc[selected_idx]
     labels = stored[(float(selected["Pe"]), selected["Linkage"])]
     final_metrics = _save_paper_selection(base_output, "Agglomerative", df, labels, reference_modes,
-                                          f"Selected Agglomerative Cluster Map ($\\epsilon={selected['Epsilon']:.3f}$, {selected['Linkage']} linkage)\nSilhouette: {selected['Silhouette']:.3f}", paper_mad_collector)
+                                          f"Selected Agglomerative Cluster Map\n"
+                                          f"($\\epsilon={selected['Epsilon']:.3f}$, {selected['Linkage']} linkage) — "
+                                          f"Silhouette: {selected['Silhouette']:.3f}", paper_mad_collector)
     _update_selected_final_metrics(base_output, "agglomerative_metrics_summary.csv", final_metrics)
     return {"pe": float(selected["Pe"]), "epsilon": float(selected["Epsilon"]), "linkage": selected["Linkage"],
             "silhouette": float(selected["Silhouette"]), "selection_reason": "max_silhouette"}

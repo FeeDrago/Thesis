@@ -106,7 +106,7 @@ f_i = \frac{\omega_i}{2\pi}
         \item Prediction Error Method (PEM) στηρίζεται σε παραμετρικά στατιστικά μοντέλα (ARX, ARMAX) και στη βελτιστοποίηση των σφαλμάτων πρόβλεψης.
     \end{itemize}
 
-    \item \textbf{Μέθοδοι Πεδίου Συχνότητας (Frequency-Domain Methods)} επεξεργάζονται το φάσμα συχνοτήτων των σημάτων (μέσω του μετασχηματισμού Fourier) ή τις μετρούμενες συναρτήσεις μεταφοράς και απόκρισης συχνότητας (Frequency Response Functions $-$ FRFs). Οι συγκεκριμένοι μέθοδοι χαρακτηρίζονται για την την ικανότητά τους να χειρίζονται συστήματα ευρέος φάσματος συχνοτήτων. Βρίσκοντας εφαρμογή σε μοντελοποίηση γραμμών μεταφοράς, καλωδίων και μετασχηματιστών.
+    \item \textbf{Μέθοδοι Πεδίου Συχνότητας (Frequency-Domain Methods)} επεξεργάζονται το φάσμα συχνοτήτων των σημάτων (μέσω του μετασχηματισμού Fourier) ή τις μετρούμενες συναρτήσεις μεταφοράς και απόκρισης συχνότητας (Frequency Response Functions $-$ FRFs). Οι συγκεκριμένοι μέθοδοι χαρακτηρίζονται για την ικανότητά τους να χειρίζονται συστήματα ευρέος φάσματος συχνοτήτων, βρίσκοντας εφαρμογή σε μοντελοποίηση γραμμών μεταφοράς, καλωδίων και μετασχηματιστών.
 
     \begin{itemize}
         \item Vector Fitting είναι ένας επαναληπτικός αλγόριθμος που προσαρμόζει ρητές συναρτήσεις (rational functions) σε δεδομένα απόκρισης συχνότητας, αντικαθιστώντας σταδιακά τους πόλους του συστήματος έως ότου επιτευχθεί η επιθυμητή σύγκλιση. \cite{gustavsen1999vectorfitting}
@@ -176,7 +176,7 @@ J=\sum_{j=1}^{k}\sum_{x_i\in C_j} d(x_i,m_j),
 \end{equation}
 όπου $m_j\in C_j$ είναι το medoid της $j$-οστής συστάδας και $d(\cdot,\cdot)$ η επιλεγμένη μετρική απόστασης, όπως η Ευκλείδεια ή η Manhattan.
 
-\subsection{ΑΓΟΡΙΘΜΟΣ DBSCAN}
+\subsection{ΑΛΓΟΡΙΘΜΟΣ DBSCAN}
 
 Ο αλγόριθμος DBSCAN είναι μια μέθοδος συσταδοποίησης που εντοπίζει συστάδες ως περιοχές υψηλής πυκνότητας σημείων που χωρίζονται από περιοχές χαμηλής πυκνότητας. Βασίζεται σε δύο θεμελιώδεις παραμέτρους:
 
@@ -209,7 +209,7 @@ N_{\varepsilon}(p)=\{q\mid d(p,q)\leq\varepsilon\}.
 
 Από την άλλη πλευρά, ο αλγόριθμος εμφανίζει συγκεκριμένους περιορισμούς, με κυριότερο τη δυσκολία διαχωρισμού συστάδων που χαρακτηρίζονται από μεταβλητές πυκνότητες. Παράλληλα, η απόδοσή του εξαρτάται σε μεγάλο βαθμό από τη σωστή ρύθμιση των παραμέτρων του, δηλαδή της ακτίνας $\varepsilon$ και του ελάχιστου αριθμού απαιτούμενων σημείων MinPts. \cite{dbscan1996}
 
-\subsection{ΑΓΟΡΙΘΜΟΣ OPTICS}
+\subsection{ΑΛΓΟΡΙΘΜΟΣ OPTICS}
 
 Ο αλγόριθμος OPTICS (Ordering Points To Identify the Clustering Structure) αποτελεί επέκταση του DBSCAN για δεδομένα στα οποία οι συστάδες ενδέχεται να έχουν διαφορετική πυκνότητα. Αντί για την παραγωγή μιας στατικής συσταδοποίησης για μια σταθερή τιμή $\varepsilon$, ο OPTICS δημιουργεί πρώτα μια ταξινομημένη ακολουθία των σημείων που αντιπροσωπεύει τη δομή πυκνότητάς τους.
 
@@ -282,19 +282,17 @@ p(x)=\sum_{j=1}^{K}\pi_j\,\mathcal{N}(x\mid\mu_j,\Sigma_j),
 
 Ο Πίνακας \ref{tab:comparison-algorithms} συνοψίζει τα βασικά χαρακτηριστικά, τις απαιτήσεις και τους περιορισμούς των αλγορίθμων συσταδοποίησης που παρουσιάστηκαν.
 
-\begin{landscape}
-\thispagestyle{mystyle}
-\begin{minipage}{\textwidth}
+\begin{table}[p]
+\centering
+\rotatebox{90}{%
+\begin{minipage}{0.92\textheight}
 \centering
 \captionof{table}{Συγκριτική παρουσίαση των αλγορίθμων συσταδοποίησης.}
 \label{tab:comparison-algorithms}
-\small
-\setlength{\tabcolsep}{2pt}
-\renewcommand{\arraystretch}{1.10}
-\resizebox{0.77\paperheight}{!}{%
-\begin{tabular}{|p{3.1cm}|p{2.75cm}|p{2.75cm}|p{2.75cm}|p{2.75cm}|p{2.75cm}|p{2.75cm}|p{2.75cm}|}
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{|>{\centering\arraybackslash}p{3.1cm}|>{\centering\arraybackslash}p{2.75cm}|>{\centering\arraybackslash}p{2.75cm}|>{\centering\arraybackslash}p{2.75cm}|>{\centering\arraybackslash}p{2.75cm}|>{\centering\arraybackslash}p{2.75cm}|>{\centering\arraybackslash}p{2.75cm}|>{\centering\arraybackslash}p{2.75cm}|}
 \hline
-\textbf{\scriptsize ΧΑΡΑΚΤΗΡΙΣΤΙΚΟ} & \textbf{\scriptsize K-MEANS} & \textbf{\scriptsize K-MEDOIDS} & \textbf{\scriptsize DBSCAN} & \textbf{\scriptsize OPTICS} & \textbf{\scriptsize HDBSCAN} & \textbf{\scriptsize GMM} & \textbf{\scriptsize AGGLOMERATIVE} \\ \hline
+\textbf{ΧΑΡΑΚΤΗΡΙΣΤΙΚΟ} & \textbf{K-MEANS} & \textbf{K-MEDOIDS} & \textbf{DBSCAN} & \textbf{OPTICS} & \textbf{HDBSCAN} & \textbf{GMM} & \textbf{AGGLOMERATIVE} \\ \hline
 \textbf{Τύπος Αλγορίθμου} & Διαμερισμού & Διαμερισμού & Βασισμένος στην πυκνότητα & Πυκνότητας / ιεραρχικός & Ιεραρχικός πυκνότητας & Πιθανοτικός & Ιεραρχικός \\ \hline
 \textbf{Απαιτούμενος αριθμός συστάδων} & Ναι & Ναι & Όχι & Όχι & Όχι & Ναι ή επιλογή με BIC/AIC & Όχι, αν οριστεί κατώφλι απόστασης \\ \hline
 \textbf{Σχήμα συστάδων} & Σφαιρικό & Εξαρτάται από τη μετρική & Αυθαίρετο & Αυθαίρετο / μεταβλητή πυκνότητα & Αυθαίρετο / μεταβλητή πυκνότητα & Ελλειπτικό & Εξαρτάται από linkage \\ \hline
@@ -304,7 +302,8 @@ p(x)=\sum_{j=1}^{K}\pi_j\,\mathcal{N}(x\mid\mu_j,\Sigma_j),
 \end{tabular}
 }
 \end{minipage}
-\end{landscape}
+}
+\end{table}
 
 Η σύγκριση βασίζεται στις \cite{macqueen1967some,kaufman2009finding,kaufmann1987clustering,dbscan1996,schubert2017dbscan,optics1999,hdbscan2015,campello2013densityclustering,gmm2002,mclachlan2004finite,agglomerative1963,1lance1967}.
 
@@ -319,11 +318,13 @@ p(x)=\sum_{j=1}^{K}\pi_j\,\mathcal{N}(x\mid\mu_j,\Sigma_j),
 \operatorname{MAD}(x)=\operatorname{median}_{i}\left(|x_i-\operatorname{median}(x)|\right).
 \label{eq:mad-general}
 \end{equation}
+
 Όταν υπάρχει γνωστή τιμή αναφοράς $x_{\mathrm{ref}}$, η μετρική μπορεί να υπολογιστεί απευθείας στις αποκλίσεις από την τιμή αυτή:
 \begin{equation}
 \operatorname{MAD}_{\mathrm{ref}}=\operatorname{median}_{i}\left(|x_i-x_{\mathrm{ref}}|\right).
 \label{eq:mad-reference}
 \end{equation}
+
 Σε αντίθεση με την τυπική απόκλιση, το MAD επηρεάζεται πολύ λιγότερο από ακραίες τιμές και δεν προϋποθέτει κανονική κατανομή. Για τις ιδιοτιμές μπορεί να εφαρμοστεί στις συντεταγμένες $(\sigma,\omega)$ ή στη συχνότητα και στον λόγο απόσβεσης. Μικρότερη τιμή υποδηλώνει μεγαλύτερη συγκέντρωση των εκτιμήσεων γύρω από το reference mode. \cite{modal2018}
 
 \subsubsection{ADJUSTED RAND INDEX (ARI)}

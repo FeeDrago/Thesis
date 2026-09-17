@@ -54,12 +54,12 @@
 \end{figure}
 
 
-Στο Figure~\ref{fig:poles_distribution_all_kundur} αποτυπώνεται η κατανομή των ταυτοποιημένων ιδιοτιμών για τις τέσσερις γεννήτριες του \textit{Kundur Two-Area System} ($G_1$-$G_4$). Αντίστοιχα, στο Figure~\ref{fig:poles_distribution_all_ieee39} παρουσιάζεται η κατανομή των ιδιοτιμών για τις δέκα γεννήτριες του \textit{IEEE 39-Bus System} ($f(\sigma)$). Η ανάλυση επιβεβαιώνει την ευστάθεια του συστήματος, καθώς σχεδόν το σύνολο των σημείων εντοπίζεται στο αριστερό ημιεπίπεδο ($\sigma$ < 0), υποδεικνύοντας τη θετική απόσβεση των ταλαντώσεων. 
+Στο Σχήμα~\ref{fig:poles_distribution_all_kundur} αποτυπώνεται η κατανομή των ταυτοποιημένων ιδιοτιμών για τις τέσσερις γεννήτριες του \textit{Kundur Two-Area System} ($G_1$-$G_4$). Αντίστοιχα, στο Σχήμα~\ref{fig:poles_distribution_all_ieee39} παρουσιάζεται η κατανομή των ιδιοτιμών για τις δέκα γεννήτριες του \textit{IEEE 39-Bus System} ($f(\sigma)$). Η ανάλυση επιβεβαιώνει την ευστάθεια του συστήματος, καθώς σχεδόν το σύνολο των σημείων εντοπίζεται στο αριστερό ημιεπίπεδο ($\sigma$ < 0), υποδεικνύοντας τη θετική απόσβεση των ταλαντώσεων. 
 % Ιδιαίτερα σημαντική είναι η έντονη ομαδοποίηση σημείων στην περιοχή των $0.5$-$0.6$ Hz, η οποία εμφανίζεται ομοιόμορφα σε όλες τις γεννήτριες και σε όλα τα καταγεγραμμένα σήματα ($V$, $I$, $P$, $Q$), αποτελώντας ένδειξη του κύριου τρόπου ταλάντωσης (\textit{inter-area}) του συστήματος \textit{Kundur Two-Area System}. Επιπρόσθετα, διακρίνονται διακριτές συστάδες στην περιοχή του $1.0$ έως $1.2$ Hz, οι οποίες αντιστοιχούν στις τοπικές ταλαντώσεις (\textit{intra-area}) των μηχανών εντός της εκάστοτε περιοχής.
  Ακόμα, καταγράφονται στον οριζόντιο άξονα και ιδιοτιμές με μηδενική συχνότητα, οι οποίες δεν αντιστοιχούν σε κύριους ταλαντωτικούς ρυθμούς, αλλά σε μη ταλαντωτικές ή πολύ αργές συνιστώσες της απόκρισης, καθώς και σε αριθμητικά artifacts της μεθόδου.
 
 \subsection{Αξιολόγηση Πιστότητας Ανακατασκευής (\textit{Signal Reconstruction})}
-Για την επαλήθευση της εγκυρότητας των ιδιοτιμών που εξήχθησαν στην προηγούμενη ενότητα, πραγματοποιήθηκε μαθηματική ανακατασκευή των σημάτων στο πεδίο του χρόνου. Αρχικά, εξετάστηκε η συμπεριφορά των επιμέρους προσεγγίσεων (σταθερής τάξης $n$ και ανοχής $\tau$) προκειμένου να αξιολογηθεί η επίδραση τους στην ακρίβεια της προσαρμογής όπως φαίνεται στα Figures~\ref{fig:g1_reactive_power_reconstruction_kundur} και \ref{fig:g1_reactive_power_reconstruction_ieee39}.
+Για την επαλήθευση της εγκυρότητας των ιδιοτιμών που εξήχθησαν στην προηγούμενη ενότητα, πραγματοποιήθηκε μαθηματική ανακατασκευή των σημάτων στο πεδίο του χρόνου. Αρχικά, εξετάστηκε η συμπεριφορά των επιμέρους προσεγγίσεων (σταθερής τάξης $n$ και ανοχής $\tau$) προκειμένου να αξιολογηθεί η επίδραση τους στην ακρίβεια της προσαρμογής όπως φαίνεται στα Σχήματα~\ref{fig:g1_reactive_power_reconstruction_kundur} και \ref{fig:g1_reactive_power_reconstruction_ieee39}.
 
 \begin{figure}[htbp]
     \centering
@@ -75,7 +75,7 @@
     \label{fig:g1_reactive_power_reconstruction_ieee39}
 \end{figure}
 
-Στη συνέχεια, δημιουργήθηκαν επιμέρους διαγράμματα για κάθε γεννήτρια του \textit{Kundur Two-Area System} (Figures \ref{fig:best_recon_g1_kundur} έως \ref{fig:best_recon_g4_kundur}) και γιά ορισμένες γεννήτριες του \textit{IEEE 39-Bus System} (Figures \ref{fig:best_recon_g9_ieee39} έως \ref{fig:best_recon_g6_ieee39}) οι οποίες ανήκουν σε τρεις διακριτές περιοχές ελέγχου ~\cite{sfetkos2024measurement}, τα οποία αποτυπώνουν την άμεση σύγκριση μεταξύ των αρχικών σημάτων (\textit{Original Filtered}) και των αντίστοιχων εκτιμώμενων κυματομορφών (\textit{MP estimate}). Για την τελική ανακατασκευή επιλέχθηκε αυστηρά η μέθοδος που απέδωσε την υψηλότερη ακρίβεια (Max $R^2$) για το εκάστοτε σήμα.
+Στη συνέχεια, δημιουργήθηκαν επιμέρους διαγράμματα για κάθε γεννήτρια του \textit{Kundur Two-Area System} (Σχήματα~\ref{fig:best_recon_g1_kundur} έως \ref{fig:best_recon_g4_kundur}) και γιά ορισμένες γεννήτριες του \textit{IEEE 39-Bus System} (Σχήματα~\ref{fig:best_recon_g9_ieee39} έως \ref{fig:best_recon_g6_ieee39}) οι οποίες ανήκουν σε τρεις διακριτές περιοχές ελέγχου ~\cite{sfetkos2024measurement}, τα οποία αποτυπώνουν την άμεση σύγκριση μεταξύ των αρχικών σημάτων (\textit{Original Filtered}) και των αντίστοιχων εκτιμώμενων κυματομορφών (\textit{MP estimate}). Για την τελική ανακατασκευή επιλέχθηκε αυστηρά η μέθοδος που απέδωσε την υψηλότερη ακρίβεια (Max $R^2$) για το εκάστοτε σήμα.
 
 \begin{figure}[htbp]
     \centering
@@ -174,12 +174,9 @@ E_i = \frac{1}{2}\omega_i^2 \alpha_i^2
 
 \begin{table}[h]
 \centering
-\caption{\textsc{Σύνοψη Κυρίαρχων Ιδιοτιμών με Κριτήριο τη Μέγιστη Ενέργεια}}
+\caption{Σύνοψη Κυρίαρχων Ιδιοτιμών με Κριτήριο τη Μέγιστη Ενέργεια}
 \label{tab:summary_modes}
-\scriptsize
-\setlength{\tabcolsep}{5pt}
-\renewcommand{\arraystretch}{1.15}
-\begin{tabular}{lccc | lcc}
+\begin{tabular}{cccc | ccc}
 \toprule
 \multicolumn{4}{c}{\textbf{Inter-area Mode ($0.4-0.6$ Hz)}} & \multicolumn{3}{c}{\textbf{Intra-area Modes ($1.0-1.1$ Hz)}} \\
 \cmidrule(lr){1-4}\cmidrule(lr){5-7}
@@ -233,12 +230,9 @@ mode του συστήματος, ενώ τα δύο επόμενα στα \text
 
 \begin{table}[!htbp]
 \centering
-\caption{\textsc{Ιδιοτιμές αναφοράς του συστήματος Kundur Two-Area System.}}
+\caption{Ιδιοτιμές αναφοράς του συστήματος Kundur Two-Area System.}
 \label{tab:kundur_reference_modes}
-\small
-\renewcommand{\arraystretch}{1.2}
-\setlength{\tabcolsep}{14pt}
-\begin{tabular}{lcc}
+\begin{tabular}{ccc}
 \toprule
 \textbf{Mode} & \textbf{$f$ [Hz]} & \textbf{$\sigma$ [rad/s]} \\
 \midrule
@@ -251,12 +245,9 @@ mode του συστήματος, ενώ τα δύο επόμενα στα \text
 
 \begin{table}[!htbp]
 \centering
-\caption{\textsc{Ιδιοτιμές αναφοράς του συστήματος IEEE 39-Bus.}}
+\caption{Ιδιοτιμές αναφοράς του συστήματος IEEE 39-Bus.}
 \label{tab:ieee39_reference_modes}
-\scriptsize
-\renewcommand{\arraystretch}{1.15}
-\setlength{\tabcolsep}{5pt}
-\begin{tabular}{lccccc}
+\begin{tabular}{cccccc}
 \toprule
 \textbf{Mode} & \textbf{$f$ [Hz]} & \textbf{$\sigma$ [rad/s]}  & \textbf{Generators} & \textbf{Areas} & \textbf{Type} \\
 \midrule
@@ -288,12 +279,9 @@ Mode 9 & 1.5468 & -0.6376  & 1 vs. 8 & 1 & Intra-area\\
 
 \begin{table}[!t]
 \centering
-\caption{\textsc{MAD ανά μέθοδο συσταδοποίησης για το Kundur Two-Area System.}}
+\caption{MAD ανά μέθοδο συσταδοποίησης για το Kundur Two-Area System.}
 \label{tab:mad_summary_kundur}
-\small
-\renewcommand{\arraystretch}{1.2}
-\setlength{\tabcolsep}{7pt}
-\begin{tabular}{lcccc}
+\begin{tabular}{ccccc}
 \toprule
 \textbf{Mode} & \multicolumn{2}{c}{\textbf{k-Means}} & \multicolumn{2}{c}{\textbf{k-Medoids}} \\
 \cmidrule(lr){2-3}\cmidrule(l){4-5}
@@ -314,12 +302,9 @@ Mode 9 & 1.5468 & -0.6376  & 1 vs. 8 & 1 & Intra-area\\
 
 \begin{table}[!t]
 \centering
-\caption{\textsc{MAD ανά μέθοδο συσταδοποίησης για το IEEE 39-Bus.}}
+\caption{MAD ανά μέθοδο συσταδοποίησης για το IEEE 39-Bus.}
 \label{tab:mad_summary_ieee39}
-\small
-\renewcommand{\arraystretch}{1.2}
-\setlength{\tabcolsep}{4pt}
-\begin{tabular}{lccccc}
+\begin{tabular}{cccccc}
 \toprule
 \textbf{Mode} & \textbf{$f$ [Hz]} & \multicolumn{2}{c}{\textbf{k-Means}} & \multicolumn{2}{c}{\textbf{k-Medoids}} \\
 \cmidrule(lr){3-4}\cmidrule(l){5-6}
@@ -410,10 +395,7 @@ Mode 9 & 1.5468 & 0   & $-$     & 0   & $-$     \\
 \centering
 \caption{Σύγκριση κέντρων συσταδοποίησης με θεωρητικές ιδιοτιμές αναφοράς}
 \label{tab:clustering_comparison_kundur}
-\footnotesize
-\setlength{\tabcolsep}{3.5pt}
-\renewcommand{\arraystretch}{1.12}
-\begin{tabular}{lcccc}
+\begin{tabular}{ccccc}
 \toprule
 \textbf{Μέθοδος} & \multicolumn{2}{c}{\textbf{\textit{Inter-area}}} & \multicolumn{2}{c}{\textbf{\textit{Intra-area}}} \\
 \cmidrule(lr){2-3}\cmidrule(lr){4-5}
@@ -430,7 +412,7 @@ Mode 9 & 1.5468 & 0   & $-$     & 0   & $-$     \\
 \subsubsection{Αποτελέσματα για το \textit{IEEE 39-Bus}}
 Στο σύστημα \textit{IEEE 39-Bus} η συσταδοποίηση έγινε ανά περιοχή ελέγχου. Γιά κάθε περιοχή ελέγχου, εφαρμόστηκε η ίδια μεθοδολογία που περιγράφηκε στην αρχή της ενότητας.
 \paragraph{Αποτελέσματα k-Means}
-Τα αποτελέσματα του αλγορίθμου \textit{k-Means} παρουσιάζονται χωριστά για κάθε περιοχή ελέγχου. Αρχικά, ο δείκτης WCSS ως συνάρτηση του αριθμού συστάδων παρουσιάζεται στα Σχήματα~\ref{fig:k_means_elbow_ieee39_area1}$-$\ref{fig:k_means_elbow_ieee39_area3} και η εφαρμογή της τεχνικής \textit{Maximum Chord Distance} οδήγησε στην επιλογή των τιμών $k=4$ και για τις τρείς περιοχές ελέγχου. Στην συνέχεια, η ανάλυση με τη μέθοδο \textit{Silhouette} παρουσιάζεται στα Figures~\ref{fig:k_means_silhouette_ieee39_area1}$-$\ref{fig:k_means_silhouette_ieee39_area3} και δείχνει οτι η μέση τιμή του \textit{Silhouette Score} μεγιστοποιείται για διαφορετικές τιμές του $k$ σε κάθε περιοχή ελέγχου, συγκεκριμένα για $k=9$ στην περιοχή ελέγχου 1, $k=5$ στην περιοχή ελέγχου 2 και $k=7$ στην περιοχή ελέγχου 3. Αξίζει να σημειωθεί οτί τα \textit{Average Silhouette Scores} για τις τρείς περιοχές του \textit{IEEE 39-Bus} είναι μικρότερα απο τα αντίστοιχα του \textit{Kundur Two-Area}, ενώ ταυτόχρονα εμφανίζονται και ορισμένες αρνητικές τιμές \textit{Silhouette Score} για εκτίμωμενους ρυθμούς της συστάδας~2 της περιοχής ελέγχου~2, που υποδηλώνουν πιθανή αδυναμία διαχωρισμού του αλγορίθμου(Figure~\ref{fig:k_means_silhouette_ieee39_area2})
+Τα αποτελέσματα του αλγορίθμου \textit{k-Means} παρουσιάζονται χωριστά για κάθε περιοχή ελέγχου. Αρχικά, ο δείκτης WCSS ως συνάρτηση του αριθμού συστάδων παρουσιάζεται στα Σχήματα~\ref{fig:k_means_elbow_ieee39_area1}$-$\ref{fig:k_means_elbow_ieee39_area3} και η εφαρμογή της τεχνικής \textit{Maximum Chord Distance} οδήγησε στην επιλογή των τιμών $k=4$ και για τις τρείς περιοχές ελέγχου. Στην συνέχεια, η ανάλυση με τη μέθοδο \textit{Silhouette} παρουσιάζεται στα Σχήματα~\ref{fig:k_means_silhouette_ieee39_area1}$-$\ref{fig:k_means_silhouette_ieee39_area3} και δείχνει οτι η μέση τιμή του \textit{Silhouette Score} μεγιστοποιείται για διαφορετικές τιμές του $k$ σε κάθε περιοχή ελέγχου, συγκεκριμένα για $k=9$ στην περιοχή ελέγχου 1, $k=5$ στην περιοχή ελέγχου 2 και $k=7$ στην περιοχή ελέγχου 3. Αξίζει να σημειωθεί οτί τα \textit{Average Silhouette Scores} για τις τρείς περιοχές του \textit{IEEE 39-Bus} είναι μικρότερα απο τα αντίστοιχα του \textit{Kundur Two-Area}, ενώ ταυτόχρονα εμφανίζονται και ορισμένες αρνητικές τιμές \textit{Silhouette Score} για εκτίμωμενους ρυθμούς της συστάδας~2 της περιοχής ελέγχου~2, που υποδηλώνουν πιθανή αδυναμία διαχωρισμού του αλγορίθμου (Σχήμα~\ref{fig:k_means_silhouette_ieee39_area2}).
 
 \begin{figure}[htbp]
     \centering
