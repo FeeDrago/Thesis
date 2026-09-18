@@ -171,10 +171,11 @@ def main():
 def _extend_pm_settings(settings, defaults):
     merged = dict(defaults)
     merged.update(dict(settings or {}))
-    merged["pm_values"] = sorted(
-        {float(value) for value in defaults["pm_values"]}
-        | {float(value) for value in (settings or {}).get("pm_values", [])}
-    )
+    # Parameter grids are intentionally refreshed from the current defaults;
+    # otherwise old values stored in analysis_config.json override new ranges.
+    for grid_name in ("pe_values", "pm_values", "xi_values"):
+        if grid_name in defaults:
+            merged[grid_name] = list(defaults[grid_name])
     merged["render_all_parameter_maps"] = False
     return merged
 

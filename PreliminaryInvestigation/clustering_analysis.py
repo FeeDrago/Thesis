@@ -36,7 +36,7 @@ DAMPING_MAX = -1e-3
 DAMPING_AXIS_LIMS = (-2.0, 0.0)
 OPTICS_DEFAULT_SETTINGS = {
     "pm_values": [0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40],
-    "xi_values": [round(value, 2) for value in np.arange(0.02, 0.401, 0.02)],
+    "xi_values": [round(value, 2) for value in np.arange(0.02, 0.181, 0.01)],
     "multiply_by_orders": True,
     "min_npts": 2,
     "min_assigned_ratio": 0.50,
@@ -44,7 +44,7 @@ OPTICS_DEFAULT_SETTINGS = {
 }
 
 DBSCAN_DEFAULT_SETTINGS = {
-    "pe_values": [round(value, 3) for value in np.arange(0.01, 0.151, 0.005)],
+    "pe_values": [round(value, 3) for value in np.arange(0.05, 0.151, 0.005)],
     "pm_values": [0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40],
     "multiply_by_orders": True,
     "min_npts": 2,
@@ -1728,6 +1728,7 @@ def _reference_component_count(reference_modes, sample_count):
 def _save_fixed_cluster_map(
     base_output, method, df, labels, representatives, reference_modes, title,
     include_noise=False, silhouette_filtered=False, fixed_xlim=None, fixed_ylim=None,
+    title_fontsize=None,
 ):
     # Every final map uses exactly the same canvas, plotting rectangle and
     # legend slot.  This is intentional: different cluster counts must change
@@ -1743,7 +1744,7 @@ def _save_fixed_cluster_map(
     ax.axvline(0, color=ACCENT_RED, linestyle="--", alpha=0.35, linewidth=2)
     ax.set_xlabel("Damping (Sigma) [rad/s]")
     ax.set_ylabel("Frequency [Hz]")
-    ax.set_title(title, fontweight="bold")
+    ax.set_title(title, fontweight="bold", fontsize=title_fontsize)
     handles = _silhouette_filtered_point_handle() if silhouette_filtered else []
     if include_noise and np.any(np.asarray(labels) < 0):
         handles += _noise_point_handle()
@@ -2013,6 +2014,7 @@ def _paper_density_settings(defaults, overrides=None, include_xi=False):
 def _save_paper_selection(
     base_output, method, df, labels, reference_modes, title, collector=None,
     apply_silhouette_filter=True, fixed_xlim=None, fixed_ylim=None,
+    title_fontsize=None,
 ):
     X = _paper_pole_coordinates(df)
     filtered_labels, silhouette_scores, retained_labels, excluded_labels, excluded_count, filter_applied = (
@@ -2042,6 +2044,7 @@ def _save_paper_selection(
         silhouette_filtered=bool(filter_applied and excluded_count),
         fixed_xlim=fixed_xlim,
         fixed_ylim=fixed_ylim,
+        title_fontsize=title_fontsize,
     )
     return final_metrics
 
@@ -2284,8 +2287,19 @@ def run_hdbscan_modal_analysis(results_path, output_path, reference_modes=None, 
         return None
     selected = metrics_df.loc[selected_idx]
     labels = stored[(float(selected["Pe"]), float(selected["Pm"]), selected["ClusterSelectionMethod"])]
-    final_metrics = _save_paper_selection(base_output, "HDBSCAN", df, labels, reference_modes,
-                                          f"Selected HDBSCAN Cluster Map ($min\\_cluster\\_size={int(selected['MinClusterSize'])}$, $\\epsilon={selected['Epsilon']:.3f}$, {selected['ClusterSelectionMethod']})\nSilhouette: {selected['Silhouette']:.3f}", paper_mad_collector)
+    final_metrics = _save_paper_selection(
+        base_output,
+        "HDBSCAN",
+        df,
+        labels,
+        reference_modes,
+        f"Selected HDBSCAN Cluster Map\n"
+        f"$min\\_cluster\\_size={int(selected['MinClusterSize'])}$, "
+        f"$\\epsilon={selected['Epsilon']:.3f}$, {selected['ClusterSelectionMethod']} | "
+        f"Silhouette: {selected['Silhouette']:.3f}",
+        paper_mad_collector,
+        title_fontsize=22,
+    )
     _update_selected_final_metrics(base_output, "hdbscan_metrics_summary.csv", final_metrics)
     return {"pe": float(selected["Pe"]), "pm": float(selected["Pm"]), "epsilon": float(selected["Epsilon"]),
             "min_cluster_size": int(selected["MinClusterSize"]), "cluster_selection_method": selected["ClusterSelectionMethod"],

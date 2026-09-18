@@ -30,12 +30,12 @@ AMBIENT_DEFAULT_CLUSTERING_METHODS = ["kmeans", "kmedoids", "optics", "dbscan", 
 AMBIENT_DEFAULT_CLUSTERING_SCOPE = {"global": False, "by_control_area": True}
 AMBIENT_DEFAULT_OPTICS_SETTINGS = {
     "pm_values": [0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40],
-    "xi_values": [round(value, 2) for value in np.arange(0.02, 0.401, 0.02)],
+    "xi_values": [round(value, 2) for value in np.arange(0.02, 0.181, 0.01)],
     "multiply_by_orders": True,
     "min_npts": 2,
 }
 AMBIENT_DEFAULT_DBSCAN_SETTINGS = {
-    "pe_values": [round(value, 3) for value in np.arange(0.01, 0.151, 0.005)],
+    "pe_values": [round(value, 3) for value in np.arange(0.05, 0.151, 0.005)],
     "pm_values": [0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40],
     "multiply_by_orders": True,
     "min_npts": 2,
