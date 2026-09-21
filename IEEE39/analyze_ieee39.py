@@ -17,7 +17,7 @@ def build_arg_parser():
         epilog=dedent(
             """
             Scenario input forms:
-              1. Preset alias: load29 or ambient
+              1. Preset alias: load29, ambient, or ambientdfig
               2. Multiple preset aliases: load03 load24
               3. All presets: all
               4. Existing results folder name: Load29_Pplus2_50s
@@ -27,6 +27,7 @@ def build_arg_parser():
               python IEEE39/analyze_ieee39.py --scenario load29
               python IEEE39/analyze_ieee39.py --scenario load03 load24
               python IEEE39/analyze_ieee39.py --scenario ambient
+              python IEEE39/analyze_ieee39.py --scenario ambientdfig
               python IEEE39/analyze_ieee39.py --scenario all
               python IEEE39/analyze_ieee39.py --scenario Load29_Pplus2_50s
               python IEEE39/analyze_ieee39.py --scenario load20_custom --data-dir results/Load20_Pplus2_50s --output-dir analysis/Load20_Pplus2_50s
@@ -279,6 +280,10 @@ DEFAULT_SCENARIO_PATHS = {
     "ambient": {
         "data_dir": "results/Ambient_Mag0.1_T600s_dt10ms_seed1997",
         "output_dir": "analysis/Ambient_Mag0.1_T600s_dt10ms_seed1997",
+    },
+    "ambientdfig": {
+        "data_dir": "results/AmbientDFIG_Mag0.1_T600s_dt10ms_seed1997",
+        "output_dir": "analysis/AmbientDFIG_Mag0.1_T600s_dt10ms_seed1997",
     },
 }
 
@@ -2131,7 +2136,7 @@ def select_scenarios(names, allow_custom=False):
         return {
             name: dict(scenario)
             for name, scenario in DEFAULT_SCENARIOS.items()
-            if name != "ambient"
+            if name not in {"ambient", "ambientdfig"}
         }
 
     selected = {}

@@ -61,11 +61,14 @@
 Παραδείγματα:
 
 - `python IEEE39/generate_data.py --ambient`
+- `python IEEE39/generate_data.py --ambientdfig`
 - `python IEEE39/generate_data.py --ambient --scenario ambient_test`
 - `python IEEE39/generate_data.py --ambient --duration 900 --ambient-magnitude-percent 0.2`
 - `python IEEE39/generate_data.py --ambient --project-name "39 Bus New England System TEST" --study-case "RMS mine"`
 
 Αν δεν δοθεί custom ambient label με `--scenario`, το automatic folder name περιλαμβάνει  και το seed, π.χ. `Ambient_Mag0.1_T600s_dt10ms_seed1997`.
+
+Το `--ambientdfig` χρησιμοποιεί τα ίδια ambient defaults, αλλά ενεργοποιεί αυτόματα το project `39 Bus New England System_DFIG` και το study case `RMS mine`. Χωρίς custom `--scenario`, γράφει σε ξεχωριστό φάκελο, π.χ. `AmbientDFIG_Mag0.1_T600s_dt10ms_seed1997`, ώστε να μην αντικαθιστά το κλασικό ambient dataset.
 
 **Φάκελος Αποτελεσμάτων:** Από προεπιλογή τα αποτελέσματα γράφονται στο `IEEE39/results`. Αν χρειαστεί διαφορετικός φάκελος, μπορεί να δοθεί `--output-dir`, για παράδειγμα `python IEEE39/generate_data.py --scenario load29 --output-dir results_test`. Στο `generate_data.py`, κάθε relative path δίνεται ως relative προς τον φάκελο `IEEE39`, ενώ μπορεί να δοθεί και absolute path.
 
@@ -97,6 +100,8 @@
 - `modal/state_index.csv`
 
 **Ambient και Analyze:** Το `IEEE39/analyze_ieee39.py` υποστηρίζει πλέον και ambient identification με `N4SID`. Το default `--analysis-method auto` ελέγχει το `scenario.json` του input folder: αν βρει `disturbance_type = "ambient"`, τρέχει ambient `N4SID`, ενώ για τα υπόλοιπα datasets παραμένει στο υπάρχον Matrix Pencil workflow. Μπορεί επίσης να δοθεί ρητά `--analysis-method n4sid` μόνο για ambient datasets.
+
+Τα preset aliases `python IEEE39/analyze_ieee39.py --scenario ambient` και `python IEEE39/analyze_ieee39.py --scenario ambientdfig` αναλύουν αντίστοιχα το κλασικό dataset `Ambient_Mag0.1_T600s_dt10ms_seed1997` και το τροποποιημένο dataset `AmbientDFIG_Mag0.1_T600s_dt10ms_seed1997`.
 
 **Ανάλυση Δεδομένων:** Το αρχείο `IEEE39/analyze_ieee39.py` διαβάζει τα `g*.csv` από το `IEEE39/results` και γράφει τα αποτελέσματα στο `IEEE39/analysis`. Το `--scenario` είναι υποχρεωτικό για κανονικό run. Το `--scenario` δέχεται τρεις μορφές input: preset aliases όπως `load29`, πολλαπλά aliases όπως `load03 load24`, ή το ειδικό `all`, ακριβές folder name από το `IEEE39/results`, π.χ. `Load29_Pplus2_50s`, και custom run label όταν χρησιμοποιείται μαζί με `--data-dir`. Τα preset keys όπως `load29` δείχνουν στα προκαθορισμένα `Pplus2` source folders, άρα το `load29` αντιστοιχεί στο input `IEEE39/results/Load29_Pplus2_50s`. Για διαφορετικά paths μπορεί να δοθεί ρητά input και output, για παράδειγμα `python IEEE39/analyze_ieee39.py --scenario load29_p4 --data-dir results/Load29_Pplus4_50s --output-dir analysis/Load29_Pplus4_50s`. Όταν χρησιμοποιείται `--data-dir`, το όνομα που δίνεται στο `--scenario` είναι μόνο label για το run. Στο `analyze_ieee39.py`, τα `--data-dir`, `--output-dir` και `--analysis-dir` δέχονται relative paths relative προς τον φάκελο `IEEE39`, ή absolute paths.
 

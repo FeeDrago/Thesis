@@ -39,6 +39,9 @@ GRID_NAME = "Grid"
 AMBIENT_PROJECT_NAME = "39 Bus New England System TEST"
 AMBIENT_STUDY_CASE_NAME = "RMS mine"
 AMBIENT_GRID_NAME = None
+AMBIENT_DFIG_PROJECT_NAME = "39 Bus New England System_DFIG"
+AMBIENT_DFIG_STUDY_CASE_NAME = "RMS mine"
+AMBIENT_DFIG_GRID_NAME = None
 AMBIENT_DEFAULT_NAME = "Ambient"
 AMBIENT_DIST_MAG_PERCENT = 0.1
 AMBIENT_LOW_PASS_HZ = 5.0
@@ -71,6 +74,13 @@ SIM_STEP_MS = 10.0
 AMBIENT_SIM_STOP_TIME_S = 600.0
 
 GENERATOR_NAMES = None
+DFIG_GENERATOR_MAP = {
+    3: "DFIG_2.5MW",
+    4: "DFIG_2.5MW(1)",
+    5: "DFIG_2.5MW(2)",
+}
+DFIG_GENERATOR_NAMES = set(DFIG_GENERATOR_MAP.values())
+EXPECTED_GENERATOR_NUMBERS = tuple(range(1, 11))
 
 SCENARIOS = [
     {"name": None, "key": "load29", "load_name": "Load 29", "dp_percent": 2.0, "dq_percent": 0.0},
@@ -97,6 +107,8 @@ AMBIENT_RESULT_SCHEMA = {
         "s:cur1 in p.u.",
     ],
 }
+
+DFIG_AMBIENT_RESULT_VARIABLES = ["n:u1:bus1", "m:i1:bus1"]
 
 
 # ============================================================
@@ -200,11 +212,18 @@ def make_step_scenario_name(load, dp_percent, dq_percent, sim_stop_time, custom_
     return f"{load_part}_{p_part}_{q_part}_{sim_stop_time:g}s{evt_part}"
 
 
-def make_ambient_scenario_name(sim_stop_time_s, sim_step_ms, magnitude_percent, random_seed, custom_name=None):
+def make_ambient_scenario_name(
+    sim_stop_time_s,
+    sim_step_ms,
+    magnitude_percent,
+    random_seed,
+    custom_name=None,
+    default_prefix=AMBIENT_DEFAULT_NAME,
+):
     if custom_name:
         return safe_name(custom_name)
     return (
-        f"Ambient_Mag{abs(float(magnitude_percent)):g}"
+        f"{safe_name(default_prefix)}_Mag{abs(float(magnitude_percent)):g}"
         f"_T{float(sim_stop_time_s):g}s"
         f"_dt{float(sim_step_ms):g}ms"
         f"_seed{int(random_seed)}"
@@ -388,14 +407,52 @@ def find_load(app, load_name=None, min_load_mw=100.0):
     return candidates[0][1]
 
 
-def find_generators(app):
-    gens = app.GetCalcRelevantObjects("*.ElmSym")
-    if not gens:
-        raise RuntimeError("No synchronous generators found: *.ElmSym")
+def generator_number(generator):
+    match = re.fullmatch(r"G\s*0*(\d+)", str(generator.loc_name).strip(), flags=re.IGNORECASE)
+    if match:
+        return int(match.group(1))
+    return None
 
-    gens = sorted(gens, key=lambda g: g.loc_name)
+
+def generator_sort_key(generator):
+    number = generator_number(generator)
+    return (number is None, number if number is not None else math.inf, str(generator.loc_name).lower())
+
+
+def find_generators(app):
+    synchronous_generators = list(app.GetCalcRelevantObjects("*.ElmSym") or [])
+    asynchronous_machines = list(app.GetCalcRelevantObjects("*.ElmAsm") or [])
+    dfig_generators = [gen for gen in asynchronous_machines if gen.loc_name in DFIG_GENERATOR_NAMES]
+
+    gens = synchronous_generators + dfig_generators
+    if not gens:
+        raise RuntimeError("No monitored generators found (*.ElmSym or configured DFIG *.ElmAsm objects).")
+
+    duplicate_names = sorted({gen.loc_name for gen in gens if sum(other.loc_name == gen.loc_name for other in gens) > 1})
+    if duplicate_names:
+        raise RuntimeError(f"Duplicate monitored generator names found: {duplicate_names}")
+
+    gens = sorted(gens, key=generator_sort_key)
     if GENERATOR_NAMES is None:
-        return gens
+        generators_by_number = {
+            generator_number(gen): gen
+            for gen in synchronous_generators
+            if generator_number(gen) is not None
+        }
+        dfig_generators_by_name = {gen.loc_name: gen for gen in dfig_generators}
+        for number, name in DFIG_GENERATOR_MAP.items():
+            if name in dfig_generators_by_name:
+                generators_by_number[number] = dfig_generators_by_name[name]
+
+        missing_numbers = [number for number in EXPECTED_GENERATOR_NUMBERS if number not in generators_by_number]
+        if missing_numbers:
+            raise RuntimeError(
+                "Missing IEEE39 monitored generator positions: "
+                f"{missing_numbers}. ElmSym objects found: {[gen.loc_name for gen in synchronous_generators]}; "
+                f"all ElmAsm objects found: {[gen.loc_name for gen in asynchronous_machines]}; "
+                f"configured DFIG ElmAsm objects found: {[gen.loc_name for gen in dfig_generators]}"
+            )
+        return [generators_by_number[number] for number in EXPECTED_GENERATOR_NUMBERS]
 
     selected = []
     missing = []
@@ -464,6 +521,12 @@ def create_load_event(app, load, time_s, dp_percent, dq_percent):
     }
 
 
+def result_variables_for_generator(generator, schema):
+    if schema is AMBIENT_RESULT_SCHEMA and generator.loc_name in DFIG_GENERATOR_NAMES:
+        return DFIG_AMBIENT_RESULT_VARIABLES
+    return schema["variables"]
+
+
 def setup_result_variables(app, generators, schema):
     elmres = get_from_study_case(app, "ElmRes")
     try:
@@ -475,7 +538,7 @@ def setup_result_variables(app, generators, schema):
             pass
 
     for gen in generators:
-        for var in schema["variables"]:
+        for var in result_variables_for_generator(gen, schema):
             elmres.AddVars(gen, var)
     return elmres
 
@@ -1204,7 +1267,10 @@ def split_raw_comres_standard_csv(raw_csv, generators, scenario_dir, schema):
 
         generator_columns = []
         for gen in generators:
-            indices = [find_generator_variable_index(object_headers, variable_headers, gen.loc_name, var) for var in schema["variables"]]
+            indices = [
+                find_generator_variable_index(object_headers, variable_headers, gen.loc_name, var)
+                for var in result_variables_for_generator(gen, schema)
+            ]
             generator_columns.append(indices)
 
         outputs = []
@@ -1262,7 +1328,7 @@ def split_raw_comres_to_generator_csvs(raw_csv, generators, scenario_dir, schema
     for idx, gen in enumerate(generators, start=1):
         output = pd.DataFrame()
         output[schema["headers"][0]] = to_numeric_dot_decimal(df[time_col])
-        for variable, clean_header in zip(schema["variables"], schema["headers"][1:]):
+        for variable, clean_header in zip(result_variables_for_generator(gen, schema), schema["headers"][1:]):
             raw_col = find_generator_variable_column(df, gen.loc_name, variable)
             output[clean_header] = to_numeric_dot_decimal(df[raw_col])
 
@@ -1343,7 +1409,9 @@ def print_debug_context(app):
     project = app.GetActiveProject()
     study_case = app.GetActiveStudyCase()
     loads = app.GetCalcRelevantObjects("*.ElmLod")
-    gens = app.GetCalcRelevantObjects("*.ElmSym")
+    synchronous_generators = app.GetCalcRelevantObjects("*.ElmSym") or []
+    asynchronous_machines = app.GetCalcRelevantObjects("*.ElmAsm") or []
+    dfig_generators = [gen for gen in asynchronous_machines if gen.loc_name in DFIG_GENERATOR_NAMES]
 
     print("Active project:", project.loc_name if project else None, flush=True)
     print("Active study case:", study_case.loc_name if study_case else None, flush=True)
@@ -1351,7 +1419,8 @@ def print_debug_context(app):
     app.PrintPlain(f"Active project: {project.loc_name if project else None}")
     app.PrintPlain(f"Active study case: {study_case.loc_name if study_case else None}")
     app.PrintPlain(f"Number of ElmLod: {len(loads)}")
-    app.PrintPlain(f"Number of ElmSym: {len(gens)}")
+    app.PrintPlain(f"Number of ElmSym: {len(synchronous_generators)}")
+    app.PrintPlain(f"Configured DFIG ElmAsm found: {[gen.loc_name for gen in dfig_generators]}")
 
     if project is None:
         raise RuntimeError("No active project.")
@@ -1359,8 +1428,8 @@ def print_debug_context(app):
         raise RuntimeError("No active study case.")
     if not loads:
         raise RuntimeError("No ElmLod loads found.")
-    if not gens:
-        raise RuntimeError("No ElmSym generators found.")
+    if not synchronous_generators and not dfig_generators:
+        raise RuntimeError("No monitored ElmSym or configured DFIG ElmAsm generators found.")
 
 
 # ============================================================
@@ -1437,15 +1506,35 @@ def parse_ambient_scenario_name(scenario_names):
     return value
 
 
-def run_ambient_scenario(app, results_root, context_settings, ambient_name, sim_stop_time_s, sim_step_ms, magnitude_percent, low_pass_hz, random_seed):
+def run_ambient_scenario(
+    app,
+    results_root,
+    context_settings,
+    ambient_name,
+    sim_stop_time_s,
+    sim_step_ms,
+    magnitude_percent,
+    low_pass_hz,
+    random_seed,
+    ambient_variant="classic",
+):
     schema = AMBIENT_RESULT_SCHEMA
-    scenario_name = make_ambient_scenario_name(sim_stop_time_s, sim_step_ms, magnitude_percent, random_seed, ambient_name)
+    default_prefix = "AmbientDFIG" if ambient_variant == "dfig" else AMBIENT_DEFAULT_NAME
+    scenario_name = make_ambient_scenario_name(
+        sim_stop_time_s,
+        sim_step_ms,
+        magnitude_percent,
+        random_seed,
+        ambient_name,
+        default_prefix=default_prefix,
+    )
     scenario_dir = results_root / scenario_name
     scenario_dir.mkdir(parents=True, exist_ok=True)
 
     config = {
         "scenario_name": scenario_name,
         "disturbance_type": "ambient",
+        "ambient_variant": ambient_variant,
         "project_name": context_settings["project_name"],
         "study_case_name": context_settings["study_case_name"],
         "grid_name": context_settings.get("grid_name"),
@@ -1464,6 +1553,9 @@ def run_ambient_scenario(app, results_root, context_settings, ambient_name, sim_
 
     try:
         clean_old_events(app)
+        generators = find_generators(app)
+        config["generators"] = [g.loc_name for g in generators]
+
         config["ambient_load_profiles"] = create_ambient_load_profiles(
             app=app,
             scenario_dir=scenario_dir,
@@ -1474,8 +1566,6 @@ def run_ambient_scenario(app, results_root, context_settings, ambient_name, sim_
             random_seed=random_seed,
         )
 
-        generators = find_generators(app)
-        config["generators"] = [g.loc_name for g in generators]
         elmres = setup_result_variables(app, generators, schema)
         configure_ambient_rms(app, sim_step_ms)
         run_load_flow_initial_conditions_and_rms(app, sim_stop_time_s, sim_step_ms)
@@ -1579,7 +1669,7 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description=(
             "Generate IEEE39 CSV data from PowerFactory runs.\n\n"
-            "Default mode creates step-event scenarios. Use --ambient for ambient excitation data."
+            "Default mode creates step-event scenarios. Use --ambient or --ambientdfig for ambient excitation data."
         ),
         epilog=dedent(
             """
@@ -1595,14 +1685,17 @@ def parse_args():
               python IEEE39/generate_data.py --scenario load03 load24
               python IEEE39/generate_data.py --scenario "Load 20:2" --duration 60 --event-time 0.5
               python IEEE39/generate_data.py --ambient
+              python IEEE39/generate_data.py --ambientdfig
               python IEEE39/generate_data.py --ambient --scenario ambient_test
               python IEEE39/generate_data.py --ambient --duration 900 --ambient-magnitude-percent 0.2
             """
         ),
         formatter_class=argparse.RawTextHelpFormatter,
     )
-    parser.add_argument("--scenario", nargs="+", default=None, help="Step-event scenarios, or a single ambient run label when used with --ambient.")
-    parser.add_argument("--ambient", action="store_true", help="Generate ambient excitation data instead of load-step event data.")
+    parser.add_argument("--scenario", nargs="+", default=None, help="Step-event scenarios, or a single ambient run label when used with --ambient/--ambientdfig.")
+    ambient_group = parser.add_mutually_exclusive_group()
+    ambient_group.add_argument("--ambient", action="store_true", help="Generate classic IEEE39 ambient excitation data.")
+    ambient_group.add_argument("--ambientdfig", action="store_true", help="Generate ambient data for the IEEE39 project with G3-G5 replaced by DFIG units.")
     parser.add_argument("--output-dir", default=None, help="Results directory relative to IEEE39, or an absolute path. Default: results.")
     parser.add_argument("--project-name", default=None, help="PowerFactory project name override.")
     parser.add_argument("--study-case", default=None, help="PowerFactory study case name override.")
@@ -1626,7 +1719,12 @@ def resolve_optional_grid_name(raw_value, default_value):
 
 
 def resolve_context_from_args(args):
-    if args.ambient:
+    if args.ambientdfig:
+        project_name = args.project_name or AMBIENT_DFIG_PROJECT_NAME
+        study_case_name = args.study_case or AMBIENT_DFIG_STUDY_CASE_NAME
+        grid_name = resolve_optional_grid_name(args.grid_name, AMBIENT_DFIG_GRID_NAME)
+        duration = float(args.duration) if args.duration is not None else AMBIENT_SIM_STOP_TIME_S
+    elif args.ambient:
         project_name = args.project_name or AMBIENT_PROJECT_NAME
         study_case_name = args.study_case or AMBIENT_STUDY_CASE_NAME
         grid_name = resolve_optional_grid_name(args.grid_name, AMBIENT_GRID_NAME)
@@ -1663,7 +1761,7 @@ def run_all_scenarios(args):
     results_root.mkdir(parents=True, exist_ok=True)
     total_start = time.time()
 
-    if args.ambient:
+    if args.ambient or args.ambientdfig:
         ambient_name = parse_ambient_scenario_name(args.scenario)
         result = run_ambient_scenario(
             app=app,
@@ -1675,6 +1773,7 @@ def run_all_scenarios(args):
             magnitude_percent=float(args.ambient_magnitude_percent),
             low_pass_hz=float(args.ambient_lowpass_hz),
             random_seed=int(args.ambient_seed),
+            ambient_variant="dfig" if args.ambientdfig else "classic",
         )
         results = [result]
     else:
