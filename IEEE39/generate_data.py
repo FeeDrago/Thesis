@@ -48,6 +48,10 @@ AMBIENT_LOW_PASS_HZ = 5.0
 AMBIENT_RANDOM_SEED = 1997
 AMBIENT_EXPORT_MODAL_CSVS = True
 ELECTROMECHANICAL_PRIMARY_GENERATOR_RATIO = 0.10
+# A classical rotor-angle mode must be dominated by the synchronous-machine
+# mechanical states when their participation is compared with *all* system
+# states, not only with the other selected ElmSym states.
+ELECTROMECHANICAL_SG_MECHANICAL_SHARE_MIN = 0.50
 CONTROL_AREAS = {
     "area_1": {"g1", "g8", "g9", "g10"},
     "area_2": {"g2", "g3"},
@@ -775,6 +779,7 @@ def summarize_ambient_electromechanical_modes(modal_dir):
 
     mode_generator_participation = {}
     mode_state_participation = {}
+    mode_total_system_participation = {}
     detail_rows = []
     with participation_path.open(newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle)
@@ -787,11 +792,15 @@ def summarize_ambient_electromechanical_modes(modal_dir):
             except ValueError:
                 continue
 
+            magnitude = math.hypot(real_part, imag_part)
+            mode_total_system_participation[mode_index] = (
+                mode_total_system_participation.get(mode_index, 0.0) + magnitude
+            )
+
             state_meta = generator_state_lookup.get(state_index)
             if state_meta is None:
                 continue
 
-            magnitude = math.hypot(real_part, imag_part)
             generator_name = state_meta["generator"]
             state_variable = state_meta["state_variable"]
 
@@ -838,9 +847,14 @@ def summarize_ambient_electromechanical_modes(modal_dir):
             speed_participation = float(state_scores.get("speed", 0.0))
             phi_speed_participation = phi_participation + speed_participation
             other_machine_participation = max(0.0, total_machine_participation - phi_speed_participation)
+            total_system_participation = float(mode_total_system_participation.get(mode_index, 0.0))
             phi_speed_ratio = (
                 float(phi_speed_participation / total_machine_participation)
                 if total_machine_participation > 0.0 else 0.0
+            )
+            sg_mechanical_share = (
+                float(phi_speed_participation / total_system_participation)
+                if total_system_participation > 0.0 else 0.0
             )
 
             ranked_states = sorted(state_scores.items(), key=lambda item: (-item[1], item[0]))
@@ -870,9 +884,10 @@ def summarize_ambient_electromechanical_modes(modal_dir):
                     seen_report_areas.add(area_name)
 
             is_electromechanical = (
-                total_machine_participation > 0.0 and
-                {"phi", "speed"}.issubset(set(top_state_names)) and
-                phi_speed_participation > other_machine_participation
+                total_system_participation > 0.0 and
+                phi_participation > 0.0 and
+                speed_participation > 0.0 and
+                sg_mechanical_share >= ELECTROMECHANICAL_SG_MECHANICAL_SHARE_MIN
             )
 
             summary_rows.append({
@@ -890,6 +905,9 @@ def summarize_ambient_electromechanical_modes(modal_dir):
                 "OtherMachineStateParticipation": other_machine_participation,
                 "TotalMachineParticipation": total_machine_participation,
                 "PhiSpeedRatio": phi_speed_ratio,
+                "TotalSystemParticipation": total_system_participation,
+                "SGMechanicalShare": sg_mechanical_share,
+                "SGMechanicalShareThreshold": ELECTROMECHANICAL_SG_MECHANICAL_SHARE_MIN,
                 "ParticipatingGenerators": "; ".join(participating_generators),
                 "MainGenerators": "; ".join(report_generators),
                 "SecondGeneratorRatioToTop": second_generator_ratio,
@@ -916,6 +934,9 @@ def summarize_ambient_electromechanical_modes(modal_dir):
         "OtherMachineStateParticipation",
         "TotalMachineParticipation",
         "PhiSpeedRatio",
+        "TotalSystemParticipation",
+        "SGMechanicalShare",
+        "SGMechanicalShareThreshold",
         "ParticipatingGenerators",
         "MainGenerators",
         "SecondGeneratorRatioToTop",
@@ -1688,6 +1709,7 @@ def parse_args():
               python IEEE39/generate_data.py --ambientdfig
               python IEEE39/generate_data.py --ambient --scenario ambient_test
               python IEEE39/generate_data.py --ambient --duration 900 --ambient-magnitude-percent 0.2
+              python IEEE39/generate_data.py --refresh-modal-summaries
             """
         ),
         formatter_class=argparse.RawTextHelpFormatter,
@@ -1706,6 +1728,14 @@ def parse_args():
     parser.add_argument("--ambient-magnitude-percent", type=float, default=AMBIENT_DIST_MAG_PERCENT, help=f"Ambient load fluctuation magnitude in percent. Default: {AMBIENT_DIST_MAG_PERCENT:g}.")
     parser.add_argument("--ambient-lowpass-hz", type=float, default=AMBIENT_LOW_PASS_HZ, help=f"Ambient low-pass cutoff in Hz. Default: {AMBIENT_LOW_PASS_HZ:g}.")
     parser.add_argument("--ambient-seed", type=int, default=AMBIENT_RANDOM_SEED, help=f"Ambient random seed. Default: {AMBIENT_RANDOM_SEED}.")
+    parser.add_argument(
+        "--refresh-modal-summaries",
+        action="store_true",
+        help=(
+            "Rebuild derived electromechanical-mode CSVs from existing raw modal CSVs without "
+            "connecting to PowerFactory. With no ambient selector, refresh both default datasets."
+        ),
+    )
     parser.add_argument("--list-scenarios", action="store_true", help="Print the available preset step-event scenario keys and aliases, then exit.")
     return parser.parse_args()
 
@@ -1742,6 +1772,44 @@ def resolve_context_from_args(args):
         "duration": duration,
         "sim_step_ms": float(args.sim_step_ms),
     }
+
+
+def refresh_existing_ambient_modal_summaries(args):
+    if args.scenario and not (args.ambient or args.ambientdfig):
+        raise SystemExit(
+            "Use --ambient or --ambientdfig with --scenario when refreshing a custom ambient folder."
+        )
+
+    custom_name = parse_ambient_scenario_name(args.scenario) if args.scenario else None
+    if args.ambient:
+        variants = [("classic", AMBIENT_DEFAULT_NAME)]
+    elif args.ambientdfig:
+        variants = [("dfig", "AmbientDFIG")]
+    else:
+        variants = [("classic", AMBIENT_DEFAULT_NAME), ("dfig", "AmbientDFIG")]
+
+    results_root = resolve_results_root(args.output_dir)
+    for variant, default_prefix in variants:
+        scenario_name = make_ambient_scenario_name(
+            float(args.duration) if args.duration is not None else AMBIENT_SIM_STOP_TIME_S,
+            float(args.sim_step_ms),
+            float(args.ambient_magnitude_percent),
+            int(args.ambient_seed),
+            custom_name=custom_name,
+            default_prefix=default_prefix,
+        )
+        modal_dir = results_root / scenario_name / "modal"
+        summarize_ambient_electromechanical_modes(modal_dir)
+
+        filtered_path = modal_dir / "electromechanical_modes_stable_oscillatory.csv"
+        with filtered_path.open(newline="", encoding="utf-8") as handle:
+            modes = list(csv.DictReader(handle))
+        mode_indices = [row.get("ModeIndex", "") for row in modes]
+        print(
+            f"Refreshed {variant} modal summaries: {len(modes)} reference modes "
+            f"({', '.join(mode_indices)}) -> {filtered_path}",
+            flush=True,
+        )
 
 
 def run_all_scenarios(args):
@@ -1812,6 +1880,9 @@ if __name__ == "__main__":
     args = parse_args()
     if args.list_scenarios:
         list_scenarios()
+        raise SystemExit(0)
+    if args.refresh_modal_summaries:
+        refresh_existing_ambient_modal_summaries(args)
         raise SystemExit(0)
 
     start_time = time.time()

@@ -86,6 +86,20 @@ MAX_FULL_CLUSTER_LEGEND = 12
 NOISE_COLOR = "#9e9e9e"
 SILHOUETTE_FILTER_THRESHOLD = 0.25
 SILHOUETTE_FILTER_METHODS = {"k-means", "k-medoids", "gmm", "agglomerative"}
+# The grids are embedded as full-page thesis figures.  A larger, wider canvas
+# keeps each of the six panels legible after LaTeX scales the PDF to page width.
+AREA_ORDER_GRID_FIGSIZE = (16.0, 10.0)
+AREA_ORDER_GRID_POINT_SIZE = 30
+AREA_ORDER_GRID_REP_SIZE = 105
+AREA_ORDER_GRID_REFERENCE_SIZE = 68
+AREA_ORDER_GRID_ANNOTATION_FONTSIZE = 11
+AREA_ORDER_GRID_TICK_FONTSIZE = 12
+AREA_ORDER_GRID_LABEL_FONTSIZE = 14
+AREA_ORDER_GRID_PANEL_TITLE_FONTSIZE = 15
+AREA_ORDER_GRID_SUPTITLE_FONTSIZE = 20
+AREA_ORDER_GRID_ROW_LABEL_FONTSIZE = 15
+AREA_ORDER_GRID_LEGEND_FONTSIZE = 14
+AREA_ORDER_GRID_FILENAME = "selected_cluster_maps_orders_areas_grid"
 
 
 def _label_colors(labels):
@@ -2031,6 +2045,10 @@ def _save_paper_selection(
 
     representatives, cluster_rows = _cluster_representatives(df, filtered_labels)
     pd.DataFrame(audit_rows).to_csv(os.path.join(base_output, "cluster_representatives_sizes.csv"), index=False)
+    assignments = df.copy()
+    assignments["ClusterLabel"] = filtered_labels
+    assignments["Cluster"] = np.where(filtered_labels >= 0, filtered_labels + 1, 0)
+    assignments.to_csv(os.path.join(base_output, "selected_cluster_assignments.csv"), index=False)
     _collect_paper_mad_assignments(df, filtered_labels, cluster_rows, reference_modes, collector)
     final_metrics = _paper_silhouette_metrics(X, filtered_labels)
     final_metrics["Reference_V_Measure"] = _reference_v_measure(df, filtered_labels, reference_modes)
@@ -2047,6 +2065,181 @@ def _save_paper_selection(
         title_fontsize=title_fontsize,
     )
     return final_metrics
+
+
+def _plot_area_order_grid_panel(ax, assignments, reference_modes):
+    labels = assignments["ClusterLabel"].to_numpy(dtype=int)
+    representatives, _ = _cluster_representatives(assignments, labels)
+    ax.scatter(
+        assignments["Damping"],
+        assignments["Frequency"],
+        c=_label_colors_with_noise(labels),
+        alpha=POINT_ALPHA,
+        edgecolors="k",
+        linewidths=0.55,
+        s=AREA_ORDER_GRID_POINT_SIZE,
+        rasterized=True,
+    )
+    if len(representatives):
+        ax.scatter(
+            representatives[:, 1],
+            representatives[:, 0],
+            c=_representative_colors(labels),
+            marker="X",
+            s=AREA_ORDER_GRID_REP_SIZE,
+            edgecolors=ACCENT_RED,
+            linewidths=1.2,
+            zorder=8,
+        )
+
+    for name, mode in (reference_modes or {}).items():
+        damping = float(mode["Damping"])
+        frequency = float(mode["Frequency"])
+        ax.scatter(
+            [damping], [frequency], marker="D", s=AREA_ORDER_GRID_REFERENCE_SIZE,
+            facecolors="white", edgecolors="black", linewidths=1.4, zorder=9,
+        )
+        ax.annotate(
+            name, (damping, frequency), xytext=(5, 5), textcoords="offset points",
+            fontsize=AREA_ORDER_GRID_ANNOTATION_FONTSIZE,
+            fontweight="semibold", color="black", zorder=10,
+        )
+
+    ax.axvline(0, color=ACCENT_RED, linestyle="--", alpha=0.35, linewidth=1.4)
+    set_report_modal_axes(ax)
+    _apply_axis_style(ax, GRID_ALPHA_SUB)
+    ax.tick_params(axis="both", labelsize=AREA_ORDER_GRID_TICK_FONTSIZE)
+
+
+def save_area_order_clustering_grids(
+    base_output_dir,
+    order_group_names,
+    area_names,
+    methods,
+    reference_modes_by_area,
+):
+    """Create one thesis-ready 2x3 selected-map grid per clustering method."""
+    order_group_names = list(order_group_names)[:2]
+    area_names = list(area_names)[:3]
+    if len(order_group_names) != 2 or len(area_names) != 3:
+        return []
+
+    base_output_dir = os.fspath(base_output_dir)
+    method_titles = {
+        "kmeans": "k-Means",
+        "kmedoids": "k-Medoids",
+        "optics": "OPTICS",
+        "dbscan": "DBSCAN",
+        "hdbscan": "HDBSCAN",
+        "gmm": "Gaussian Mixture",
+        "agglomerative": "Agglomerative",
+    }
+    exported = []
+    for method in methods:
+        panel_data = {}
+        for row_index, order_group in enumerate(order_group_names):
+            for col_index, area_name in enumerate(area_names):
+                assignments_path = os.path.join(
+                    base_output_dir,
+                    order_group,
+                    "clustering",
+                    "by_control_area",
+                    area_name,
+                    method,
+                    "selected_cluster_assignments.csv",
+                )
+                if os.path.exists(assignments_path):
+                    panel_data[(row_index, col_index)] = pd.read_csv(assignments_path)
+        if not panel_data:
+            continue
+
+        fig, axes = plt.subplots(
+            2, 3, figsize=AREA_ORDER_GRID_FIGSIZE, sharex=True, sharey=True,
+        )
+        for row_index, order_group in enumerate(order_group_names):
+            for col_index, area_name in enumerate(area_names):
+                ax = axes[row_index, col_index]
+                assignments = panel_data.get((row_index, col_index))
+                if assignments is None or assignments.empty:
+                    set_report_modal_axes(ax)
+                    _apply_axis_style(ax, GRID_ALPHA_SUB)
+                    ax.text(0.5, 0.5, "No selected clustering", ha="center", va="center",
+                            transform=ax.transAxes, fontsize=AREA_ORDER_GRID_TICK_FONTSIZE)
+                else:
+                    _plot_area_order_grid_panel(
+                        ax,
+                        assignments,
+                        reference_modes_by_area.get(area_name, {}),
+                    )
+                if row_index == 0:
+                    ax.set_title(
+                        area_name.replace("_", " ").title(),
+                        fontsize=AREA_ORDER_GRID_PANEL_TITLE_FONTSIZE,
+                        fontweight="bold",
+                    )
+                if row_index == 1:
+                    ax.set_xlabel(
+                        "Damping (Sigma) [rad/s]",
+                        fontsize=AREA_ORDER_GRID_LABEL_FONTSIZE,
+                    )
+                if col_index == 0:
+                    ax.set_ylabel("Frequency [Hz]", fontsize=AREA_ORDER_GRID_LABEL_FONTSIZE)
+
+        display_name = method_titles.get(method, str(method).replace("_", " ").title())
+        fig.suptitle(
+            f"{display_name}: selected cluster maps",
+            fontsize=AREA_ORDER_GRID_SUPTITLE_FONTSIZE,
+            fontweight="bold",
+            y=0.975,
+        )
+        row_positions = (0.69, 0.30)
+        for row_index, order_group in enumerate(order_group_names):
+            fig.text(
+                0.018,
+                row_positions[row_index],
+                str(order_group).replace("orders", "Orders "),
+                rotation=90,
+                ha="center",
+                va="center",
+                fontsize=AREA_ORDER_GRID_ROW_LABEL_FONTSIZE,
+                fontweight="bold",
+            )
+
+        legend_handles = [
+            Line2D([0], [0], marker="o", color="w", markerfacecolor=CLUSTER_COLORS[0],
+                   markeredgecolor="k", markersize=10,
+                   label="Clustered estimates (colours identify clusters)"),
+            Line2D([0], [0], marker="o", color="w", markerfacecolor=NOISE_COLOR,
+                   markeredgecolor="k", markersize=10, label="Noise / filtered estimates"),
+            Line2D([0], [0], marker="X", color="w", markerfacecolor=CLUSTER_COLORS[0],
+                   markeredgecolor=ACCENT_RED, markersize=12, label="Cluster means"),
+            Line2D([0], [0], marker="D", color="w", markerfacecolor="white",
+                   markeredgecolor="k", markersize=10, label="Reference modes"),
+        ]
+        fig.legend(
+            handles=legend_handles,
+            loc="lower center",
+            bbox_to_anchor=(0.5, 0.015),
+            ncol=4,
+            fontsize=AREA_ORDER_GRID_LEGEND_FONTSIZE,
+            frameon=True,
+            handletextpad=0.7,
+            columnspacing=1.8,
+        )
+        fig.subplots_adjust(
+            left=0.07,
+            right=0.99,
+            bottom=0.13,
+            top=0.91,
+            wspace=0.14,
+            hspace=0.16,
+        )
+
+        output_dir = os.path.join(base_output_dir, "clustering_grids", method)
+        _save_figure(fig, output_dir, AREA_ORDER_GRID_FILENAME, fixed_canvas=True)
+        plt.close(fig)
+        exported.append(os.path.join(output_dir, "pdf", f"{AREA_ORDER_GRID_FILENAME}.pdf"))
+    return exported
 
 
 def _update_selected_final_metrics(base_output, metrics_filename, final_metrics):

@@ -136,6 +136,7 @@ from ambient_n4sid_analysis import (
     preprocess_ambient_signal,
     run_ambient_clustering_for_results,
     run_ambient_n4sid_for_scenario,
+    save_ambient_area_order_clustering_grids,
     save_ambient_clustering_selection_summary,
 )
 
@@ -2374,12 +2375,22 @@ def main():
             )
             analysis_config["evaluation"] = {"sweeps": sweep_evaluations}
             if args.skip_n4sid and any(effective_clustering.values()):
+                analysis_config["clustering_methods"] = list(
+                    args.clustering_methods
+                    or analysis_config.get("clustering_methods")
+                    or AMBIENT_DEFAULT_CLUSTERING_METHODS
+                )
                 analysis_config["optics_settings"] = dict(AMBIENT_DEFAULT_OPTICS_SETTINGS)
                 analysis_config["dbscan_settings"] = dict(AMBIENT_DEFAULT_DBSCAN_SETTINGS)
                 analysis_config["hdbscan_settings"] = dict(AMBIENT_DEFAULT_HDBSCAN_SETTINGS)
                 analysis_config["gmm_settings"] = dict(AMBIENT_DEFAULT_GMM_SETTINGS)
                 analysis_config["agglomerative_settings"] = dict(AMBIENT_DEFAULT_AGGLOMERATIVE_SETTINGS)
                 save_ambient_clustering_selection_summary(output_dir, analysis_config)
+                if effective_clustering.get("by_control_area", False):
+                    analysis_config["clustering_grids"] = save_ambient_area_order_clustering_grids(
+                        output_dir,
+                        analysis_config,
+                    )
         else:
             if disturbance_type == "ambient" and _ambient_cli_overrides_requested(args):
                 print(

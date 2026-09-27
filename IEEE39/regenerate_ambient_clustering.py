@@ -16,6 +16,7 @@ from ambient_n4sid_analysis import (
     _reference_modes_for_control_area,
     _resolve_path,
     _save_aggregated_paper_mad,
+    save_ambient_area_order_clustering_grids,
     save_ambient_clustering_selection_summary,
     _save_json,
 )
@@ -166,6 +167,11 @@ def main():
     analysis_config["paper_mad"] = dict(AMBIENT_PAPER_MAD_SETTINGS)
     _save_json(config_path, analysis_config)
     save_ambient_clustering_selection_summary(base_output_dir, analysis_config)
+    analysis_config["clustering_grids"] = save_ambient_area_order_clustering_grids(
+        base_output_dir,
+        analysis_config,
+    )
+    _save_json(config_path, analysis_config)
 
 
 def _extend_pm_settings(settings, defaults):

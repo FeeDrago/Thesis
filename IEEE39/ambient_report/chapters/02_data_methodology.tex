@@ -43,7 +43,7 @@
         \bottomrule
     \end{tabular}
 \end{table}
- 
+
 \section{Μέθοδοι Συσταδοποίησης και Υπερπαράμετροι}
 
 Το screened σύνολο εκτιμήσεων ομαδοποιείται ανά περιοχή ελέγχου με τις μεθόδους \textit{k-Means}~\cite{macqueen1967some}, \textit{k-Medoids}~\cite{kaufman2009finding}, \textit{DBSCAN}~\cite{dbscan1996}, \textit{OPTICS}~\cite{optics1999}, \textit{HDBSCAN}~\cite{hdbscan2015}, \textit{Gaussian Mixture Models} (GMM)~\cite{gmm2002} και Agglomerative Hierarchical Clustering (AHC)~\cite{agglomerative1963}. Οι παράμετροι κάθε μεθόδου και η πολιτική επιλογής τους παρουσιάζονται σε επόμενη ενότητα μαζί με τα αποτελέσματα, ώστε η σύγκριση να βασίζεται σε κοινό input dataset και σαφώς ορισμένες ρυθμίσεις.
@@ -82,31 +82,54 @@ N_{\mathrm{pts}}=
 \]
 όπου $N_s$ είναι το πλήθος των συνδυασμών γεννήτριας$-$σήματος στην
 εξεταζόμενη περιοχή ελέγχου και $|n|$ το πλήθος των τάξεων μοντέλου του
-αντίστοιχου sweep. Για τον DBSCAN εξετάστηκαν όλοι οι συνδυασμοί
-$p_e \in \{0.05,0.055,\dots,0.15\}$ και
-$p_m \in \{0.10,0.15,\dots,0.40\}$. Στον OPTICS το $N_{\mathrm{pts}}$ χρησιμοποιήθηκε
-ως \texttt{min\_samples}, με
-$p_m \in \{0.10,0.15,\dots,0.40\}$, ενώ η παράμετρος \texttt{xi}
-μεταβλήθηκε στο διάστημα $\texttt{xi} \in \{0.02,0.03,\dots,0.18\}$. Στον HDBSCAN εξετάστηκαν οι τιμές
-$p_e \in \{0.01,0.015,\dots,0.15\}$ και
-$p_m \in \{0.10,0.15,\dots,0.40\}$, με το $N_{\mathrm{pts}}$ να χρησιμοποιείται
-για την \texttt{min\_cluster\_size}, την τιμή $\epsilon$ για την
-\texttt{cluster\_selection\_epsilon} και τις πολιτικές
-\texttt{eom} και \texttt{leaf}. Στην Agglomerative Hierarchical
-Clustering εξετάστηκαν η απόσταση κατωφλίου $\epsilon$, με
-$p_e \in \{0.01,0.02,\dots,0.80\}$, και οι μέθοδοι σύνδεσης
-\textit{average} και \textit{complete}. Για τις μεθόδους \textit{k-Means} και \textit{k-Medoids}, ο αριθμός
-συστάδων μεταβλήθηκε στο διάστημα
-\[
-K=2,\dots,\min(10,N-1),
-\]
-όπου $N$ είναι το πλήθος των διαθέσιμων screened εκτιμήσεων. Για τα
-Gaussian Mixture Models εξετάστηκαν
-\[
-K=1,\dots,\min(10,N),
-\]
-με πλήρη πίνακα συνδιακύμανσης, \texttt{reg\_covar}$=10^{-4}$,
-\texttt{n\_init}$=10$ και αρχικοποίηση \textit{k-means++}.
+αντίστοιχου sweep. Τα πλέγματα υπερπαραμέτρων που χρησιμοποιήθηκαν
+παρουσιάζονται συγκεντρωτικά στον Πίνακα~\ref{tab:amb:hyperparameter-grids},
+όπου $N$ είναι το πλήθος των διαθέσιμων screened εκτιμήσεων. Τα ίδια
+πλέγματα εφαρμόστηκαν και στα δύο order sweeps.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Πλέγματα υπερπαραμέτρων των μεθόδων συσταδοποίησης.}
+    \label{tab:amb:hyperparameter-grids}
+    \footnotesize
+    \setlength{\tabcolsep}{5pt}
+    \renewcommand{\arraystretch}{1.35}
+    \begin{tabular}{
+        >{\raggedright\arraybackslash}p{0.18\textwidth}
+        >{\raggedright\arraybackslash}p{0.37\textwidth}
+        >{\raggedright\arraybackslash}p{0.34\textwidth}}
+        \toprule
+        \textbf{Μέθοδος} & \textbf{Πλέγμα αναζήτησης} & \textbf{Σταθερές ρυθμίσεις} \\
+        \midrule
+        \textit{k-Means}, \textit{k-Medoids}
+        & $K\in\{2,3,\ldots,\min(10,N-1)\}$
+        & --- \\
+        \textit{DBSCAN}
+        & $p_e\in\{0.060,0.065,\ldots,0.150\}$\newline
+          $p_m\in\{0.10,0.15,\ldots,0.35\}$
+        & --- \\
+        \textit{OPTICS}
+        & $p_m\in\{0.30,0.35,0.40\}$\newline
+          $\xi\in\{0.02,0.03,0.04,0.05,0.06\}$
+        & \texttt{min\_samples}$=N_{\mathrm{pts}}$ \\
+        \textit{HDBSCAN}
+        & $p_e\in\{0.010,0.015,\ldots,0.150\}$\newline
+          $p_m\in\{0.10,0.15,\ldots,0.40\}$
+        & \texttt{min\_cluster\_size}$=N_{\mathrm{pts}}$;\newline
+          \texttt{cluster\_selection\_epsilon}$=\epsilon$;\newline
+          \texttt{cluster\_selection\_method}$\in\{\texttt{eom},\texttt{leaf}\}$ \\
+        \textit{GMM}
+        & $K\in\{1,2,\ldots,\min(10,N)\}$
+        & \texttt{covariance\_type}$=\texttt{full}$;\newline
+          \texttt{reg\_covar}$=10^{-4}$;\newline
+          \texttt{n\_init}$=10$;\newline
+          αρχικοποίηση \textit{k-means++} \\
+        \textit{Agglomerative}
+        & $p_e\in\{0.01,0.02,\ldots,0.80\}$
+        & \texttt{linkage}$\in\{\textit{average},\textit{complete}\}$ \\
+        \bottomrule
+    \end{tabular}
+\end{table}
 
 Μία υποψήφια ρύθμιση θεωρήθηκε έγκυρη για την αξιολόγηση με silhouette
 μόνο όταν παρήγαγε τουλάχιστον δύο συστάδες μη θορύβου. Δεν εφαρμόστηκε
