@@ -2118,10 +2118,10 @@ def save_area_order_clustering_grids(
     methods,
     reference_modes_by_area,
 ):
-    """Create one thesis-ready 2x3 selected-map grid per clustering method."""
+    """Create one thesis-ready selected-map grid per clustering method."""
     order_group_names = list(order_group_names)[:2]
     area_names = list(area_names)[:3]
-    if len(order_group_names) != 2 or len(area_names) != 3:
+    if len(order_group_names) not in {1, 2} or len(area_names) != 3:
         return []
 
     base_output_dir = os.fspath(base_output_dir)
@@ -2153,8 +2153,10 @@ def save_area_order_clustering_grids(
         if not panel_data:
             continue
 
+        nrows = len(order_group_names)
+        figure_size = AREA_ORDER_GRID_FIGSIZE if nrows == 2 else (AREA_ORDER_GRID_FIGSIZE[0], 7.2)
         fig, axes = plt.subplots(
-            2, 3, figsize=AREA_ORDER_GRID_FIGSIZE, sharex=True, sharey=True,
+            nrows, 3, figsize=figure_size, sharex=True, sharey=True, squeeze=False,
         )
         for row_index, order_group in enumerate(order_group_names):
             for col_index, area_name in enumerate(area_names):
@@ -2177,7 +2179,7 @@ def save_area_order_clustering_grids(
                         fontsize=AREA_ORDER_GRID_PANEL_TITLE_FONTSIZE,
                         fontweight="bold",
                     )
-                if row_index == 1:
+                if row_index == nrows - 1:
                     ax.set_xlabel(
                         "Damping (Sigma) [rad/s]",
                         fontsize=AREA_ORDER_GRID_LABEL_FONTSIZE,
@@ -2192,7 +2194,7 @@ def save_area_order_clustering_grids(
             fontweight="bold",
             y=0.975,
         )
-        row_positions = (0.69, 0.30)
+        row_positions = (0.69, 0.30) if nrows == 2 else (0.50,)
         for row_index, order_group in enumerate(order_group_names):
             fig.text(
                 0.018,
@@ -2226,19 +2228,33 @@ def save_area_order_clustering_grids(
             handletextpad=0.7,
             columnspacing=1.8,
         )
-        fig.subplots_adjust(
-            left=0.07,
-            right=0.99,
-            bottom=0.13,
-            top=0.91,
-            wspace=0.14,
-            hspace=0.16,
-        )
+        if nrows == 1:
+            fig.subplots_adjust(
+                left=0.07,
+                right=0.99,
+                bottom=0.24,
+                top=0.80,
+                wspace=0.14,
+            )
+        else:
+            fig.subplots_adjust(
+                left=0.07,
+                right=0.99,
+                bottom=0.13,
+                top=0.91,
+                wspace=0.14,
+                hspace=0.16,
+            )
 
         output_dir = os.path.join(base_output_dir, "clustering_grids", method)
-        _save_figure(fig, output_dir, AREA_ORDER_GRID_FILENAME, fixed_canvas=True)
+        filename = (
+            AREA_ORDER_GRID_FILENAME
+            if nrows == 2
+            else f"selected_cluster_maps_{order_group_names[0]}_areas_grid"
+        )
+        _save_figure(fig, output_dir, filename, fixed_canvas=True)
         plt.close(fig)
-        exported.append(os.path.join(output_dir, "pdf", f"{AREA_ORDER_GRID_FILENAME}.pdf"))
+        exported.append(os.path.join(output_dir, "pdf", f"{filename}.pdf"))
     return exported
 
 

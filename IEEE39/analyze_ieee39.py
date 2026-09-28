@@ -1570,8 +1570,13 @@ def _generate_ambient_screened_area_modal_maps(df_results, modal_maps_dir, refer
         plt.close(fig)
 
 
-def generate_ambient_screened_modal_grid(sweep_datasets, output_dir, reference_modes):
-    """Save a thesis-ready 3x2 grid of screened estimates by area and sweep."""
+def generate_ambient_screened_modal_grid(
+    sweep_datasets,
+    output_dir,
+    reference_modes,
+    filename="screened_modal_maps_3x2_grid",
+):
+    """Save a thesis-ready grid of screened estimates by area and sweep."""
     rows = list(sweep_datasets)[:2]
     if not rows:
         return
@@ -1598,12 +1603,18 @@ def generate_ambient_screened_modal_grid(sweep_datasets, output_dir, reference_m
     area_items = list(CONTROL_AREAS.items())
     # Match the approximate physical size used in the report.  A much larger
     # canvas would be heavily downscaled by LaTeX, making all labels unreadable.
-    fig, axes = plt.subplots(3, 2, figsize=(7.6, 9.1), sharex=True, sharey=True)
+    ncols = len(screened_rows)
+    figure_width = 7.6 if ncols == 1 else 3.8 * ncols
+    fig, axes = plt.subplots(
+        3,
+        ncols,
+        figsize=(figure_width, 9.1),
+        sharex=True,
+        sharey=True,
+        squeeze=False,
+    )
     for row_index, (area_name, generators) in enumerate(area_items):
         for col_index, ax in enumerate(axes[row_index]):
-            if col_index >= len(screened_rows):
-                ax.axis("off")
-                continue
             order_group_name, screened = screened_rows[col_index]
             area_df = screened[screened["Gen"].isin(generators)]
             area_reference_modes = _reference_modes_for_control_area_from_set(reference_modes, area_name)
@@ -1640,11 +1651,15 @@ def generate_ambient_screened_modal_grid(sweep_datasets, output_dir, reference_m
     handles, labels = axes[0, 0].get_legend_handles_labels()
     if handles:
         fig.legend(handles, labels, loc="lower center", ncol=len(handles), fontsize=9, bbox_to_anchor=(0.5, 0.01))
-    fig.suptitle("Screened N4SID Estimates by Order Sweep and Control Area", y=0.995, fontsize=14)
+    if ncols == 1:
+        grid_title = f"Screened N4SID Estimates by Control Area — {screened_rows[0][0]}"
+    else:
+        grid_title = "Screened N4SID Estimates by Order Sweep and Control Area"
+    fig.suptitle(grid_title, y=0.995, fontsize=14)
     fig.supylabel("Frequency [Hz]", x=0.015, fontsize=12)
     fig.supxlabel("Damping (Sigma) [rad/s]", y=0.065, fontsize=12)
     fig.subplots_adjust(left=0.10, right=0.99, bottom=0.13, top=0.91, hspace=0.36, wspace=0.08)
-    save_current_figure(Path(output_dir) / "plots", "screened_modal_maps_3x2_grid", fig)
+    save_current_figure(Path(output_dir) / "plots", filename, fig)
     plt.close(fig)
 
 
@@ -2360,10 +2375,26 @@ def main():
 
             if not effective_skip_plots:
                 grid_start = time.perf_counter()
+                ambient_reference_modes = dict(analysis_config.get("reference_modes") or {})
+                if not ambient_reference_modes:
+                    _, ambient_reference_modes = _load_ambient_reference_modes(scenario["data_dir"])
+                for order_group_name in ("orders1", "orders2"):
+                    order_grid_data = [
+                        entry for entry in screened_modal_grid_data
+                        if entry[0] == order_group_name
+                    ]
+                    if order_grid_data:
+                        generate_ambient_screened_modal_grid(
+                            order_grid_data,
+                            output_dir,
+                            ambient_reference_modes,
+                            filename=f"screened_modal_maps_{order_group_name}_3x1_grid",
+                        )
                 generate_ambient_screened_modal_grid(
                     screened_modal_grid_data,
                     output_dir,
-                    _resolve_reference_modes_for_scenario(scenario),
+                    ambient_reference_modes,
+                    filename="screened_modal_maps_3x2_grid",
                 )
                 sweep_plotting_seconds += time.perf_counter() - grid_start
 

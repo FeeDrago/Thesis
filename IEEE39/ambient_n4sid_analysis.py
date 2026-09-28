@@ -873,6 +873,14 @@ def save_ambient_area_order_clustering_grids(base_output_dir, analysis_config):
         methods=methods,
         reference_modes_by_area=reference_modes_by_area,
     )
+    for order_group_name in order_group_names:
+        exported.extend(save_area_order_clustering_grids(
+            base_output_dir=base_output_dir,
+            order_group_names=[order_group_name],
+            area_names=CONTROL_AREAS.keys(),
+            methods=methods,
+            reference_modes_by_area=reference_modes_by_area,
+        ))
     return [_path_for_metadata(path) for path in exported]
 
 

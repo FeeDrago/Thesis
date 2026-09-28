@@ -1,0 +1,411 @@
+\chapter{AMBIENT ΑΝΑΛΥΣΗ ΣΤΟ ΣΥΣΤΗΜΑ IEEE 39-BUS ΜΕ ΜΟΝΑΔΕΣ DFIG}
+\section{Τροποποιημένο IEEE 39-Bus και αντικείμενο της ανάλυσης}
+Στο παρόν κεφάλαιο εξετάζεται η \textit{ambient} αναγνώριση ηλεκτρομηχανικών ρυθμών στο τροποποιημένο σύστημα IEEE 39-Bus, στο οποίο οι σύγχρονες γεννήτριες G3, G4 και G5 έχουν αντικατασταθεί από μονάδες διπλά τροφοδοτούμενης επαγωγικής γεννήτριας (\textit{Doubly-Fed Induction Generator} \textendash{} DFIG). Συγκεκριμένα, κάθε σύγχρονη γεννήτρια αντικαταστάθηκε από ισοδύναμο αιολικό πάρκο αποτελούμενο από παράλληλα συνδεδεμένες μονάδες DFIG ονομαστικής ισχύος $2.5$~MW. Το πλήθος των μονάδων και η συνολική εγκατεστημένη ισχύς κάθε ισοδύναμου πάρκου παρουσιάζονται στον Πίνακα~\ref{tab:ambdfig:dfig_count}. Το πλήθος επιλέχθηκε έτσι ώστε η συνολική ισχύς των μονάδων DFIG να προσεγγίζει όσο το δυνατόν περισσότερο την ονομαστική ισχύ της σύγχρονης γεννήτριας που αντικαθίσταται~\cite{digsilent39}.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Αντικατάσταση των σύγχρονων γεννητριών από ισοδύναμα αιολικά πάρκα DFIG.}
+    \label{tab:ambdfig:dfig_count}
+    \begin{tabular}{cccc}
+        \toprule
+        \textbf{Γεννήτρια που} & \textbf{Ισχύς μονάδας} & \textbf{Πλήθος μονάδων} & \textbf{Συνολική ισχύς} \\
+        \textbf{αντικαταστάθηκε} & \textbf{DFIG [MW]} & \textbf{DFIG} & \textbf{[MW]} \\
+        \midrule
+        G3 & $2{,}5$ & 260 & $650{,}0$ \\
+        G4 & $2{,}5$ & 253 & $632{,}5$ \\
+        G5 & $2{,}5$ & 203 & $507{,}5$ \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Οι συνθήκες της προσομοίωσης, η προεπεξεργασία των σημάτων και η διαδικασία της συσταδοποίησης παρέμειναν αμετάβλητες σε σχέση με την ανάλυση του Κεφαλαίου~\ref{chap:ambient-analysis}. Η μοναδική διαφοροποίηση στη διαδικασία αναγνώρισης είναι ότι ο αλγόριθμος N4SID εφαρμόστηκε μόνο στην πρώτη ομάδα τάξεων μοντέλου (\texttt{orders1}), δηλαδή για
+\[
+n\in\{2,4,6,\ldots,30\}.
+\]
+Ο χρόνος εκτέλεσης του αλγορίθμου για τη συγκεκριμένη ομάδα τάξεων ήταν περίπου $3{,}1$~s.
+\section{Νέοι ρυθμοί αναφοράς του συστήματος}
+Για την αξιολόγηση των εκτιμήσεων του αλγορίθμου N4SID, όπως και στο προηγούμενο κεφάλαιο, χρησιμοποιήθηκαν οι ρυθμοί αναφοράς που εξήχθησαν για το νέο σύστημα σύμφωνα με τη διαδικασία που περιγράφηκε στην Ενότητα~\ref{amb:reference_modes} και παρουσιάζονται στον Πίνακα~\ref{tab:ambdfig:reference_modes}.
+\begin{table}[htbp]
+    \centering
+    \caption{Ηλεκτρομηχανικοί ρυθμοί αναφοράς του τροποποιημένου συστήματος IEEE 39-Bus με μονάδες DFIG.}
+    \label{tab:ambdfig:reference_modes}
+    \begin{tabular}{cccccc}
+        \toprule
+        \textbf{Mode} &
+        \textbf{$f$ [Hz]} &
+        \textbf{$\sigma$} &
+        \textbf{Generators} &
+        \textbf{Areas} &
+        \textbf{Type} \\
+        \midrule
+        Mode 1 & 1.111 & -0.198 & 8, 10 & 1 & Intra-area \\
+        Mode 2 & 1.100 & -0.421 & 1, 2, 6, 7, 9, 10 & 1\textendash{}3 & Inter-area \\
+        Mode 3 & 1.005 & -0.451 & 6, 9 & 1, 3 & Inter-area \\
+        Mode 4 & 0.632 & -0.454 & 1, 6, 7, 9 & 1, 3 & Inter-area \\
+        Mode 5 & 1.423 & -0.697 & 6, 7 & 3 & Intra-area \\
+        Mode 6 & 1.408 & -0.707 & 8, 10 & 1 & Intra-area \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Σε αντίθεση με το συμβατικό σύστημα IEEE 39-Bus, το πλήθος των ρυθμών αναφοράς μειώθηκε από εννέα σε έξι. Παρόλα αυτά, πολλοί από τους ρυθμούς που παρατηρήθηκαν στο συμβατικό σύστημα συνεχίζουν να εμφανίζονται και στο τροποποιημένο σύστημα. Συγκεκριμένα, ο τοπικός ρυθμός της Περιοχής~1 (Ρυθμός~1) παραμένει σχεδόν αμετάβλητος. Σχεδόν αμετάβλητοι εμφανίζονται και οι τοπικοί ρυθμοί 5 και 6 του τροποποιημένου συστήματος, οι οποίοι αντιστοιχούν στους ρυθμούς 7 και 8 του συμβατικού συστήματος και σχετίζονται κυρίως με τις γεννήτριες G6 και G7 για τον πρώτο και G8 και G10 για τον δεύτερο. Οι γεννήτριες αυτές δεν αντικαταστάθηκαν από μονάδες DFIG. Σημαντικότερες μεταβολές παρατηρούνται στους διασυνδετικούς ρυθμούς 2, 3 και 4, οι οποίοι εμφανίζονται με λίγο μεγαλύτερες συχνότητες και παρουσιάζουν διαφορετική κατανομή της συμμετοχής των σύγχρονων γεννητριών. Αξιοσημείωτο είναι επίσης ότι δεν εμφανίζονται πλέον οι τοπικοί ρυθμοί 5, 6 και 9 του συμβατικού συστήματος, από τους οποίους ο ρυθμός~5 ήταν ο μοναδικός τοπικός ρυθμός της Περιοχής~2.
+
+
+\section{Screened Εκτιμήσεις N4SID και Χάρτες Συσταδοποίησης}
+Για το τροποποιημένο σύστημα IEEE 39-Bus, όπως αναφέρθηκε και προηγουμένως, ο αλγόριθμος N4SID εφαρμόστηκε μόνο στην πρώτη ομάδα τάξεων (\texttt{orders1}), η οποία παρουσίασε καλύτερη συνολική απόδοση. Η προεπεξεργασία, το screening και η διαδικασία ρύθμισης των αλγορίθμων παραμένουν ίδια με το Κεφάλαιο~\ref{chap:ambient-analysis}.
+
+\subsection{Screened εκτιμήσεις}
+Μετά την εφαρμογή των κριτηρίων της Ενότητας~\ref{amb:preprocessing}, προέκυψαν 1324 εκτιμήσεις, πλήθος κοντά στις 1397 διατηρούμενες εκτιμήσεις της πρώτης ομάδας τάξεων στο συμβατικό IEEE 39-Bus. Από αυτές, οι 550 ανήκουν στην Περιοχή~1, οι 231 στην Περιοχή~2 και οι 543 στην Περιοχή~3. Παρόμοια με το συμβατικό σύστημα, οι εκτιμήσεις του N4SID συγκεντρώνονται κοντά στις συχνότητες των ρυθμών αναφοράς, με μεγάλη διασπορά όμως στον άξονα της απόσβεσης. Η κατανομή τους στο επίπεδο $(\sigma, f)$ παρουσιάζεται στο Σχήμα~\ref{fig:ambdfig:screened_estimates}.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\textwidth]{IEEE39/analysis/AmbientDFIG_Mag0.1_T600s_dt10ms_seed1997/plots/pdf/screened_modal_maps_orders1_3x1_grid.pdf}
+    \caption{Screened εκτιμήσεις N4SID της ομάδας τάξεων \texttt{orders1} ανά περιοχή ελέγχου για το τροποποιημένο σύστημα IEEE 39-Bus με μονάδες DFIG. Οι ρόμβοι αντιστοιχούν στους ρυθμούς αναφοράς του \textit{PowerFactory}.}
+    \label{fig:ambdfig:screened_estimates}
+\end{figure}
+\FloatBarrier
+
+\subsection{Χάρτες συσταδοποίησης}
+
+Οι χάρτες συσταδοποίησης της πρώτης ομάδας τάξεων παρουσιάζονται ανά μέθοδο και περιοχή ελέγχου. Σε κάθε χάρτη απεικονίζονται οι τελικές συστάδες, οι εκτιμήσεις που χαρακτηρίστηκαν ως θόρυβος ή απορρίφθηκαν από το φίλτρο silhouette, τα κέντρα των συστάδων και οι αντίστοιχοι ρυθμοί αναφοράς του \textit{PowerFactory}.
+
+\subsubsection{\textit{k-Means}.}
+Οι επιλεγμένες ρυθμίσεις της μεθόδου \textit{k-Means} παρουσιάζονται στον Πίνακα~\ref{tab:ambdfig:kmeans-tuning}, ενώ ο αντίστοιχος χάρτης συσταδοποίησης στο Σχήμα~\ref{fig:ambdfig:cluster-kmeans}. Παρατηρείται ότι, όμοια με το συμβατικό σύστημα, καμία συστάδα δεν απορρίπτεται σε καμία από τις τρεις περιοχές από το φίλτρο της Ενότητας~\ref{amb:silhouette-filtering}. Παρόλα αυτά, ο αλγόριθμος δεν διαχωρίζει τους κοντινούς ρυθμούς της Περιοχής~1, σχηματίζει 7 συστάδες στην Περιοχή~2 έναντι του μοναδικού ρυθμού αναφοράς, ενώ στην Περιοχή~3 εντοπίζει συστάδες σε συχνοτικές περιοχές στις οποίες δεν αντιστοιχούν ρυθμοί αναφοράς, δεν διαχωρίζει τους ρυθμούς 2 και 3 σε διαφορετικές συστάδες και, τέλος, δεν εντοπίζει ικανοποιητικά τον ρυθμό~5.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Επιλεγμένες ρυθμίσεις \textit{k-Means}.}
+    \label{tab:ambdfig:kmeans-tuning}
+    \begin{tabular}{ccc}
+        \toprule
+        Περιοχή & $k$ & Silhouette Score \\
+        \midrule
+        1 & 2 & 0.633 \\
+        2 & 7 & 0.637 \\
+        3 & 4 & 0.685 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\textwidth]{IEEE39/analysis/AmbientDFIG_Mag0.1_T600s_dt10ms_seed1997/clustering_grids/kmeans/pdf/selected_cluster_maps_orders1_areas_grid.pdf}
+    \caption{Χάρτες συσταδοποίησης της μεθόδου \textit{k-Means} για την ομάδα τάξεων \texttt{orders1}.}
+    \label{fig:ambdfig:cluster-kmeans}
+\end{figure}
+\FloatBarrier
+
+\subsubsection{\textit{k-Medoids}.}
+Οι επιλεγμένες ρυθμίσεις της μεθόδου \textit{k-Medoids} παρουσιάζονται στον Πίνακα~\ref{tab:ambdfig:kmedoids-tuning}, ενώ ο αντίστοιχος χάρτης συσταδοποίησης στο Σχήμα~\ref{fig:ambdfig:cluster-kmedoids}. Ο αλγόριθμος k-Medoids παρουσιάζει παρόμοια συμπεριφορά με τον k-Means. Συγκεκριμένα, αποδίδει όλες τις εκτιμήσεις σε κάποια συστάδα, δεν διαχωρίζει τους κοντινούς ρυθμούς της Περιοχής~1 και εντοπίζει υπερβολικό πλήθος συστάδων στην Περιοχή~2. Στην Περιοχή~3 σχηματίζει τέσσερις συστάδες, χωρίς όμως να διαχωρίζει ικανοποιητικά τους ρυθμούς 2 και 3, ενώ πολύ κοντινές είναι και οι τιμές silhouette των δύο μεθόδων.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Επιλεγμένες ρυθμίσεις \textit{k-Medoids}.}
+    \label{tab:ambdfig:kmedoids-tuning}
+    \begin{tabular}{ccc}
+        \toprule
+        Περιοχή & $k$ & Silhouette Score \\
+        \midrule
+        1 & 5 & 0.630 \\
+        2 & 10 & 0.630 \\
+        3 & 4 & 0.685 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\textwidth]{IEEE39/analysis/AmbientDFIG_Mag0.1_T600s_dt10ms_seed1997/clustering_grids/kmedoids/pdf/selected_cluster_maps_orders1_areas_grid.pdf}
+    \caption{Χάρτες συσταδοποίησης της μεθόδου \textit{k-Medoids} για την ομάδα τάξεων \texttt{orders1}.}
+    \label{fig:ambdfig:cluster-kmedoids}
+\end{figure}
+\FloatBarrier
+
+\subsubsection{DBSCAN.}
+Οι επιλεγμένες ρυθμίσεις της μεθόδου DBSCAN παρουσιάζονται στον Πίνακα~\ref{tab:ambdfig:dbscan-tuning}, ενώ ο αντίστοιχος χάρτης συσταδοποίησης στο Σχήμα~\ref{fig:ambdfig:cluster-dbscan}. Ο DBSCAN παρουσιάζει καλύτερες τιμές silhouette σε σχέση με τις δύο προηγούμενες μεθόδους, με προφανές μειονέκτημα τον χαρακτηρισμό μεγάλου μέρους των εκτιμήσεων ως θόρυβο. Επομένως, οι υψηλότερες τιμές silhouette επιτυγχάνονται με κόστος τη μειωμένη κάλυψη των εκτιμήσεων. Παρόλα αυτά, ο αλγόριθμος σχηματίζει συστάδες σε πολύ κοντινές συχνότητες με τους περισσότερους ρυθμούς αναφοράς, ακόμη και αν δεν διαχωρίζει τους πολύ κοντινούς ρυθμούς των Περιοχών~1 και 3.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Επιλεγμένες ρυθμίσεις DBSCAN.}
+    \label{tab:ambdfig:dbscan-tuning}
+    \begin{tabular}{ccccccc}
+        \toprule
+        Περιοχή & $p_e$ & $p_m$ & $N_{\mathrm{pts}}$ & Clusters & Noise [\%] & Silhouette \\
+        \midrule
+        1 & 0.060 & 0.35 & 42 & 3 & 47.1 & 0.833 \\
+        2 & 0.060 & 0.35 & 21 & 3 & 53.2 & 0.870 \\
+        3 & 0.070 & 0.35 & 42 & 4 & 29.5 & 0.830 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\textwidth]{IEEE39/analysis/AmbientDFIG_Mag0.1_T600s_dt10ms_seed1997/clustering_grids/dbscan/pdf/selected_cluster_maps_orders1_areas_grid.pdf}
+    \caption{Χάρτες συσταδοποίησης της μεθόδου DBSCAN για την ομάδα τάξεων \texttt{orders1}.}
+    \label{fig:ambdfig:cluster-dbscan}
+\end{figure}
+\FloatBarrier
+
+\subsubsection{OPTICS.}
+Οι επιλεγμένες ρυθμίσεις της μεθόδου OPTICS παρουσιάζονται στον Πίνακα~\ref{tab:ambdfig:optics-tuning}, ενώ ο αντίστοιχος χάρτης συσταδοποίησης στο Σχήμα~\ref{fig:ambdfig:cluster-optics}. Ο αλγόριθμος OPTICS χαρακτηρίζει κατά μέσο όρο λιγότερες εκτιμήσεις ως θόρυβο σε σχέση με τον DBSCAN. Παράλληλα, σχηματίζει συστάδες σε πολύ κοντινές συχνότητες με τους περισσότερους ρυθμούς αναφοράς, όπως και ο DBSCAN, με τις ίδιες αδυναμίες στον διαχωρισμό των πολύ κοντινών ρυθμών, τη μη ανίχνευση του ρυθμού~5 της Περιοχής~3 και τον σχηματισμό συστάδων σε ακραίες συχνοτικές περιοχές χωρίς κάποιον αντίστοιχο ρυθμό αναφοράς.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Επιλεγμένες ρυθμίσεις OPTICS.}
+    \label{tab:ambdfig:optics-tuning}
+    \begin{tabular}{ccccccc}
+        \toprule
+        Περιοχή & $p_m$ & \texttt{xi} & \texttt{min\_samples} & Clusters & Noise [\%] & Silhouette \\
+        \midrule
+        1 & 0.30 & 0.02 & 36 & 5 & 47.1 & 0.769 \\
+        2 & 0.40 & 0.05 & 24 & 4 & 29.9 & 0.779 \\
+        3 & 0.40 & 0.06 & 48 & 4 & 33.3 & 0.845 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\textwidth]{IEEE39/analysis/AmbientDFIG_Mag0.1_T600s_dt10ms_seed1997/clustering_grids/optics/pdf/selected_cluster_maps_orders1_areas_grid.pdf}
+    \caption{Χάρτες συσταδοποίησης της μεθόδου OPTICS για την ομάδα τάξεων \texttt{orders1}.}
+    \label{fig:ambdfig:cluster-optics}
+\end{figure}
+\FloatBarrier
+
+\subsubsection{HDBSCAN.}
+Οι επιλεγμένες ρυθμίσεις της μεθόδου HDBSCAN παρουσιάζονται στον Πίνακα~\ref{tab:ambdfig:hdbscan-tuning}, ενώ ο αντίστοιχος χάρτης συσταδοποίησης στο Σχήμα~\ref{fig:ambdfig:cluster-hdbscan}. Ο αλγόριθμος HDBSCAN παρουσιάζει παρόμοια συμπεριφορά με τους προηγούμενους δύο αλγορίθμους, με βασική διαφορά τον χωρισμό των πολύ κοντινών ρυθμών της Περιοχής~3 σε διαφορετικές συστάδες, διατηρώντας ικανοποιητικές τιμές silhouette και χαμηλότερα ποσοστά θορύβου σε σχέση με τις άλλες density-based μεθόδους. Παρόλα αυτά, όπως και όλοι οι προηγούμενοι αλγόριθμοι, δεν διαχωρίζει τους πολύ κοντινούς ρυθμούς της Περιοχής~1 και δεν εντοπίζει ξεκάθαρα τον ρυθμό~2 της Περιοχής~2 και τον ρυθμό~5 της Περιοχής~3.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Επιλεγμένες ρυθμίσεις HDBSCAN.}
+    \label{tab:ambdfig:hdbscan-tuning}
+    \resizebox{\textwidth}{!}{%
+    \begin{tabular}{cccccccc}
+        \toprule
+        Περιοχή & $p_e$ & $p_m$ & \texttt{min\_cluster\_size} & Method & Clusters & Noise [\%] & Silhouette \\
+        \midrule
+        1 & 0.010 & 0.25 & 30 & eom  & 5 & 26.2 & 0.768 \\
+        2 & 0.010 & 0.35 & 21 & eom  & 4 & 37.7 & 0.831 \\
+        3 & 0.010 & 0.20 & 24 & leaf & 6 & 21.7 & 0.774 \\
+        \bottomrule
+    \end{tabular}%
+    }
+\end{table}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\textwidth]{IEEE39/analysis/AmbientDFIG_Mag0.1_T600s_dt10ms_seed1997/clustering_grids/hdbscan/pdf/selected_cluster_maps_orders1_areas_grid.pdf}
+    \caption{Χάρτες συσταδοποίησης της μεθόδου HDBSCAN για την ομάδα τάξεων \texttt{orders1}.}
+    \label{fig:ambdfig:cluster-hdbscan}
+\end{figure}
+\FloatBarrier
+
+\subsubsection{Gaussian Mixture Models.}
+Οι επιλεγμένες ρυθμίσεις της μεθόδου GMM παρουσιάζονται στον Πίνακα~\ref{tab:ambdfig:gmm-tuning}, ενώ ο αντίστοιχος χάρτης συσταδοποίησης στο Σχήμα~\ref{fig:ambdfig:cluster-gmm}.
+Ο αλγόριθμος GMM παρουσιάζει λιγότερο ικανοποιητική αντιστοίχιση με τους ρυθμούς αναφοράς. Μετά το φίλτρο silhouette, ο αλγόριθμος διατηρεί μεγάλο αριθμό συστάδων σε σχέση με το αναμενόμενο. Ακόμα, στην Περιοχή~1 δεν διαχωρίζει τους κοντινούς ρυθμούς, στην Περιοχή~2 εντοπίζει πολύ μεγάλο πλήθος συστάδων και στην Περιοχή~3, παρόλο που διαχωρίζει τους κοντινούς ρυθμούς, εντοπίζει συστάδες σε ακραίες συχνοτικές περιοχές, ενώ δεν διατηρεί τελική συστάδα κοντά στον ρυθμό~5. Επομένως, οι σχετικά υψηλές τελικές τιμές silhouette δεν συνεπάγονται αντίστοιχα καλή ανάκτηση των φυσικών ρυθμών.
+\begin{table}[htbp]
+    \centering
+    \caption{Επιλεγμένες ρυθμίσεις Gaussian Mixture Models.}
+    \label{tab:ambdfig:gmm-tuning}
+    \begin{tabular}{cccccc}
+        \toprule
+        Περιοχή & $k$ & BIC & \makecell{Silhouette\\(tuning)} & \makecell{Τελικές\\συστάδες} & \makecell{Τελικό\\silhouette} \\
+        \midrule
+        1 & 10 & 2776.00 & 0.486 & 8 & 0.651 \\
+        2 & 10 & 1181.08 & 0.511 & 6 & 0.717 \\
+        3 & 10 & 2207.26 & 0.361 & 6 & 0.780 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\textwidth]{IEEE39/analysis/AmbientDFIG_Mag0.1_T600s_dt10ms_seed1997/clustering_grids/gmm/pdf/selected_cluster_maps_orders1_areas_grid.pdf}
+    \caption{Χάρτες συσταδοποίησης της μεθόδου GMM για την ομάδα τάξεων \texttt{orders1}.}
+    \label{fig:ambdfig:cluster-gmm}
+\end{figure}
+\FloatBarrier
+
+\subsubsection{Agglomerative Hierarchical Clustering.}
+Οι επιλεγμένες ρυθμίσεις της ιεραρχικής μεθόδου παρουσιάζονται στον Πίνακα~\ref{tab:ambdfig:agglomerative-tuning}, ενώ ο αντίστοιχος χάρτης συσταδοποίησης στο Σχήμα~\ref{fig:ambdfig:cluster-agglomerative}. Ο αλγόριθμος AHC διατηρεί σχεδόν το σύνολο των εκτιμήσεων, καθώς μόνο ορισμένες πολύ μικρές συστάδες απορρίπτονται από το φίλτρο silhouette. Παρόλα αυτά, ο αριθμός των τελικών συστάδων παραμένει υψηλός σε σχέση με τον αναμενόμενο, ιδιαίτερα στην Περιοχή~2, όπου σχηματίζονται δεκατρείς συστάδες για έναν μόνο ρυθμό αναφοράς. Παράλληλα, στις Περιοχές~1 και 3 οι κοντινοί ρυθμοί δεν διαχωρίζονται ικανοποιητικά και διατηρούνται συστάδες χωρίς αντίστοιχο ρυθμό αναφοράς. Επομένως, η μέθοδος παρουσιάζει πολύ υψηλή κάλυψη, αλλά περιορισμένη επιλεκτικότητα ως προς τους φυσικούς ρυθμούς του συστήματος.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Επιλεγμένες ρυθμίσεις Agglomerative Hierarchical Clustering.}
+    \label{tab:ambdfig:agglomerative-tuning}
+    \resizebox{\textwidth}{!}{%
+    \begin{tabular}{ccccccc}
+        \toprule
+        Περιοχή & $p_e$ & Linkage & \makecell{Clusters\\(tuning)} & \makecell{Silhouette\\(tuning)} & \makecell{Τελικές\\συστάδες} & \makecell{Τελικό\\silhouette} \\
+        \midrule
+        1 & 0.34 & average & 8  & 0.620 & 6  & 0.623 \\
+        2 & 0.15 & average & 19 & 0.622 & 13 & 0.640 \\
+        3 & 0.33 & average & 7  & 0.654 & 6  & 0.656 \\
+        \bottomrule
+    \end{tabular}%
+    }
+\end{table}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\textwidth]{IEEE39/analysis/AmbientDFIG_Mag0.1_T600s_dt10ms_seed1997/clustering_grids/agglomerative/pdf/selected_cluster_maps_orders1_areas_grid.pdf}
+    \caption{Χάρτες συσταδοποίησης της μεθόδου Agglomerative Hierarchical Clustering για την ομάδα τάξεων \texttt{orders1}.}
+    \label{fig:ambdfig:cluster-agglomerative}
+\end{figure}
+\FloatBarrier
+
+\section{Ποσοτική αξιολόγηση των μεθόδων συσταδοποίησης}
+
+Στον Πίνακα~\ref{tab:ambdfig:silhouette-coverage} παρουσιάζεται το πλήθος των αποκλεισμένων εκτιμήσεων και τα silhouette scores ανά μέθοδο και περιοχή ελέγχου. Οι k-Means και k-Medoids διατηρούν όλες τις εκτιμήσεις, παρουσιάζοντας όμως χαμηλότερες τιμές silhouette. Ο AHC επιτυγχάνει σχεδόν πλήρη κάλυψη με παρόμοιες τιμές silhouette, αλλά με μεγαλύτερο πλήθος τελικών συστάδων. Ακόμα, ο DBSCAN παρουσιάζει τις υψηλότερες τιμές silhouette στις Περιοχές~1 και 2, με κόστος τη χαμηλότερη κάλυψη. Στην Περιοχή~3, την υψηλότερη τιμή silhouette παρουσιάζει ο OPTICS, ενώ ο HDBSCAN διατηρεί μεγαλύτερο ποσοστό των εκτιμήσεων. Συνεπώς, ο HDBSCAN παρουσιάζει έναν πιο ισορροπημένο συμβιβασμό μεταξύ συνοχής και κάλυψης.
+
+\begingroup
+\setlength{\tabcolsep}{4pt}
+\setlength{\LTleft}{\fill}
+\setlength{\LTright}{\fill}
+\begin{longtable}{ccccccc}
+\caption{Μετρικές συνοχής και κάλυψης της επιλεγμένης λύσης.}\label{tab:ambdfig:silhouette-coverage}\\
+\toprule
+Περ. & \makecell{Ref.\\modes} & Μέθοδος & Clusters & \makecell{Αποκλει-\\σμένοι} & \makecell{Assigned\\(\%)} & Silhouette \\
+\midrule
+\endfirsthead
+\toprule
+Περ. & \makecell{Ref.\\modes} & Μέθοδος & Clusters & \makecell{Αποκλει-\\σμένοι} & \makecell{Assigned\\(\%)} & Silhouette \\
+\midrule
+\endhead
+\endfoot
+\bottomrule
+\endlastfoot
+\multirow{7}{*}{1} & \multirow{7}{*}{5} & k-Means & 2 & 0 & 100.0 & 0.633 \\*
+& & k-Medoids & 5 & 0 & 100.0 & 0.630 \\*
+& & DBSCAN & 3 & 259 & 52.9 & 0.833 \\*
+& & OPTICS & 5 & 259 & 52.9 & 0.769 \\*
+& & HDBSCAN & 5 & 144 & 73.8 & 0.768 \\*
+& & GMM & 8 & 78 & 85.8 & 0.651 \\*
+& & AHC & 6 & 2 & 99.6 & 0.623 \\
+\midrule
+\multirow{7}{*}{2} & \multirow{7}{*}{1} & k-Means & 7 & 0 & 100.0 & 0.637 \\*
+& & k-Medoids & 10 & 0 & 100.0 & 0.630 \\*
+& & DBSCAN & 3 & 123 & 46.8 & 0.870 \\*
+& & OPTICS & 4 & 69 & 70.1 & 0.779 \\*
+& & HDBSCAN & 4 & 87 & 62.3 & 0.831 \\*
+& & GMM & 6 & 49 & 78.8 & 0.717 \\*
+& & AHC & 13 & 6 & 97.4 & 0.640 \\
+\midrule
+\multirow{7}{*}{3} & \multirow{7}{*}{4} & k-Means & 4 & 0 & 100.0 & 0.685 \\*
+& & k-Medoids & 4 & 0 & 100.0 & 0.685 \\*
+& & DBSCAN & 4 & 160 & 70.5 & 0.830 \\*
+& & OPTICS & 4 & 181 & 66.7 & 0.845 \\*
+& & HDBSCAN & 6 & 118 & 78.3 & 0.774 \\*
+& & GMM & 6 & 204 & 62.4 & 0.780 \\*
+& & AHC & 6 & 1 & 99.8 & 0.656 \\
+\end{longtable}
+\endgroup
+
+Για τη συμφωνία των συστάδων με τους ρυθμούς αναφοράς χρησιμοποιήθηκαν οι δείκτες V-measure και Adjusted Rand Index (ARI), όπως και στο συμβατικό σύστημα. Οι τιμές τους παρουσιάζονται στον Πίνακα~\ref{tab:ambdfig:v-measure_ari}. Οι μηδενικές τιμές και των δύο μετρικών στην Περιοχή~2 οφείλονται στο γεγονός ότι υπάρχει μόνο ένας ρυθμός αναφοράς. Στην Περιοχή~1, ο DBSCAN παρουσιάζει τη μεγαλύτερη τιμή και για τους δύο δείκτες, ενώ στην Περιοχή~3 δεν υπάρχει ξεκάθαρος νικητής, αφού ο HDBSCAN παρουσιάζει τη μέγιστη τιμή V-measure, ενώ ο GMM τη μέγιστη τιμή ARI.
+
+\begin{longtable}{cccc}
+\caption{Συμφωνία της επιλεγμένης συσταδοποίησης με τα τοπικά reference labels.}\label{tab:ambdfig:v-measure_ari}\\
+\toprule
+Περιοχή & Μέθοδος & V-measure & ARI \\
+\midrule
+\endfirsthead
+\toprule
+Περιοχή & Μέθοδος & V-measure & ARI \\
+\midrule
+\endhead
+\endfoot
+\bottomrule
+\endlastfoot
+1 & k-Means & 0.657 & 0.676 \\
+& k-Medoids & 0.719 & 0.557 \\
+& DBSCAN & 0.862 & 0.872 \\
+& OPTICS & 0.753 & 0.589 \\
+& HDBSCAN & 0.738 & 0.621 \\
+& GMM & 0.661 & 0.453 \\
+& AHC & 0.684 & 0.568 \\
+\midrule
+2 & k-Means & 0.000 & 0.000 \\
+& k-Medoids & 0.000 & 0.000 \\
+& DBSCAN & 0.000 & 0.000 \\
+& OPTICS & 0.000 & 0.000 \\
+& HDBSCAN & 0.000 & 0.000 \\
+& GMM & 0.000 & 0.000 \\
+& AHC & 0.000 & 0.000 \\
+\midrule
+3 & k-Means & 0.743 & 0.624 \\
+& k-Medoids & 0.743 & 0.624 \\
+& DBSCAN & 0.765 & 0.567 \\
+& OPTICS & 0.809 & 0.616 \\
+& HDBSCAN & 0.823 & 0.634 \\
+& GMM & 0.819 & 0.651 \\
+& AHC & 0.734 & 0.620 \\
+\end{longtable}
+
+
+
+Οι αναλυτικές τιμές MAD ανά περιοχή και ρυθμό αναφοράς παρουσιάζονται στον Πίνακα~\ref{tab:ambdfig:mad}. Στην Περιοχή~1, ο DBSCAN και ο OPTICS εμφανίζουν τη μικρότερη τιμή MAD για τον ρυθμό~2, ενώ ο DBSCAN παρουσιάζει επίσης τις μικρότερες τιμές για τους ρυθμούς 4 και 6. Στην Περιοχή~2, όλες οι μέθοδοι εμφανίζουν σχετικά μεγάλες τιμές MAD, γεγονός που δείχνει ότι ο μοναδικός ρυθμός αναφοράς δεν ανακτάται με ικανοποιητική ακρίβεια. Στην Περιοχή~3, ο HDBSCAN παρουσιάζει τις μικρότερες τιμές για τους ρυθμούς 2 και 3, ενώ ο GMM για τον ρυθμό~4. Αντίθετα, ο ρυθμός~5 εμφανίζει μεγάλες τιμές MAD για όλες τις μεθόδους, επιβεβαιώνοντας τη δυσκολία αξιόπιστης αναγνώρισής του.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Αναλυτικές τιμές MAD ανά περιοχή ελέγχου για το πρώτο order sweep (orders1).}
+    \label{tab:ambdfig:mad}
+    \footnotesize
+    \setlength{\tabcolsep}{6.5pt}
+    \renewcommand{\arraystretch}{1.08}
+
+    \textbf{Περιοχή 1}\\[0.3em]
+    \begin{tabular}{lccccc}
+        \toprule
+        Μέθοδος & Mode 1 & Mode 2 & Mode 3 & Mode 4 & Mode 6 \\
+        \midrule
+        k-Means   & \textemdash{} & \textemdash{} & \textemdash{} & 281 / 0.508 & 269 / 1.855 \\
+        k-Medoids & \textemdash{} & 114 / 0.412 & \textemdash{} & 272 / 0.481 & 164 / 1.098 \\
+        DBSCAN    & \textemdash{} &  89 / 0.381 & \textemdash{} & 152 / 0.339 &  50 / 0.528 \\
+        OPTICS    & \textemdash{} &  67 / 0.381 & \textemdash{} & 108 / 2.262 & 116 / 0.636 \\
+        HDBSCAN   & \textemdash{} & 103 / 0.396 & \textemdash{} & 209 / 0.417 &  94 / 0.606 \\
+        GMM       & \textemdash{} &  95 / 0.390 & \textemdash{} & 247 / 0.457 & 130 / 0.817 \\
+        AHC       & \textemdash{} & 103 / 0.396 & \textemdash{} & 271 / 0.480 & 174 / 1.255 \\
+        \bottomrule
+    \end{tabular}
+
+    \vspace{0.8em}
+    \textbf{Περιοχή 2}\\[0.3em]
+    \begin{tabular}{lc}
+        \toprule
+        Μέθοδος & Mode 2 \\
+        \midrule
+        k-Means   & 231 / 2.938 \\
+        k-Medoids & 231 / 2.938 \\
+        DBSCAN    & 108 / 2.767 \\
+        OPTICS    & 162 / 2.875 \\
+        HDBSCAN   & 144 / 2.886 \\
+        GMM       & 182 / 2.904 \\
+        AHC       & 225 / 2.914 \\
+        \bottomrule
+    \end{tabular}
+
+    \vspace{0.8em}
+    \textbf{Περιοχή 3}\\[0.3em]
+    \begin{tabular}{lcccc}
+        \toprule
+        Μέθοδος & Mode 2 & Mode 3 & Mode 4 & Mode 5 \\
+        \midrule
+        k-Means   & 164 / 0.596 & \textemdash{} & 241 / 0.491 & 138 / 2.076 \\
+        k-Medoids & 164 / 0.596 & \textemdash{} & 241 / 0.491 & 138 / 2.076 \\
+        DBSCAN    & \textemdash{} & 133 / 0.396 & 207 / 0.367 &  43 / 2.925 \\
+        OPTICS    & \textemdash{} &  81 / 0.279 & 223 / 0.410 &  58 / 2.938 \\
+        HDBSCAN   &  41 / 0.455 &  74 / 0.276 & 223 / 0.410 &  87 / 2.315 \\
+        GMM       &  33 / 0.457 &  93 / 0.297 & 175 / 0.197 &  38 / 2.968 \\
+        AHC       & 163 / 0.592 & \textemdash{} & 241 / 0.491 & 138 / 2.076 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+\clearpage
+
+Οι μέσες τιμές των V-measure και ARI υπολογίστηκαν μόνο για τις Περιοχές~1 και 3, καθώς στην Περιοχή~2 υπάρχει ένας μόνο ρυθμός αναφοράς, ενώ το μέσο MAD υπολογίστηκε από τις διαθέσιμες αντιστοιχίσεις. Με βάση τις μέσες τιμές των δεικτών συνοχής και συμφωνίας, ο DBSCAN παρουσιάζει την καλύτερη συνολική επίδοση, καθώς εμφανίζει το υψηλότερο μέσο silhouette ($0.844$), V-measure ($0.813$) και ARI ($0.720$). Ωστόσο, διατηρεί μόνο το $56.7\%$ των εκτιμήσεων. Ο HDBSCAN αποτελεί πιο ισορροπημένη επιλογή, καθώς επιτυγχάνει μεγαλύτερη κάλυψη ($71.5\%$) και το μικρότερο μέσο MAD ($0.970$~rad/s), διατηρώντας παράλληλα ικανοποιητικές τιμές στις υπόλοιπες μετρικές. Η κατάταξη αυτή είναι ίδια με εκείνη του συμβατικού IEEE 39-Bus, όπου ο DBSCAN αναδείχθηκε επίσης ως η καλύτερη μέθοδος και ο HDBSCAN ως ο καλύτερος συμβιβασμός μεταξύ ποιότητας και κάλυψης. Επομένως, η αντικατάσταση των σύγχρονων γεννητριών από μονάδες DFIG δεν μεταβάλλει ουσιαστικά τη σχετική αξιολόγηση των δύο επικρατέστερων μεθόδων.
+
+\section{Συμπεράσματα}
+Η αντικατάσταση των σύγχρονων γεννητριών G3, G4 και G5 από μονάδες DFIG μετέβαλε τη δυναμική συμπεριφορά του συστήματος και μείωσε το πλήθος των ηλεκτρομηχανικών ρυθμών αναφοράς από εννέα σε έξι. Οι πιο αισθητές διαφορές παρατηρήθηκαν στους διασυνδετικούς ρυθμούς (inter\textendash{}area), ενώ οι τοπικοί ρυθμοί (intra\textendash{}area) που σχετίζονται με τις σύγχρονες γεννήτριες που παρέμειναν στο δίκτυο παρουσίασαν μικρότερες διαφοροποιήσεις. Η εφαρμογή του N4SID ανέκτησε τις βασικές συχνοτικές συγκεντρώσεις, όμως η διάκριση πολύ κοντινών ρυθμών και η εκτίμηση της απόσβεσης παρέμειναν δυσκολότερες όπως και στο συμβατικό σύστημα.
+
+Συνολικά, η παρουσία των μονάδων DFIG μεταβάλλει τους προς αναγνώριση ρυθμούς, χωρίς να αλλάζει ουσιαστικά τη σχετική απόδοση των μεθόδων συσταδοποίησης σε σύγκριση με το συμβατικό IEEE 39-Bus.

@@ -12,8 +12,8 @@
         \toprule
         \textbf{Order sweep} & \textbf{Περιοχή 1} & \textbf{Περιοχή 2} & \textbf{Περιοχή 3} & \textbf{Σύνολο} & \makecell{\textbf{Χρόνος N4SID}\\\textbf{[s]}} \\
         \midrule
-        $n \in \{2,4,\dots,30\}$ & 565 & 280 & 552 & 1397 & 47.9 \\
-        $n \in \{10,15,\dots,45\}$ & 548 & 272 & 571 & 1391 & 44.2 \\
+        $n \in \{2,4,\dots,30\}$ & 565 & 280 & 552 & 1397 & 3.1 \\
+        $n \in \{10,15,\dots,45\}$ & 548 & 272 & 571 & 1391 & 2.9 \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -341,11 +341,11 @@ HDBSCAN μπορούν να χαρακτηρίσουν εκτιμήσεις ως
 \begin{longtable}{cccccccc}
 \caption{Μετρικές συνοχής και κάλυψης της επιλεγμένης λύσης.}\label{tab:amb:cohesion-coverage}\\
 \toprule
-Sweep & Περ. & \makecell{Ref.\\modes} & Μέθοδος & Clusters & \makecell{Αποκλει-\\σμένα} & \makecell{Assigned\\(\%)} & Silhouette \\
+Sweep & Περ. & \makecell{Ref.\\modes} & Μέθοδος & Clusters & \makecell{Αποκλει-\\σμένοι} & \makecell{Assigned\\(\%)} & Silhouette \\
 \midrule
 \endfirsthead
 \toprule
-Sweep & Περ. & \makecell{Ref.\\modes} & Μέθοδος & Clusters & \makecell{Αποκλει-\\σμένα} & \makecell{Assigned\\(\%)} & Silhouette \\
+Sweep & Περ. & \makecell{Ref.\\modes} & Μέθοδος & Clusters & \makecell{Αποκλει-\\σμένοι} & \makecell{Assigned\\(\%)} & Silhouette \\
 \midrule
 \endhead
 \endfoot
@@ -639,12 +639,12 @@ $n\in\{2,4,\ldots,30\}$) αναδεικνύεται ως η συνολικά κ�
         & \makecell{\textbf{Χρόνος N4SID}\\\textbf{[s]}} \\
         \midrule
         \multirow{3}{*}{\texttt{orders1}}
-        & 1 & 565 & 82.5 & 0.704 & 0.729 & 0.559 & 0.478 & \multirow{3}{*}{47.9} \\
+        & 1 & 565 & 82.5 & 0.704 & 0.729 & 0.559 & 0.478 & \multirow{3}{*}{3.1} \\
         & 2 & 280 & 85.2 & 0.749 & 0.479 & 0.298 & 2.254 & \\
         & 3 & 552 & 79.4 & 0.738 & 0.769 & 0.665 & 0.645 & \\
         \midrule
         \multirow{3}{*}{\texttt{orders2}}
-        & 1 & 548 & 78.9 & 0.657 & 0.642 & 0.466 & 0.784 & \multirow{3}{*}{44.2} \\
+        & 1 & 548 & 78.9 & 0.657 & 0.642 & 0.466 & 0.784 & \multirow{3}{*}{2.9} \\
         & 2 & 272 & 89.6 & 0.700 & 0.430 & 0.273 & 3.127 & \\
         & 3 & 571 & 73.9 & 0.702 & 0.745 & 0.645 & 0.996 & \\
         \bottomrule
