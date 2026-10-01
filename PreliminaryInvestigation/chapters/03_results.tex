@@ -61,67 +61,71 @@
 \subsection{Αξιολόγηση Πιστότητας Ανακατασκευής (\textit{Signal Reconstruction})}
 Για την επαλήθευση της εγκυρότητας των ιδιοτιμών που εξήχθησαν στην προηγούμενη ενότητα, πραγματοποιήθηκε μαθηματική ανακατασκευή των σημάτων στο πεδίο του χρόνου. Αρχικά, εξετάστηκε η συμπεριφορά των επιμέρους προσεγγίσεων (σταθερής τάξης $n$ και ανοχής $\tau$) προκειμένου να αξιολογηθεί η επίδραση τους στην ακρίβεια της προσαρμογής όπως φαίνεται στα Σχήματα~\ref{fig:g1_reactive_power_reconstruction_kundur} και \ref{fig:g1_reactive_power_reconstruction_ieee39}.
 
-\begin{figure}[htbp]
+% Τα σχήματα ανακατασκευής 3.3--3.11 τοποθετούνται, όπου είναι
+% δυνατόν, ανά δύο σε αποκλειστική σελίδα. Διατηρούν ανεξάρτητες
+% λεζάντες, αρίθμηση και καταχωρίσεις στη λίστα σχημάτων.
+\begin{figure}[p]
     \centering
-    \includegraphics[width=0.94\textwidth,height=0.82\textheight,keepaspectratio]{\preliminaryfigurepath plots/reconstruction_grids/pdf/g1_Reactive_Power_Reconstruction.pdf} 
+    \captionsetup{font=small,skip=4pt}
+    \includegraphics[width=0.72\textwidth,height=0.35\textheight,keepaspectratio]{\preliminaryfigurepath plots/reconstruction_grids/pdf/g1_Reactive_Power_Reconstruction.pdf}
     \caption{Ανακατασκευή σήματος αέργου ισχύος ($Q$) για τη γεννήτρια $G_1$ του \textit{Kundur Two-Area System}.}
     \label{fig:g1_reactive_power_reconstruction_kundur}
-\end{figure}
 
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.94\textwidth,height=0.82\textheight,keepaspectratio]{\ieeeThirtyNinePathanalysis/Load03_Pplus2_50s_0.2_to_end_reset/plots/reconstruction_grids/pdf/g1_Reactive_Power_reconstruction.pdf} 
+    \vspace{0.6em}
+
+    \includegraphics[width=0.72\textwidth,height=0.35\textheight,keepaspectratio]{\ieeeThirtyNinePathanalysis/Load03_Pplus2_50s_0.2_to_end_reset/plots/reconstruction_grids/pdf/g1_Reactive_Power_reconstruction.pdf}
     \caption{Ανακατασκευή σήματος αέργου ισχύος ($Q$) για τη γεννήτρια $G_1$ του \textit{IEEE 39-Bus System}.}
     \label{fig:g1_reactive_power_reconstruction_ieee39}
 \end{figure}
 
 Στη συνέχεια, δημιουργήθηκαν επιμέρους διαγράμματα για κάθε γεννήτρια του \textit{Kundur Two-Area System} (Σχήματα~\ref{fig:best_recon_g1_kundur} έως \ref{fig:best_recon_g4_kundur}) και γιά ορισμένες γεννήτριες του \textit{IEEE 39-Bus System} (Σχήματα~\ref{fig:best_recon_g9_ieee39} έως \ref{fig:best_recon_g6_ieee39}) οι οποίες ανήκουν σε τρεις διακριτές περιοχές ελέγχου ~\cite{sfetkos2024measurement}, τα οποία αποτυπώνουν την άμεση σύγκριση μεταξύ των αρχικών σημάτων (\textit{Original Filtered}) και των αντίστοιχων εκτιμώμενων κυματομορφών (\textit{MP estimate}). Για την τελική ανακατασκευή επιλέχθηκε αυστηρά η μέθοδος που απέδωσε την υψηλότερη ακρίβεια (Max $R^2$) για το εκάστοτε σήμα.
 
-\begin{figure}[htbp]
+\begin{figure}[p]
     \centering
-    \includegraphics[width=0.94\textwidth,height=0.82\textheight,keepaspectratio]{\preliminaryfigurepath stats/pdf/10_best_reconstruction_g1_2x2.pdf} 
+    \captionsetup{font=small,skip=4pt}
+    \includegraphics[width=0.72\textwidth,height=0.35\textheight,keepaspectratio]{\preliminaryfigurepath stats/pdf/10_best_reconstruction_g1_2x2.pdf}
     \caption{Βέλτιστη μαθηματική ανακατασκευή των σημάτων ($V, I, P, Q$) για τη γεννήτρια $G_1$ του \textit{Kundur Two-Area System} με βάση τον μέγιστο συντελεστή προσδιορισμού $R^2$.}
     \label{fig:best_recon_g1_kundur}
-\end{figure}
 
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.94\textwidth,height=0.82\textheight,keepaspectratio]{\preliminaryfigurepath stats/pdf/10_best_reconstruction_g2_2x2.pdf} 
+    \vspace{0.6em}
+
+    \includegraphics[width=0.72\textwidth,height=0.35\textheight,keepaspectratio]{\preliminaryfigurepath stats/pdf/10_best_reconstruction_g2_2x2.pdf}
     \caption{Βέλτιστη μαθηματική ανακατασκευή των σημάτων ($V, I, P, Q$) για τη γεννήτρια $G_2$ του \textit{Kundur Two-Area System} με βάση τον μέγιστο συντελεστή προσδιορισμού $R^2$.}
     \label{fig:best_recon_g2_kundur}
 \end{figure}
 
-\begin{figure}[htbp]
+\begin{figure}[p]
     \centering
-    \includegraphics[width=0.94\textwidth,height=0.82\textheight,keepaspectratio]{\preliminaryfigurepath stats/pdf/10_best_reconstruction_g3_2x2.pdf} 
+    \captionsetup{font=small,skip=4pt}
+    \includegraphics[width=0.72\textwidth,height=0.35\textheight,keepaspectratio]{\preliminaryfigurepath stats/pdf/10_best_reconstruction_g3_2x2.pdf}
     \caption{Βέλτιστη μαθηματική ανακατασκευή των σημάτων ($V, I, P, Q$) για τη γεννήτρια $G_3$ του \textit{Kundur Two-Area System} με βάση τον μέγιστο συντελεστή προσδιορισμού $R^2$.}
     \label{fig:best_recon_g3_kundur}
-\end{figure}
 
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.94\textwidth,height=0.82\textheight,keepaspectratio]{\preliminaryfigurepath stats/pdf/10_best_reconstruction_g4_2x2.pdf} 
+    \vspace{0.6em}
+
+    \includegraphics[width=0.72\textwidth,height=0.35\textheight,keepaspectratio]{\preliminaryfigurepath stats/pdf/10_best_reconstruction_g4_2x2.pdf}
     \caption{Βέλτιστη μαθηματική ανακατασκευή των σημάτων ($V, I, P, Q$) για τη γεννήτρια $G_4$ του \textit{Kundur Two-Area System} με βάση τον μέγιστο συντελεστή προσδιορισμού $R^2$.}
     \label{fig:best_recon_g4_kundur}
 \end{figure}
 
-\begin{figure}[htbp]
+\begin{figure}[p]
     \centering
-    \includegraphics[width=0.94\textwidth,height=0.82\textheight,keepaspectratio]{\ieeeThirtyNinePathanalysis/Load03_Pplus2_50s_0.2_to_end_reset/stats/pdf/10_best_reconstruction_g9_2x2.pdf} 
+    \captionsetup{font=small,skip=4pt}
+    \includegraphics[width=0.72\textwidth,height=0.35\textheight,keepaspectratio]{\ieeeThirtyNinePathanalysis/Load03_Pplus2_50s_0.2_to_end_reset/stats/pdf/10_best_reconstruction_g9_2x2.pdf}
     \caption{Βέλτιστη μαθηματική ανακατασκευή των σημάτων ($V, I, P, Q$) για τη γεννήτρια $G_{9}$ του \textit{IEEE 39-Bus System} με βάση τον μέγιστο συντελεστή προσδιορισμού $R^2$.}
     \label{fig:best_recon_g9_ieee39}
-\end{figure}
 
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.94\textwidth,height=0.82\textheight,keepaspectratio]{\ieeeThirtyNinePathanalysis/Load03_Pplus2_50s_0.2_to_end_reset/stats/pdf/10_best_reconstruction_g3_2x2.pdf}
+    \vspace{0.6em}
+
+    \includegraphics[width=0.72\textwidth,height=0.35\textheight,keepaspectratio]{\ieeeThirtyNinePathanalysis/Load03_Pplus2_50s_0.2_to_end_reset/stats/pdf/10_best_reconstruction_g3_2x2.pdf}
     \caption{Βέλτιστη μαθηματική ανακατασκευή των σημάτων ($V, I, P, Q$) για τη γεννήτρια $G_3$ του \textit{IEEE 39-Bus System} με βάση τον μέγιστο συντελεστή προσδιορισμού $R^2$.}
     \label{fig:best_recon_g3_ieee39}
 \end{figure}
 
-\begin{figure}[htbp]
+\begin{figure}[!htbp]
     \centering
-    \includegraphics[width=0.94\textwidth,height=0.82\textheight,keepaspectratio]{\ieeeThirtyNinePathanalysis/Load03_Pplus2_50s_0.2_to_end_reset/stats/pdf/10_best_reconstruction_g6_2x2.pdf}
+    \captionsetup{font=small,skip=4pt}
+    \includegraphics[width=0.68\textwidth,height=0.30\textheight,keepaspectratio]{\ieeeThirtyNinePathanalysis/Load03_Pplus2_50s_0.2_to_end_reset/stats/pdf/10_best_reconstruction_g6_2x2.pdf}
     \caption{Βέλτιστη μαθηματική ανακατασκευή των σημάτων ($V, I, P, Q$) για τη γεννήτρια $G_6$ του \textit{IEEE 39-Bus System} με βάση τον μέγιστο συντελεστή προσδιορισμού $R^2$.}
     \label{fig:best_recon_g6_ieee39}
 \end{figure}
@@ -130,6 +134,7 @@
 
 Τέλος, η ταύτιση των κυματομορφών αναλύεται στο χρονικό παράθυρο της ελεύθερης ταλάντωσης (\textit{ringdown}) για $ t> 0.2$ s. Η υψηλή πιστότητα της ανακατασκευής επιβεβαιώνει την ορθή επιλογή του παραθύρου ανάλυσης, καθώς και την αποτελεσματικότητα της προεπεξεργασίας των σημάτων.
 
+\FloatBarrier
 \subsection{Ταυτοποίηση Κυρίαρχων Ταλαντώσεων (Συνολική Αξιολόγηση)}
 \label{subsec:overall_evaluation}
 
@@ -148,22 +153,27 @@ E_i = \frac{1}{2}\omega_i^2 \alpha_i^2
 % Παράλληλα, η κατανομή των ιδιοτιμών ως προς τον ρυθμό απόσβεσης $\sigma$ δείχνει ότι οι ταλαντώσεις εμφανίζουν γενικά θετική απόσβεση, καθώς τα περισσότερα σημεία εντοπίζονται στο αριστερό ημιεπίπεδο.
 
 
-\begin{figure}[htbp]
+\raggedbottom
+\begin{figure}[H]
     \centering
-    \includegraphics[width=0.94\textwidth,height=0.82\textheight,keepaspectratio]{\preliminaryfigurepath stats/pdf/5_bubble_map.pdf}
+    \includegraphics[width=1.02\textwidth,height=0.58\textheight,trim=15pt 65pt 10pt 35pt,clip]{\preliminaryfigurepath stats/pdf/5_bubble_map.pdf}
     \caption{Διαγράμματα Φυσαλίδων  (\textit{Bubble Map}): Συγκεντρωτική απεικόνιση συχνότητας, απόσβεσης και ενέργειας των ταυτοποιημένων \textit{modes}.}
     \label{fig:bubble_map_kundur}
 \end{figure}
 
-\begin{figure}[htbp]
+Για το \textit{Kundur Two-Area System}, η ποσοτική αποτύπωση των κυρίαρχων ιδιοτιμών παρουσιάζεται στον Πίνακα~\ref{tab:summary_modes}. Οι τιμές του πίνακα επιλέχθηκαν με βάση τη μέγιστη ενέργεια στις περιοχές συχνοτήτων $0.4-0.6$~Hz και $1.0-1.1$~Hz, σύμφωνα με τη Σχέση~\ref{eq:pole_energy}. Παρατηρείται σταθερή εμφάνιση συχνοτήτων κοντά στα $0.54$~Hz, οι οποίες αντιστοιχούν στον κυρίαρχο διασυνδετικό ρυθμό (\textit{inter-area mode}) του συστήματος. Αντίστοιχα, στην περιοχή $1.0-1.1$~Hz καταγράφονται οι τοπικοί ταλαντωτικοί ρυθμοί (\textit{intra-area modes}), οι οποίοι εμφανίζονται με μεγαλύτερες απόλυτες τιμές απόσβεσης.
+
+\newpage
+\flushbottom
+\begin{figure}[H]
     \centering
-    \includegraphics[width=0.94\textwidth,height=0.82\textheight,keepaspectratio]{\ieeeThirtyNinePathanalysis/Load03_Pplus2_50s_0.2_to_end_reset/stats/pdf/5_bubble_map_single_panel.pdf}
+    \includegraphics[width=0.94\textwidth,height=0.64\textheight,keepaspectratio,trim=20pt 180pt 15pt 65pt,clip]{\ieeeThirtyNinePathanalysis/Load03_Pplus2_50s_0.2_to_end_reset/stats/pdf/5_bubble_map_single_panel.pdf}
     \caption{Διαγράμματα Φυσαλίδων  (\textit{Bubble Map}): Συγκεντρωτική απεικόνιση συχνότητας, απόσβεσης και ενέργειας των ταυτοποιημένων \textit{modes}.}
     \label{fig:bubble_map_ieee39}
 \end{figure}
 
 
-Για το \textit{Kundur Two-Area System}, η ποσοτική αποτύπωση των κυρίαρχων ιδιοτιμών παρουσιάζεται στον Πίνακα~\ref{tab:summary_modes}. Οι τιμές του πίνακα επιλέχθηκαν με βάση τη μέγιστη ενέργεια στις περιοχές συχνοτήτων $0.4-0.6$~Hz και $1.0-1.1$~Hz, σύμφωνα με τη Σχέση~\ref{eq:pole_energy}. Παρατηρείται σταθερή εμφάνιση συχνοτήτων κοντά στα $0.54$~Hz, οι οποίες αντιστοιχούν στον κυρίαρχο διασυνδετικό ρυθμό (\textit{inter-area mode}) του συστήματος. Αντίστοιχα, στην περιοχή $1.0-1.1$~Hz καταγράφονται οι τοπικοί ταλαντωτικοί ρυθμοί (\textit{intra-area modes}), οι οποίοι εμφανίζονται με μεγαλύτερες απόλυτες τιμές απόσβεσης. Αξίζει να σημειωθεί ότι στο \textit{IEEE 39-Bus System} η αντίστοιχη ποσοτική ερμηνεία δεν είναι εξίσου άμεση, λόγω της μεγαλύτερης  πολυπλοκότητας του συστήματος. Για τον λόγο αυτό, η αξιολόγηση του \textit{IEEE 39-Bus System} βασίζεται κυρίως στις συνολικές γραφικές απεικονίσεις και στη συγκριτική ερμηνεία των αποτελεσμάτων.
+Αξίζει να σημειωθεί ότι στο \textit{IEEE 39-Bus System} η αντίστοιχη ποσοτική ερμηνεία δεν είναι εξίσου άμεση, λόγω της μεγαλύτερης πολυπλοκότητας του συστήματος. Για τον λόγο αυτό, η αξιολόγηση του \textit{IEEE 39-Bus System} βασίζεται κυρίως στις συνολικές γραφικές απεικονίσεις και στη συγκριτική ερμηνεία των αποτελεσμάτων.
 
 \begin{table}[h]
 \centering
