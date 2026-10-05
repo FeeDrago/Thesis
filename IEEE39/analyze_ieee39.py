@@ -1331,7 +1331,7 @@ def _generate_ieee39_modal_grid_plots(df_results, modal_maps_dir, generators, co
         colors=SIGNAL_COLORS.copy(),
         clamp_positive_max=False,
         fixed_xlim=(-1.0, 0.02),
-        fixed_ylim=(0.0, 1.60),
+        fixed_ylim=(0.0, 2.0),
         show_zero_line=True,
     )
 
@@ -1436,7 +1436,7 @@ def generate_ieee39_plots(df_results, report, scenario):
             colors=SIGNAL_COLORS.copy(),
             figsize=(10, 6),
             fixed_xlim=(-1.0, 0.02),
-            fixed_ylim=(0.0, 2.05),
+            fixed_ylim=(0.0, 2.0),
             show_zero_line=True,
             fixed_xticks=[-1.0, -0.75, -0.5, -0.25, 0.0],
         )
@@ -1459,7 +1459,7 @@ def generate_ieee39_plots(df_results, report, scenario):
         colors=SIGNAL_COLORS.copy(),
         figsize=(11, 7),
         fixed_xlim=(-1.0, 0.02),
-        fixed_ylim=(0.0, 2.05),
+        fixed_ylim=(0.0, 2.0),
         show_zero_line=True,
         fixed_xticks=[-1.0, -0.75, -0.5, -0.25, 0.0],
     )
@@ -1556,13 +1556,13 @@ def _generate_ambient_screened_area_modal_maps(df_results, modal_maps_dir, refer
 
         x_min = min(float(area_df["Damping"].min()), *(float(mode["Damping"]) for mode in area_reference_modes.values()))
         set_signed_symlog_damping_axis(ax, x_min - max(0.08, 0.04 * abs(x_min)), 0.005)
-        ax.set_ylim(0.05, 2.05)
+        ax.set_ylim(0.0, 2.0)
         ax.axvline(0.0, color="black", linestyle="--", linewidth=1.2, alpha=0.55)
         ax.set_xlabel("Damping (Sigma) [rad/s]")
         ax.set_ylabel("Frequency [Hz]")
         ax.set_title(
-            f"Screened N4SID Estimates: {order_group_name} — {area_name.replace('_', ' ').title()}\n"
-            f"Screened estimates: {len(area_df)}"
+            f"Διατηρούμενες N4SID Εκιμήσεις: {order_group_name} — {area_name.replace('_', ' ').title()}\n"
+            f"Διατηρούμενες Εκιμήσεις: {len(area_df)}"
         )
         ax.legend(loc="upper left")
         style_axis(ax)
@@ -1639,7 +1639,7 @@ def generate_ambient_screened_modal_grid(
                     ax.annotate(mode_name, (sigma, freq), xytext=(4, 3), textcoords="offset points", fontsize=9)
             ax.axvline(0.0, color="black", linestyle="--", linewidth=1.0, alpha=0.5)
             set_signed_symlog_damping_axis(ax, *x_limits)
-            ax.set_ylim(0.05, 2.05)
+            ax.set_ylim(0.0, 2.0)
             ax.set_title(
                 f"{area_name.replace('_', ' ').title()} — {order_group_name}\n"
                 f"Screened estimates: {len(area_df)}",
@@ -1652,9 +1652,9 @@ def generate_ambient_screened_modal_grid(
     if handles:
         fig.legend(handles, labels, loc="lower center", ncol=len(handles), fontsize=9, bbox_to_anchor=(0.5, 0.01))
     if ncols == 1:
-        grid_title = f"Screened N4SID Estimates by Control Area — {screened_rows[0][0]}"
+        grid_title = f"Διατηρούμενες Εκιμήσεις N4SID ανά Περιοχή Ελέγχου — {screened_rows[0][0]}"
     else:
-        grid_title = "Screened N4SID Estimates by Order Sweep and Control Area"
+        grid_title = "Διατηρούμενες Εκιμήσεις N4SID ανά Περιοχή Ελέγχου και Σάρωση Τάξεων"
     fig.suptitle(grid_title, y=0.995, fontsize=14)
     fig.supylabel("Frequency [Hz]", x=0.015, fontsize=12)
     fig.supxlabel("Damping (Sigma) [rad/s]", y=0.065, fontsize=12)
@@ -1696,7 +1696,7 @@ def generate_ieee39_ambient_modal_plots(df_results, scenario):
             colors=SIGNAL_COLORS.copy(),
             figsize=(10, 6),
             fixed_xlim=(-1.0, 0.02),
-            fixed_ylim=(0.0, 2.05),
+            fixed_ylim=(0.0, 2.0),
             show_zero_line=True,
             fixed_xticks=[-1.0, -0.75, -0.5, -0.25, 0.0],
         )
@@ -1719,7 +1719,7 @@ def generate_ieee39_ambient_modal_plots(df_results, scenario):
         colors=SIGNAL_COLORS.copy(),
         figsize=(11, 7),
         fixed_xlim=(-1.0, 0.02),
-        fixed_ylim=(0.0, 2.05),
+        fixed_ylim=(0.0, 2.0),
         show_zero_line=True,
         fixed_xticks=[-1.0, -0.75, -0.5, -0.25, 0.0],
     )

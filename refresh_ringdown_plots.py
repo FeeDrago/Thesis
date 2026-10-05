@@ -25,7 +25,13 @@ def figures(roots):
 
 
 def digest(path):
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    data = path.read_bytes()
+    # csv writers use CRLF on Windows and LF on WSL/Linux.  A visual refresh
+    # must reject numerical changes, but a platform-only newline conversion
+    # is not a change to the protected results.
+    if path.suffix.lower() == ".csv":
+        data = data.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+    return hashlib.sha256(data).hexdigest()
 
 
 def main():

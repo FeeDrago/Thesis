@@ -2689,7 +2689,7 @@ def run_silhouette_analysis(results_path, output_path, reference_modes=None, rin
             x=avg_score, color=ACCENT_RED, linestyle='--', linewidth=2.2,
             label=f"Average silhouette = {avg_score:.3f}"
         )
-        ax1.set_title(fr"${method_name}$ Silhouette Profile ($k={k_opt}$)", fontweight='bold')
+        ax1.set_title(fr"${method_name}$ Silhouette Προφίλ ($k={k_opt}$)", fontweight='bold')
         ax1.set_xlabel("Silhouette Coefficient")
         ax1.set_ylabel("Cluster")
         ax1.set_yticks([])

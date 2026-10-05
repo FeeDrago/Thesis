@@ -1,13 +1,15 @@
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
+import csv
 import json
 import os
+import re
 from pathlib import Path
 from matplotlib import font_manager
 from contextlib import contextmanager
 from contextvars import ContextVar
-from functools import wraps
+from functools import lru_cache, wraps
 import textwrap
 from matplotlib.text import Text
 from matplotlib.ticker import FuncFormatter, FixedLocator, NullLocator, MaxNLocator
@@ -51,9 +53,142 @@ REPORT_MARGINS = dict(left=0.11, right=0.97, top=0.88, bottom=0.30)
 REPORT_LEGEND = dict(loc="lower center", bbox_to_anchor=(0.5, 0.025), ncol=4, fontsize=10)
 # One common envelope covers both ambient sweeps and both ringdown systems.
 REPORT_MODAL_XLIM = (-6.5, 0.005)
-REPORT_MODAL_YLIM = (0.05, 2.05)
+REPORT_MODAL_YLIM = (0.0, 2.0)
 REPORT_MODAL_YTICKS = (0.5, 1.0, 1.5, 2.0)
 _RINGDOWN_STYLE = ContextVar("ringdown_plot_style", default=False)
+
+
+PLOT_TRANSLATION_OVERRIDES = {
+    # Preserve complete names deliberately omitted from the approved CSV.
+    # Longest-match replacement stops generic words such as "Clustering"
+    # from producing mixed-language method names.
+    "Agglomerative Hierarchical Clustering": "Agglomerative Hierarchical Clustering",
+    "Hierarchical Clustering": "Hierarchical Clustering",
+    "Ordering Points To Identify the Clustering Structure": "Ordering Points To Identify the Clustering Structure",
+    "Hierarchical Density-Based Spatial Clustering of Applications with Noise": "Hierarchical Density-Based Spatial Clustering of Applications with Noise",
+    "soft clustering": "soft clustering",
+    "Doubly-Fed Induction Generator": "Doubly-Fed Induction Generator",
+    "Kundur Two-Area 4-Generator Benchmark System": "Kundur Two-Area 4-Generator Benchmark System",
+    "System-Wide Modal Identification (All Generators)": "Χάρτης Ρυθμών (Όλες οι γεννήτριες)",
+    "Modal Identification per Signal": "Ταυτοποίηση Ρυθμών ανά Σήμα",
+    "Modal Analysis": "Ανάλυση Ρυθμών",
+    "Combined Modal Map": "Συνδυασμένος Χάρτης Ρυθμών",
+    "System-Wide Modal Map": "Χάρτης Ρυθμών σε Επίπεδο Συστήματος",
+    "Voltage Modes": "Ρυθμοί Τάσης",
+    "Current Modes": "Ρυθμοί Ρεύματος",
+    "Active Power Modes": "Ρυθμοί Ενεργού Ισχύος",
+    "Reactive Power Modes": "Ρυθμοί Άεργου Ισχύος",
+    "Voltage": "Τάση",
+    "Current": "Ρεύμα",
+    "Active Power": "Ενεργός Ισχύς",
+    "Reactive Power": "Άεργος Ισχύς",
+    "Signals / Markers": "Σήματα / Δείκτες",
+    "Absolute Best Signal Reconstruction (Max $R^2$)": "Βέλτιστη Ανακατασκευή Σήματος (Μέγιστο $R^2$)",
+    "Reconstruction Accuracy": "Ακρίβεια Ανακατασκευής",
+    "Left: Fixed Orders | Right: Adaptive Tau": "Αριστερά: Σταθερές Τάξεις Μοντέλου | Δεξιά: Προσαρμοστικό Tau",
+    "Original (Filtered)": "Αρχικό (Φιλτραρισμένο)",
+    "MP Estimate": "Εκτίμηση MP",
+    "Time (s)": "Χρόνος (s)",
+    "No Data Found": "Δεν Βρέθηκαν Δεδομένα",
+    "No Data": "Χωρίς Δεδομένα",
+    "Modal Frequency/Damping/Energy Map": "Διάγραμμα Συχνότητας, Απόσβεσης και Ενέργειας Ρυθμών",
+    "Screened N4SID Estimates by Order Sweep and Control Area": "Διατηρούμενες Εκτιμήσεις N4SID ανά Σάρωση Τάξεων Μοντέλου και Περιοχή Ελέγχου",
+    "Poles": "Πόλοι",
+    "Pole count": "Πλήθος Πόλων",
+    "$k-Means$ Parameter Optimization Grid": "Πλέγμα Βελτιστοποίησης της Παραμέτρου $k$ για k-Means",
+    "$k-Medoids$ Parameter Optimization Grid": "Πλέγμα Βελτιστοποίησης της Παραμέτρου $k$ για k-Medoids",
+    "$k-Means$ Results": "Αποτελέσματα k-Means",
+    "$k-Medoids$ Results": "Αποτελέσματα k-Medoids",
+    "Elbow Method for $k-Means$ Optimization": "Μέθοδος του Αγκώνα για Βελτιστοποίηση k-Means",
+    "Elbow Method for $k$-Means Optimization": "Μέθοδος του Αγκώνα για Βελτιστοποίηση k-Means",
+    "Elbow-Like Method for $k-Medoids$ Optimization": "Μέθοδος Αγκώνα για Βελτιστοποίηση k-Medoids",
+    "Elbow-Like Method for $k$-Medoids Optimization": "Μέθοδος Αγκώνα για Βελτιστοποίηση k-Medoids",
+    "Optimal Knee Point by Maximum Chord Distance": "Βέλτιστο Σημείο Καμπής βάσει Μέγιστης Απόστασης Χορδής",
+    "Number of clusters (k)": "Αριθμός Συστάδων (k)",
+    "Total Medoid Distance": "Συνολική Απόσταση από Medoids",
+    "OPTICS Parameter Sweep": "Σάρωση Παραμέτρων OPTICS",
+    "Modal Clustering with $k-Means$": "Συσταδοποίηση Ρυθμών με k-Means",
+    "Modal Clustering with $k-Medoids$": "Συσταδοποίηση Ρυθμών με k-Medoids",
+    "Modal Clustering with OPTICS": "Συσταδοποίηση Ρυθμών με OPTICS",
+    "Modal Clustering with DBSCAN": "Συσταδοποίηση Ρυθμών με DBSCAN",
+    "$k$-Means Cluster Map": "Χάρτης Συσταδοποίησης k-Means",
+    "$k$-Medoids Cluster Map": "Χάρτης Συσταδοποίησης k-Medoids",
+    "HDBSCAN Cluster Map": "Χάρτης Συσταδοποίησης HDBSCAN",
+    "Gaussian Mixture Cluster Map": "Χάρτης Συσταδοποίησης Gaussian Mixture",
+    "Agglomerative Cluster Map": "Χάρτης Συσταδοποίησης Agglomerative",
+    "Cluster Map": "Χάρτης Συσταδοποίησης",
+    "Cluster Maps": "Χάρτες Συσταδοποίησης",
+    "Cost": "Κόστος",
+    "full covariance": "πλήρης συνδιακύμανση",
+    "Ward linkage": "σύνδεση Ward",
+    "Reference Modes": "Ρυθμοί αναφοράς",
+    "Reference Mode": "Ρυθμός αναφοράς",
+    "Mode Count": "Πλήθος ρυθμών",
+    "Cluster Means": "Εκπρόσωποι συστάδων",
+    "Cluster Centers": "Εκπρόσωποι συστάδων",
+    "Signal Type": "Τύπος σήματος",
+    "Order Sweeps": "Σαρώσεις τάξεων μοντέλου",
+    "Orders1": "Ομάδα τάξεων 1",
+    "Orders2": "Ομάδα τάξεων 2",
+    "Real Part vs Frequency": "Πραγματικό μέρος έναντι συχνότητας",
+    "Mode Count by Signal Type": "Πλήθος ρυθμών ανά τύπο σήματος",
+    "Mode Count by Method": "Πλήθος ρυθμών ανά μέθοδο",
+    "Noise / filtered estimates": "Θόρυβος / φιλτραρισμένες εκτιμήσεις",
+    "Centroids (cluster colours)": "Centroids (χρώματα συστάδων)",
+    "Medoids (cluster colours)": "Medoids (χρώματα συστάδων)",
+    "Clustered estimates (colours identify clusters)": "Ομαδοποιημένες εκτιμήσεις (τα χρώματα διακρίνουν τις συστάδες)",
+    "Fixed Orders": "Σταθερές τάξεις μοντέλου",
+    "No selected clustering": "Δεν επιλέχθηκε συσταδοποίηση",
+    "Selected cluster maps": "Επιλεγμένοι χάρτες συσταδοποίησης",
+    "Assigned": "Αντιστοίχιση",
+}
+
+
+@lru_cache(maxsize=1)
+def _plot_translation_rules():
+    """Load the terminology approved for visible thesis and plot text."""
+    terminology_path = Path(__file__).resolve().parents[1] / "english_terms_translations.csv"
+    mapping = {}
+    if terminology_path.is_file():
+        with terminology_path.open(encoding="utf-8-sig", newline="") as stream:
+            rows = csv.reader(stream, delimiter=";")
+            next(rows, None)
+            mapping.update({
+                term: replacement[:1].upper() + replacement[1:]
+                for term, replacement in rows
+                if term and replacement
+            })
+    mapping.update(PLOT_TRANSLATION_OVERRIDES)
+    terms = sorted(mapping, key=len, reverse=True)
+    pattern = re.compile(
+        r"(?<![A-Za-z_-])(?:" + "|".join(re.escape(term) for term in terms) + r")(?![A-Za-z_-])",
+        re.IGNORECASE,
+    )
+    return pattern, {term.casefold(): replacement for term, replacement in mapping.items()}
+
+
+def translate_plot_text(value):
+    """Translate approved terms without touching internal data-column names."""
+    if not isinstance(value, str) or not value:
+        return value
+    pattern, mapping = _plot_translation_rules()
+    translated = pattern.sub(lambda match: mapping[match.group(0).casefold()], value)
+    translated = re.sub(
+        r"\bεπιλεγμένο\s+(.*?)χάρτης συσταδοποίησης\b",
+        lambda match: "Επιλεγμένος Χάρτης Συσταδοποίησης"
+        + (f" {match.group(1).strip()}" if match.group(1).strip() else ""),
+        translated,
+        flags=re.IGNORECASE,
+    )
+    return translated
+
+
+def translate_figure_text(fig):
+    """Translate every visible Matplotlib text artist immediately before export."""
+    for text in fig.findobj(Text):
+        translated = translate_plot_text(text.get_text())
+        if translated != text.get_text():
+            text.set_text(translated)
 
 
 @contextmanager
@@ -95,14 +230,15 @@ def _report_legend(fig, axes):
         if legend is None:
             continue
         for handle, label in zip(legend.legend_handles, legend.get_texts()):
-            entries.setdefault(label.get_text(), handle)
+            entries.setdefault(translate_plot_text(label.get_text()), handle)
         legend.remove()
     for ax in axes:
         handles, labels = ax.get_legend_handles_labels()
         for handle, label in zip(handles, labels):
-            if f"{label} (cluster colours)" in entries:
+            translated_label = translate_plot_text(label)
+            if translate_plot_text(f"{label} (cluster colours)") in entries:
                 continue
-            entries.setdefault(label, handle)
+            entries.setdefault(translated_label, handle)
     if entries:
         # Four columns are also used in the ambient selected cluster maps.
         return fig.legend(list(entries.values()), list(entries), **REPORT_LEGEND)
@@ -199,6 +335,39 @@ def finish_ringdown_figure(fig):
                          rowspan * height + (rowspan - 1) * gapy])
     for ax in colorbars:
         ax.set_position([right + 0.035, bottom, 0.025, top - bottom])
+
+    # Greek labels can be wider than their English originals.  If the shared
+    # bottom legend touches any axis label, raise the axes just enough to keep
+    # the two bounding boxes separate while preserving the common top edge.
+    if legend is not None and multi:
+        fig.canvas.draw()
+        renderer = fig.canvas.get_renderer()
+        legend_bbox = legend.get_window_extent(renderer)
+        overlap_px = max(
+            (
+                legend_bbox.y1 - ax.get_tightbbox(renderer).y0
+                if legend_bbox.x1 > ax.get_tightbbox(renderer).x0
+                and legend_bbox.x0 < ax.get_tightbbox(renderer).x1
+                and legend_bbox.y1 > ax.get_tightbbox(renderer).y0
+                else 0
+            )
+            for ax in axes
+        )
+        if overlap_px > 0:
+            bottom += overlap_px / fig.bbox.height + 0.012
+            height = (top - bottom - (nrows - 1) * gapy) / nrows
+            for ax in axes:
+                spec = ax.get_subplotspec()
+                row, col, rowspan, colspan = 0, 0, 1, 1
+                if spec is not None:
+                    row, col = spec.rowspan.start, spec.colspan.start
+                    rowspan, colspan = len(spec.rowspan), len(spec.colspan)
+                ax.set_position([left + col * (width + gapx),
+                                 top - row * (height + gapy) - rowspan * height - (rowspan - 1) * gapy,
+                                 colspan * width + (colspan - 1) * gapx,
+                                 rowspan * height + (rowspan - 1) * gapy])
+            for ax in colorbars:
+                ax.set_position([right + 0.035, bottom, 0.025, top - bottom])
     fig._report_finished = True
 
 
@@ -206,6 +375,7 @@ def save_figure_pair(fig_or_plt, path_base, filename, fixed_canvas=False):
     """One export route for every plot, including diagnostics and statistics."""
     from pathlib import Path
     fig = fig_or_plt.gcf() if fig_or_plt is plt else fig_or_plt
+    translate_figure_text(fig)
     finish_ringdown_figure(fig)
     fixed_canvas = fixed_canvas or using_ringdown_style()
     root = Path(path_base)

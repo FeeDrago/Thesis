@@ -23,8 +23,8 @@ RECON_AXIS_LABEL_SIZE = 34
 # Viewport defaults for other callers; ringdown exports use plot_style's
 # common ambient-based axis limits and locators for all modal panels.
 MODAL_MAP_X_LIMS = (-1.0, 0.02)
-MODAL_MAP_Y_LIMS = (0.0, 2.05)
-MODAL_GRID_Y_LIMS = (0.0, 1.60)
+MODAL_MAP_Y_LIMS = (0.0, 2.0)
+MODAL_GRID_Y_LIMS = (0.0, 2.0)
 MODAL_MAP_X_TICKS = [-1.0, -0.75, -0.5, -0.25, 0.0]
 
 @ringdown_plotting

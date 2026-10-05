@@ -1,6 +1,6 @@
 \chapter{AMBIENT ΑΝΑΛΥΣΗ ΣΤΟ ΣΥΣΤΗΜΑ IEEE 39-BUS ΜΕ ΜΟΝΑΔΕΣ DFIG}
 \section{Τροποποιημένο IEEE 39-Bus και αντικείμενο της ανάλυσης}
-Στο παρόν κεφάλαιο εξετάζεται η \textit{ambient} αναγνώριση ηλεκτρομηχανικών ρυθμών στο τροποποιημένο σύστημα IEEE 39-Bus, στο οποίο οι σύγχρονες γεννήτριες G3, G4 και G5 έχουν αντικατασταθεί από μονάδες διπλά τροφοδοτούμενης επαγωγικής γεννήτριας (\textit{Doubly-Fed Induction Generator} \textendash{} DFIG). Συγκεκριμένα, κάθε σύγχρονη γεννήτρια αντικαταστάθηκε από ισοδύναμο αιολικό πάρκο αποτελούμενο από παράλληλα συνδεδεμένες μονάδες DFIG ονομαστικής ισχύος $2.5$~MW. Το πλήθος των μονάδων και η συνολική εγκατεστημένη ισχύς κάθε ισοδύναμου πάρκου παρουσιάζονται στον Πίνακα~\ref{tab:ambdfig:dfig_count}. Το πλήθος επιλέχθηκε έτσι ώστε η συνολική ισχύς των μονάδων DFIG να προσεγγίζει όσο το δυνατόν περισσότερο την ονομαστική ισχύ της σύγχρονης γεννήτριας που αντικαθίσταται~\cite{digsilent39}.
+Στο παρόν κεφάλαιο εξετάζεται η \textit{ambient} αναγνώριση ηλεκτρομηχανικών ρυθμών στο τροποποιημένο σύστημα IEEE 39-Bus, στο οποίο οι σύγχρονες γεννήτριες G3, G4 και G5 έχουν αντικατασταθεί από μονάδες με επαγωγική γεννήτρια διπλής τροφοδότησης (\textit{Doubly-Fed Induction Generator} \textendash{} DFIG). Συγκεκριμένα, κάθε σύγχρονη γεννήτρια αντικαταστάθηκε από ισοδύναμο αιολικό πάρκο αποτελούμενο από παράλληλα συνδεδεμένες μονάδες DFIG ονομαστικής ισχύος $2.5$~MW. Το πλήθος των μονάδων και η συνολική εγκατεστημένη ισχύς κάθε ισοδύναμου πάρκου παρουσιάζονται στον Πίνακα~\ref{tab:ambdfig:dfig_count}. Το πλήθος επιλέχθηκε έτσι ώστε η συνολική ισχύς των μονάδων DFIG να προσεγγίζει όσο το δυνατόν περισσότερο την ονομαστική ισχύ της σύγχρονης γεννήτριας που αντικαθίσταται~\cite{digsilent39}.
 
 \begin{table}[htbp]
     \centering
@@ -31,19 +31,19 @@ n\in\{2,4,6,\ldots,30\}.
     \label{tab:ambdfig:reference_modes}
     \begin{tabular}{cccccc}
         \toprule
-        \textbf{Mode} &
+        \textbf{ρυθμός ταλάντωσης} &
         \textbf{$f$ [Hz]} &
         \textbf{$\sigma$} &
-        \textbf{Generators} &
-        \textbf{Areas} &
-        \textbf{Type} \\
+        \textbf{γεννήτριες} &
+        \textbf{περιοχές} &
+        \textbf{τύπος} \\
         \midrule
-        Mode 1 & 1.111 & -0.198 & 8, 10 & 1 & Intra-area \\
-        Mode 2 & 1.100 & -0.421 & 1, 2, 6, 7, 9, 10 & 1\textendash{}3 & Inter-area \\
-        Mode 3 & 1.005 & -0.451 & 6, 9 & 1, 3 & Inter-area \\
-        Mode 4 & 0.632 & -0.454 & 1, 6, 7, 9 & 1, 3 & Inter-area \\
-        Mode 5 & 1.423 & -0.697 & 6, 7 & 3 & Intra-area \\
-        Mode 6 & 1.408 & -0.707 & 8, 10 & 1 & Intra-area \\
+        ρυθμός ταλάντωσης 1 & 1.111 & -0.198 & 8, 10 & 1 & Intra-area \\
+        ρυθμός ταλάντωσης 2 & 1.100 & -0.421 & 1, 2, 6, 7, 9, 10 & 1\textendash{}3 & Inter-area \\
+        ρυθμός ταλάντωσης 3 & 1.005 & -0.451 & 6, 9 & 1, 3 & Inter-area \\
+        ρυθμός ταλάντωσης 4 & 0.632 & -0.454 & 1, 6, 7, 9 & 1, 3 & Inter-area \\
+        ρυθμός ταλάντωσης 5 & 1.423 & -0.697 & 6, 7 & 3 & Intra-area \\
+        ρυθμός ταλάντωσης 6 & 1.408 & -0.707 & 8, 10 & 1 & Intra-area \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -54,13 +54,13 @@ n\in\{2,4,6,\ldots,30\}.
 \section{Screened Εκτιμήσεις N4SID και Χάρτες Συσταδοποίησης}
 Για το τροποποιημένο σύστημα IEEE 39-Bus, όπως αναφέρθηκε και προηγουμένως, ο αλγόριθμος N4SID εφαρμόστηκε μόνο στην πρώτη ομάδα τάξεων (\texttt{orders1}), η οποία παρουσίασε καλύτερη συνολική απόδοση. Η προεπεξεργασία, το screening και η διαδικασία ρύθμισης των αλγορίθμων παραμένουν ίδια με το Κεφάλαιο~\ref{chap:ambient-analysis}.
 
-\subsection{Screened εκτιμήσεις}
+\subsection{Διατηρούμενες εκτιμήσεις}
 Μετά την εφαρμογή των κριτηρίων της Ενότητας~\ref{amb:preprocessing}, προέκυψαν 1324 εκτιμήσεις, πλήθος κοντά στις 1397 διατηρούμενες εκτιμήσεις της πρώτης ομάδας τάξεων στο συμβατικό IEEE 39-Bus. Από αυτές, οι 550 ανήκουν στην Περιοχή~1, οι 231 στην Περιοχή~2 και οι 543 στην Περιοχή~3. Παρόμοια με το συμβατικό σύστημα, οι εκτιμήσεις του N4SID συγκεντρώνονται κοντά στις συχνότητες των ρυθμών αναφοράς, με μεγάλη διασπορά όμως στον άξονα της απόσβεσης. Η κατανομή τους στο επίπεδο $(\sigma, f)$ παρουσιάζεται στο Σχήμα~\ref{fig:ambdfig:screened_estimates}.
 
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=\textwidth]{IEEE39/analysis/AmbientDFIG_Mag0.1_T600s_dt10ms_seed1997/plots/pdf/screened_modal_maps_orders1_3x1_grid.pdf}
-    \caption{Screened εκτιμήσεις N4SID της ομάδας τάξεων \texttt{orders1} ανά περιοχή ελέγχου για το τροποποιημένο σύστημα IEEE 39-Bus με μονάδες DFIG. Οι ρόμβοι αντιστοιχούν στους ρυθμούς αναφοράς του \textit{PowerFactory}.}
+    \caption{Διατηρούμενες εκτιμήσεις N4SID της ομάδας τάξεων \texttt{orders1} ανά περιοχή ελέγχου για το τροποποιημένο σύστημα IEEE 39-Bus με μονάδες DFIG. Οι ρόμβοι αντιστοιχούν στους ρυθμούς αναφοράς του \textit{PowerFactory}.}
     \label{fig:ambdfig:screened_estimates}
 \end{figure}
 \FloatBarrier
@@ -130,7 +130,7 @@ n\in\{2,4,6,\ldots,30\}.
     \label{tab:ambdfig:dbscan-tuning}
     \begin{tabular}{ccccccc}
         \toprule
-        Περιοχή & $p_e$ & $p_m$ & $N_{\mathrm{pts}}$ & Clusters & Noise [\%] & Silhouette \\
+        Περιοχή & $p_e$ & $p_m$ & $N_{\mathrm{pts}}$ & συστάδες & θόρυβος [\%] & Silhouette \\
         \midrule
         1 & 0.060 & 0.35 & 42 & 3 & 47.1 & 0.833 \\
         2 & 0.060 & 0.35 & 21 & 3 & 53.2 & 0.870 \\
@@ -156,7 +156,7 @@ n\in\{2,4,6,\ldots,30\}.
     \label{tab:ambdfig:optics-tuning}
     \begin{tabular}{ccccccc}
         \toprule
-        Περιοχή & $p_m$ & \texttt{xi} & \texttt{min\_samples} & Clusters & Noise [\%] & Silhouette \\
+        Περιοχή & $p_m$ & \texttt{xi} & \texttt{min\_samples} & συστάδες & θόρυβος [\%] & Silhouette \\
         \midrule
         1 & 0.30 & 0.02 & 36 & 5 & 47.1 & 0.769 \\
         2 & 0.40 & 0.05 & 24 & 4 & 29.9 & 0.779 \\
@@ -183,7 +183,7 @@ n\in\{2,4,6,\ldots,30\}.
     \resizebox{\textwidth}{!}{%
     \begin{tabular}{cccccccc}
         \toprule
-        Περιοχή & $p_e$ & $p_m$ & \texttt{min\_cluster\_size} & Method & Clusters & Noise [\%] & Silhouette \\
+        Περιοχή & $p_e$ & $p_m$ & \texttt{min\_cluster\_size} & μέθοδος & συστάδες & θόρυβος [\%] & Silhouette \\
         \midrule
         1 & 0.010 & 0.25 & 30 & eom  & 5 & 26.2 & 0.768 \\
         2 & 0.010 & 0.35 & 21 & eom  & 4 & 37.7 & 0.831 \\
@@ -210,7 +210,7 @@ n\in\{2,4,6,\ldots,30\}.
     \label{tab:ambdfig:gmm-tuning}
     \begin{tabular}{cccccc}
         \toprule
-        Περιοχή & $k$ & BIC & \makecell{Silhouette\\(tuning)} & \makecell{Τελικές\\συστάδες} & \makecell{Τελικό\\silhouette} \\
+        Περιοχή & $k$ & BIC & \makecell{Silhouette\\(ρύθμιση υπερπαραμέτρων)} & \makecell{Τελικές\\συστάδες} & \makecell{Τελικό\\silhouette} \\
         \midrule
         1 & 10 & 2776.00 & 0.486 & 8 & 0.651 \\
         2 & 10 & 1181.08 & 0.511 & 6 & 0.717 \\
@@ -237,7 +237,7 @@ n\in\{2,4,6,\ldots,30\}.
     \resizebox{\textwidth}{!}{%
     \begin{tabular}{ccccccc}
         \toprule
-        Περιοχή & $p_e$ & Linkage & \makecell{Clusters\\(tuning)} & \makecell{Silhouette\\(tuning)} & \makecell{Τελικές\\συστάδες} & \makecell{Τελικό\\silhouette} \\
+        Περιοχή & $p_e$ & Linkage & \makecell{συστάδες\\(ρύθμιση υπερπαραμέτρων)} & \makecell{Silhouette\\(ρύθμιση υπερπαραμέτρων)} & \makecell{Τελικές\\συστάδες} & \makecell{Τελικό\\silhouette} \\
         \midrule
         1 & 0.34 & average & 8  & 0.620 & 6  & 0.623 \\
         2 & 0.15 & average & 19 & 0.622 & 13 & 0.640 \\
@@ -266,11 +266,11 @@ n\in\{2,4,6,\ldots,30\}.
 \begin{longtable}{ccccccc}
 \caption{Μετρικές συνοχής και κάλυψης της επιλεγμένης λύσης.}\label{tab:ambdfig:silhouette-coverage}\\
 \toprule
-Περ. & \makecell{Ref.\\modes} & Μέθοδος & Clusters & \makecell{Αποκλει-\\σμένοι} & \makecell{Assigned\\(\%)} & Silhouette \\
+Περ. & \makecell{Ρυθμοί\\αναφοράς} & Μέθοδος & συστάδες & \makecell{Αποκλει-\\σμένοι} & \makecell{Αντιστοίχιση\\(\%)} & Silhouette \\
 \midrule
 \endfirsthead
 \toprule
-Περ. & \makecell{Ref.\\modes} & Μέθοδος & Clusters & \makecell{Αποκλει-\\σμένοι} & \makecell{Assigned\\(\%)} & Silhouette \\
+Περ. & \makecell{Ρυθμοί\\αναφοράς} & Μέθοδος & συστάδες & \makecell{Αποκλει-\\σμένοι} & \makecell{Αντιστοίχιση\\(\%)} & Silhouette \\
 \midrule
 \endhead
 \endfoot
@@ -305,7 +305,7 @@ n\in\{2,4,6,\ldots,30\}.
 Για τη συμφωνία των συστάδων με τους ρυθμούς αναφοράς χρησιμοποιήθηκαν οι δείκτες V-measure και Adjusted Rand Index (ARI), όπως και στο συμβατικό σύστημα. Οι τιμές τους παρουσιάζονται στον Πίνακα~\ref{tab:ambdfig:v-measure_ari}. Οι μηδενικές τιμές και των δύο μετρικών στην Περιοχή~2 οφείλονται στο γεγονός ότι υπάρχει μόνο ένας ρυθμός αναφοράς. Στην Περιοχή~1, ο DBSCAN παρουσιάζει τη μεγαλύτερη τιμή και για τους δύο δείκτες, ενώ στην Περιοχή~3 δεν υπάρχει ξεκάθαρος νικητής, αφού ο HDBSCAN παρουσιάζει τη μέγιστη τιμή V-measure, ενώ ο GMM τη μέγιστη τιμή ARI.
 
 \begin{longtable}{cccc}
-\caption{Συμφωνία της επιλεγμένης συσταδοποίησης με τα τοπικά reference labels.}\label{tab:ambdfig:v-measure_ari}\\
+\caption{Συμφωνία της επιλεγμένης συσταδοποίησης με τις τοπικές ετικέτες αναφοράς.}\label{tab:ambdfig:v-measure_ari}\\
 \toprule
 Περιοχή & Μέθοδος & V-measure & ARI \\
 \midrule
@@ -348,16 +348,17 @@ n\in\{2,4,6,\ldots,30\}.
 
 \begin{table}[htbp]
     \centering
-    \caption{Αναλυτικές τιμές MAD ανά περιοχή ελέγχου για το πρώτο order sweep (orders1).}
+    \caption{Αναλυτικές τιμές MAD ανά περιοχή ελέγχου για την πρώτη σάρωση τάξεων μοντέλου (Ομάδα τάξεων 1).}
     \label{tab:ambdfig:mad}
     \footnotesize
     \setlength{\tabcolsep}{6.5pt}
     \renewcommand{\arraystretch}{1.08}
 
     \textbf{Περιοχή 1}\\[0.3em]
+    \resizebox{\textwidth}{!}{%
     \begin{tabular}{lccccc}
         \toprule
-        Μέθοδος & Mode 1 & Mode 2 & Mode 3 & Mode 4 & Mode 6 \\
+        Μέθοδος & ρυθμός ταλάντωσης 1 & ρυθμός ταλάντωσης 2 & ρυθμός ταλάντωσης 3 & ρυθμός ταλάντωσης 4 & ρυθμός ταλάντωσης 6 \\
         \midrule
         k-Means   & \textemdash{} & \textemdash{} & \textemdash{} & 281 / 0.508 & 269 / 1.855 \\
         k-Medoids & \textemdash{} & 114 / 0.412 & \textemdash{} & 272 / 0.481 & 164 / 1.098 \\
@@ -368,12 +369,13 @@ n\in\{2,4,6,\ldots,30\}.
         AHC       & \textemdash{} & 103 / 0.396 & \textemdash{} & 271 / 0.480 & 174 / 1.255 \\
         \bottomrule
     \end{tabular}
+    }
 
     \vspace{0.8em}
     \textbf{Περιοχή 2}\\[0.3em]
     \begin{tabular}{lc}
         \toprule
-        Μέθοδος & Mode 2 \\
+        Μέθοδος & ρυθμός ταλάντωσης 2 \\
         \midrule
         k-Means   & 231 / 2.938 \\
         k-Medoids & 231 / 2.938 \\
@@ -389,7 +391,7 @@ n\in\{2,4,6,\ldots,30\}.
     \textbf{Περιοχή 3}\\[0.3em]
     \begin{tabular}{lcccc}
         \toprule
-        Μέθοδος & Mode 2 & Mode 3 & Mode 4 & Mode 5 \\
+        Μέθοδος & ρυθμός ταλάντωσης 2 & ρυθμός ταλάντωσης 3 & ρυθμός ταλάντωσης 4 & ρυθμός ταλάντωσης 5 \\
         \midrule
         k-Means   & 164 / 0.596 & \textemdash{} & 241 / 0.491 & 138 / 2.076 \\
         k-Medoids & 164 / 0.596 & \textemdash{} & 241 / 0.491 & 138 / 2.076 \\
