@@ -48,6 +48,7 @@ AMBIENT_LOW_PASS_HZ = 5.0
 AMBIENT_RANDOM_SEED = 1997
 AMBIENT_EXPORT_MODAL_CSVS = True
 ELECTROMECHANICAL_PRIMARY_GENERATOR_RATIO = 0.10
+ELECTROMECHANICAL_PRIMARY_GENERATOR_RATIO_DFIG = 0.04
 # A classical rotor-angle mode must be dominated by the synchronous-machine
 # mechanical states when their participation is compared with *all* system
 # states, not only with the other selected ElmSym states.
@@ -715,12 +716,12 @@ def _generator_to_area(generator_name):
     return None
 
 
-def _build_report_generators(dominant_generators):
+def _build_report_generators(dominant_generators, primary_generator_ratio):
     if not dominant_generators:
         return [], None
 
     top_generator_participation = float(dominant_generators[0][1])
-    primary_threshold = ELECTROMECHANICAL_PRIMARY_GENERATOR_RATIO * top_generator_participation
+    primary_threshold = primary_generator_ratio * top_generator_participation
     report_generators = [
         name for name, value in dominant_generators
         if value > 0.0 and (top_generator_participation <= 0.0 or value >= primary_threshold)
@@ -739,7 +740,7 @@ def _build_report_generators(dominant_generators):
     return report_generators, second_generator_ratio
 
 
-def summarize_ambient_electromechanical_modes(modal_dir):
+def summarize_ambient_electromechanical_modes(modal_dir, ambient_variant="classic"):
     modal_dir = Path(modal_dir)
     eigenvalues_path = modal_dir / "eigenvalues.csv"
     participation_path = modal_dir / "participation_factors.csv"
@@ -862,12 +863,31 @@ def summarize_ambient_electromechanical_modes(modal_dir):
             dominant_generators = sorted(generator_scores.items(), key=lambda item: (-item[1], item[0]))
             all_participating_generators = [name for name, value in dominant_generators if value > 0.0]
             top_generator_participation = float(dominant_generators[0][1]) if dominant_generators else 0.0
-            primary_threshold = ELECTROMECHANICAL_PRIMARY_GENERATOR_RATIO * top_generator_participation
+            baseline_threshold = ELECTROMECHANICAL_PRIMARY_GENERATOR_RATIO * top_generator_participation
+            baseline_areas = {
+                _generator_to_area(name)
+                for name, value in dominant_generators
+                if value > 0.0 and value >= baseline_threshold
+            }
+            baseline_areas.discard(None)
+            # In the DFIG case, retain the 10% criterion for local modes so
+            # weak participation does not make them appear in another area.
+            # The lower threshold only expands modes already identified as
+            # inter-area by the common 10% criterion.
+            primary_generator_ratio = (
+                ELECTROMECHANICAL_PRIMARY_GENERATOR_RATIO_DFIG
+                if ambient_variant == "dfig" and len(baseline_areas) >= 2
+                else ELECTROMECHANICAL_PRIMARY_GENERATOR_RATIO
+            )
+            primary_threshold = primary_generator_ratio * top_generator_participation
             participating_generators = [
                 name for name, value in dominant_generators
                 if value > 0.0 and (top_generator_participation <= 0.0 or value >= primary_threshold)
             ]
-            report_generators, second_generator_ratio = _build_report_generators(dominant_generators)
+            report_generators, second_generator_ratio = _build_report_generators(
+                dominant_generators,
+                primary_generator_ratio,
+            )
             participating_areas = []
             seen_areas = set()
             for generator_name in participating_generators:
@@ -916,7 +936,7 @@ def summarize_ambient_electromechanical_modes(modal_dir):
                 "MainGeneratorAreas": "; ".join(report_areas),
                 "TopGenerator": dominant_generators[0][0] if dominant_generators else None,
                 "TopGeneratorParticipation": top_generator_participation,
-                "PrimaryGeneratorThresholdRatio": ELECTROMECHANICAL_PRIMARY_GENERATOR_RATIO,
+                "PrimaryGeneratorThresholdRatio": primary_generator_ratio,
             })
 
     summary_fieldnames = [
@@ -985,7 +1005,7 @@ def summarize_ambient_electromechanical_modes(modal_dir):
     ]
 
 
-def export_ambient_modal_analysis_csvs(app, scenario_dir):
+def export_ambient_modal_analysis_csvs(app, scenario_dir, ambient_variant="classic"):
     modal_dir = scenario_dir / "modal"
     modal_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1041,7 +1061,7 @@ def export_ambient_modal_analysis_csvs(app, scenario_dir):
             except OSError:
                 pass
 
-    exported.extend(summarize_ambient_electromechanical_modes(modal_dir))
+    exported.extend(summarize_ambient_electromechanical_modes(modal_dir, ambient_variant))
 
     reset_calculation_if_possible(app)
     return exported
@@ -1592,7 +1612,11 @@ def run_ambient_scenario(
         run_load_flow_initial_conditions_and_rms(app, sim_stop_time_s, sim_step_ms)
         config["csv_files"] = export_results_fast_and_split(app, elmres, generators, scenario_dir, schema)
         if AMBIENT_EXPORT_MODAL_CSVS:
-            config["modal_analysis_csvs"] = export_ambient_modal_analysis_csvs(app, scenario_dir)
+            config["modal_analysis_csvs"] = export_ambient_modal_analysis_csvs(
+                app,
+                scenario_dir,
+                ambient_variant,
+            )
         config["status"] = "OK"
         write_scenario_json(scenario_dir, config)
         return config
@@ -1799,7 +1823,7 @@ def refresh_existing_ambient_modal_summaries(args):
             default_prefix=default_prefix,
         )
         modal_dir = results_root / scenario_name / "modal"
-        summarize_ambient_electromechanical_modes(modal_dir)
+        summarize_ambient_electromechanical_modes(modal_dir, variant)
 
         filtered_path = modal_dir / "electromechanical_modes_stable_oscillatory.csv"
         with filtered_path.open(newline="", encoding="utf-8") as handle:
