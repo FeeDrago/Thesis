@@ -2158,6 +2158,7 @@ def save_area_order_clustering_grids(
         fig, axes = plt.subplots(
             nrows, 3, figsize=figure_size, sharex=True, sharey=True, squeeze=False,
         )
+        fig._subplot_labels_below_titles = True
         for row_index, order_group in enumerate(order_group_names):
             for col_index, area_name in enumerate(area_names):
                 ax = axes[row_index, col_index]
@@ -2175,7 +2176,7 @@ def save_area_order_clustering_grids(
                     )
                 if row_index == 0:
                     ax.set_title(
-                        area_name.replace("_", " ").title(),
+                        f"Περιοχή {str(area_name).split('_')[-1]}",
                         fontsize=AREA_ORDER_GRID_PANEL_TITLE_FONTSIZE,
                         fontweight="bold",
                     )

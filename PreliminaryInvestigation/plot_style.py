@@ -11,6 +11,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from functools import lru_cache, wraps
 import textwrap
+from string import ascii_lowercase
 from matplotlib.text import Text
 from matplotlib.ticker import FuncFormatter, FixedLocator, NullLocator, MaxNLocator
 
@@ -70,6 +71,13 @@ PLOT_TRANSLATION_OVERRIDES = {
     "Doubly-Fed Induction Generator": "Doubly-Fed Induction Generator",
     "Kundur Two-Area 4-Generator Benchmark System": "Kundur Two-Area 4-Generator Benchmark System",
     "System-Wide Modal Identification (All Generators)": "Χάρτης Ρυθμών (Όλες οι γεννήτριες)",
+    "Damping (Sigma) [rad/s]": r"Απόσβεση ($\sigma$) [rad/s]",
+    r"Damping ($\sigma$)": r"Απόσβεση ($\sigma$)",
+    "Frequency [Hz]": "Συχνότητα [Hz]",
+    "Generator": "Γεννήτρια",
+    "Method": "Μέθοδος",
+    "Order": "Τάξη μοντέλου",
+    "Tau": "Ανοχή τ",
     "Modal Identification per Signal": "Ταυτοποίηση Ρυθμών ανά Σήμα",
     "Modal Analysis": "Ανάλυση Ρυθμών",
     "Combined Modal Map": "Συνδυασμένος Χάρτης Ρυθμών",
@@ -93,7 +101,7 @@ PLOT_TRANSLATION_OVERRIDES = {
     "No Data": "Χωρίς Δεδομένα",
     "Modal Frequency/Damping/Energy Map": "Διάγραμμα Συχνότητας, Απόσβεσης και Ενέργειας Ρυθμών",
     "Screened N4SID Estimates by Order Sweep and Control Area": "Διατηρούμενες Εκτιμήσεις N4SID ανά Σάρωση Τάξεων Μοντέλου και Περιοχή Ελέγχου",
-    "Poles": "Πόλοι",
+    "Poles": "Ρυθμοί",
     "Pole count": "Πλήθος Πόλων",
     "$k-Means$ Parameter Optimization Grid": "Πλέγμα Βελτιστοποίησης της Παραμέτρου $k$ για k-Means",
     "$k-Medoids$ Parameter Optimization Grid": "Πλέγμα Βελτιστοποίησης της Παραμέτρου $k$ για k-Medoids",
@@ -189,6 +197,38 @@ def translate_figure_text(fig):
         translated = translate_plot_text(text.get_text())
         if translated != text.get_text():
             text.set_text(translated)
+
+
+def add_subplot_labels(fig):
+    """Prefix every subplot title in a multi-panel figure with (a), (b), ...
+
+    Colorbar axes are deliberately excluded.  Existing prefixes are stripped
+    first so that saving the same figure again does not duplicate the labels.
+    """
+    axes = [
+        ax for ax in fig.axes
+        if ax.axison
+        and ax.get_label() != "<colorbar>"
+        and ax.get_subplotspec() is not None
+    ]
+    if len(axes) < 2:
+        return
+
+    # Some grids only assign textual titles to their first row.  Empty title
+    # artists can retain Matplotlib's larger default size, so adding (d), (e),
+    # ... to them would make the second row visually inconsistent.
+    panel_title_size = min(ax.title.get_fontsize() for ax in axes)
+    for index, ax in enumerate(axes):
+        # Thesis figures currently contain at most 16 panels.  Keeping the
+        # alphabet explicit also makes the intended a, b, c, ... convention
+        # immediately clear at the export point.
+        label = ascii_lowercase[index]
+        title = re.sub(r"^\([a-z]+\)\s*", "", ax.get_title())
+        if getattr(fig, "_subplot_labels_below_titles", False) and title:
+            ax.title.set_text(f"{title}\n({label})")
+        else:
+            ax.title.set_text(f"({label}) {title}".rstrip())
+        ax.title.set_fontsize(panel_title_size)
 
 
 @contextmanager
@@ -318,6 +358,8 @@ def finish_ringdown_figure(fig):
     # sizes with the number/length of legend entries.
     left, right = REPORT_MARGINS["left"], REPORT_MARGINS["right"]
     bottom, top = ((0.30 if nrows == 1 else 0.14), 0.90) if multi else (0.30, 0.88)
+    if getattr(fig, "_subplot_labels_below_titles", False):
+        top = 0.86
     if colorbars:
         left, right = (0.30, 0.82) if getattr(axes[0], "_report_kind", None) == "bubble" else (0.16, 0.80)
     gapx, gapy = (0.16 * min(1, 2 / ncols) if multi else 0), (0.075 if multi else 0)
@@ -377,6 +419,7 @@ def save_figure_pair(fig_or_plt, path_base, filename, fixed_canvas=False):
     fig = fig_or_plt.gcf() if fig_or_plt is plt else fig_or_plt
     translate_figure_text(fig)
     finish_ringdown_figure(fig)
+    add_subplot_labels(fig)
     fixed_canvas = fixed_canvas or using_ringdown_style()
     root = Path(path_base)
     for extension in ("pdf", "png"):

@@ -9,7 +9,8 @@ from matplotlib.ticker import FixedLocator
 
 from plot_style import (
     style_axis, SIGNAL_COLORS, save_figure_pair,
-    using_ringdown_style, set_report_modal_axes, POINT_SIZE, POINT_ALPHA,
+    using_ringdown_style, set_report_modal_axes, translate_plot_text,
+    POINT_SIZE, POINT_ALPHA,
 )
 
 
@@ -760,7 +761,9 @@ def plot_bubble_map(df_results, output_dir, filename, source_builder=None, min_h
 
     counts = plot_df.groupby("Src").size().reset_index(name="Count")
     plot_df = plot_df.merge(counts, on="Src")
-    plot_df["Src"] = plot_df["Src"] + " | Poles: " + plot_df["Count"].astype(str)
+    plot_df["Src"] = (
+        plot_df["Src"] + " | Poles: " + plot_df["Count"].astype(str)
+    ).map(translate_plot_text)
     omega = 2 * np.pi * plot_df["Frequency"]
     plot_df["Energy"] = 0.5 * (omega ** 2) * (plot_df["Amplitude"] ** 2)
     norm_energy = (plot_df["Energy"] - plot_df["Energy"].min()) / (
