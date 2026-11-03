@@ -47,7 +47,7 @@
         \textbf{ρυθμός ταλάντωσης} & \textbf{$f$ [Hz]} & \textbf{$\sigma$} & \textbf{γεννήτριες} & \textbf{περιοχές} & \textbf{τύπος} \\
         \midrule
         ρυθμός ταλάντωσης 1 & 1.110 & -0.193 & 8, 10& 1 & Intra-area \\
-        ρυθμός ταλάντωσης 2 & 0.611 & -0.385 & 1, 5, 6, 9 & 1$-$3 & Inter-area \\
+        ρυθμός ταλάντωσης 2 & 0.611 & -0.385 & 1, 5, 6, 9 & 1, 3 & Inter-area \\
         ρυθμός ταλάντωσης 3 & 1.049 & -0.399 & 1$-$7, 10 & 1$-$3 & Inter-area \\
         ρυθμός ταλάντωσης 4 & 0.968 & -0.464 & 5, 9 & 1, 3 & Inter-area \\
         ρυθμός ταλάντωσης 5 & 1.196 & -0.465 & 2, 3 & 2 & Intra-area \\
@@ -85,19 +85,34 @@ $(\sigma,f)$, ώστε η συχνότητα να εκφράζεται σε Hz �
 \textenglish{\textit{HDBSCAN}}), το $N_{\mathrm{pts}}$ και, ειδικά για τους \textenglish{\textit{DBSCAN}} και \textenglish{\textit{HDBSCAN}}, η παράμετρος $\epsilon$
 υπολογίστηκαν σύμφωνα με τη διαδικασία της
 \cite{sfetkos2024measurement}:
-\[
+\begin{equation}
 \epsilon =
 \frac{p_e}{2}
 \sqrt{(\sigma_{\max}-\sigma_{\min})^2+
-    (\omega_{\max}-\omega_{\min})^2},
-\]
-\[
+    (\omega_{\max}-\omega_{\min})^2}.
+\label{eq:amb:epsilon-scaling}
+\end{equation}
+\begin{equation}
 N_{\mathrm{pts}}=
-\max\left(2,\left\lceil p_m N_s|n|\right\rceil\right),
-\]
+\max\left(2,\left\lceil p_m N_s|n|\right\rceil\right).
+\label{eq:amb:npts-scaling}
+\end{equation}
 όπου $N_s$ είναι το πλήθος των συνδυασμών γεννήτριας$-$σήματος στην
 εξεταζόμενη περιοχή ελέγχου και $|n|$ το πλήθος των τάξεων μοντέλου του
-αντίστοιχου sweep. Τα πλέγματα υπερπαραμέτρων που χρησιμοποιήθηκαν
+αντίστοιχου sweep. Οι συντελεστές $p_e$ και $p_m$ δεν αποτελούν άμεσες
+υπερπαραμέτρους των αλγορίθμων, αλλά χρησιμοποιούνται για τον προσαρμοστικό
+υπολογισμό των αντίστοιχων ρυθμίσεων με βάση το εύρος και το πλήθος των
+διαθέσιμων εκτιμήσεων. Ειδικότερα, μέσω της~\eqref{eq:amb:epsilon-scaling},
+ο $p_e$ καθορίζει την τιμή της $\epsilon$, η οποία χρησιμοποιείται ως
+\texttt{eps} στον \textenglish{\textit{DBSCAN}}, ως
+\texttt{cluster\_selection\_epsilon} στον \textenglish{\textit{HDBSCAN}}
+και ως \texttt{distance\_threshold} στην AHC. Αντίστοιχα, μέσω
+της~\eqref{eq:amb:npts-scaling}, ο $p_m$ καθορίζει το $N_{\mathrm{pts}}$,
+το οποίο χρησιμοποιείται ως \texttt{min\_samples} στους
+\textenglish{\textit{DBSCAN}} και \textenglish{\textit{OPTICS}} και ως
+\texttt{min\_cluster\_size} στον \textenglish{\textit{HDBSCAN}}.
+
+Τα πλέγματα υπερπαραμέτρων που χρησιμοποιήθηκαν
 παρουσιάζονται συγκεντρωτικά στον Πίνακα~\ref{tab:amb:hyperparameter-grids},
 όπου $N$ είναι το πλήθος των διαθέσιμων διατηρούμενων εκτιμήσεων. Τα ίδια
 πλέγματα εφαρμόστηκαν και στις δύο σαρώσεις τάξεων μοντέλου.
